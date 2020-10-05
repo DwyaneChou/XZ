@@ -1,0 +1,8 @@
+
+*.nc
+build/*
+*.mod
+*.exe
+*.png
+*.grib2
+*.o
