@@ -367,5 +367,42 @@ MODULE spatial_operators_mod
       
     end function calc_H
     
+    function calc_eigenvalue_x(sqrtG,q)
+      real(r_kind),dimension(5) :: calc_eigenvalue_x
+      real(r_kind)              :: sqrtG
+      real(r_kind),dimension(5) :: q(5)
+      
+      real(r_kind) w1
+      real(r_kind) w2
+      real(r_kind) w3
+      real(r_kind) w4
+      real(r_kind) w5
+      
+      w1 = q(1)
+      w2 = q(2)
+      w3 = q(3)
+      w4 = q(4)
+      w5 = q(5)
+      
+      real coef1,coef2,coef3
+      
+      coef1 = cvv**2 * w1**2 * w2 * w4 * w5**2                             &
+            + cvv**2 * eq * w1 * w2 * w4 * w5**3                           &
+            + cvd**2 * w1 * w2 * w4 * (w1 - w5)**2 * (w1 + eq*w5)          &
+            + 2. * cvd * cvv * w1 * w2 * w4 * (w1 - w5) * w5 * (w1 + eq*w5)
+      
+      coef2 = sqrt( Rd * w1**2 * w4**3 * ( cpd * (w1 - w5) + cpv * w5 ) * ( cvd * (w1 - w5) + cvv * w5 )**3 ( w1 + eq * w5 )**3 * ( ( Rd * w4 * ( w1 + eq * w5 ) )&
+                  / ( sqrtG * p0 * w1 ) )**( -1. + ( cpd * w1 - cpd * w5 + cpv * w5 ) / ( cvd * w1 - cvd * w5 + cvv * w5 ) ) )
+      
+      coef3 = w1**2 * w4 * ( cvd*( w1 - w5 ) + cvv * w5 )**2 ( w1 + eq * w5 )
+      
+      calc_eigenvalue_x(1) = w2 / w1
+      calc_eigenvalue_x(2) = w2 / w1
+      calc_eigenvalue_x(3) = w2 / w1
+      calc_eigenvalue_x(4) = ( coef1 + coef2 ) / coef3
+      calc_eigenvalue_x(5) = ( coef1 - coef2 ) / coef3
+      
+    end function calc_eigenvalue_x
+    
 END MODULE spatial_operators_mod
 
