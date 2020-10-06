@@ -15,6 +15,7 @@ module io_mod
       
       integer nx_dimid
       integer nz_dimid
+      integer time_dimid
       
       integer x_id
       integer z_id
@@ -39,8 +40,9 @@ module io_mod
       status = nf90_create(trim(stat_output_file), NF90_CLOBBER + NF90_64BIT_OFFSET , ncid)
       if(status/=nf90_noerr) call handle_err(status)
       
-      status = nf90_def_dim(ncid,'nx', nx, nx_dimid)
-      status = nf90_def_dim(ncid,'nz', nz, nz_dimid)
+      status = nf90_def_dim(ncid,'nx'  , nx            , nx_dimid  )
+      status = nf90_def_dim(ncid,'nz'  , nz            , nz_dimid  )
+      status = nf90_def_dim(ncid,'time', NF90_UNLIMITED, time_dimid)
       if(status/=nf90_noerr) call handle_err(status)
       
       status = nf90_put_att(ncid,nf90_global, 'case_num' , case_num   )
@@ -54,13 +56,13 @@ module io_mod
       status = nf90_def_var(ncid,'sqrtG',NF90_DOUBLE,(/nx_dimid,nz_dimid/),sqrtG_id )
       status = nf90_def_var(ncid,'G13'  ,NF90_DOUBLE,(/nx_dimid,nz_dimid/),G13_id   )
       
-      status = nf90_def_var(ncid,'rho'  ,NF90_DOUBLE,(/nx_dimid,nz_dimid/),rho_id   )
-      status = nf90_def_var(ncid,'u'    ,NF90_DOUBLE,(/nx_dimid,nz_dimid/),u_id     )
-      status = nf90_def_var(ncid,'w'    ,NF90_DOUBLE,(/nx_dimid,nz_dimid/),w_id     )
-      status = nf90_def_var(ncid,'theta',NF90_DOUBLE,(/nx_dimid,nz_dimid/),theta_id )
-      status = nf90_def_var(ncid,'q'    ,NF90_DOUBLE,(/nx_dimid,nz_dimid/),q_id     )
-      status = nf90_def_var(ncid,'p'    ,NF90_DOUBLE,(/nx_dimid,nz_dimid/),p_id     )
-      status = nf90_def_var(ncid,'T'    ,NF90_DOUBLE,(/nx_dimid,nz_dimid/),T_id     )
+      status = nf90_def_var(ncid,'rho'  ,NF90_DOUBLE,(/nx_dimid,nz_dimid,time_dimid/),rho_id   )
+      status = nf90_def_var(ncid,'u'    ,NF90_DOUBLE,(/nx_dimid,nz_dimid,time_dimid/),u_id     )
+      status = nf90_def_var(ncid,'w'    ,NF90_DOUBLE,(/nx_dimid,nz_dimid,time_dimid/),w_id     )
+      status = nf90_def_var(ncid,'theta',NF90_DOUBLE,(/nx_dimid,nz_dimid,time_dimid/),theta_id )
+      status = nf90_def_var(ncid,'q'    ,NF90_DOUBLE,(/nx_dimid,nz_dimid,time_dimid/),q_id     )
+      status = nf90_def_var(ncid,'p'    ,NF90_DOUBLE,(/nx_dimid,nz_dimid,time_dimid/),p_id     )
+      status = nf90_def_var(ncid,'T'    ,NF90_DOUBLE,(/nx_dimid,nz_dimid,time_dimid/),T_id     )
       
       if(status/=nf90_noerr) call handle_err(status)
       

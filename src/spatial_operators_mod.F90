@@ -21,6 +21,23 @@ MODULE spatial_operators_mod
   integer(i_kind) :: kcs
   integer(i_kind) :: kce
   
+  integer(i_kind) :: ils
+  integer(i_kind) :: ile
+  integer(i_kind) :: kls
+  integer(i_kind) :: kle
+  integer(i_kind) :: irs
+  integer(i_kind) :: ire
+  integer(i_kind) :: krs
+  integer(i_kind) :: kre
+  integer(i_kind) :: ibs
+  integer(i_kind) :: ibe
+  integer(i_kind) :: kbs
+  integer(i_kind) :: kbe
+  integer(i_kind) :: its
+  integer(i_kind) :: ite
+  integer(i_kind) :: kts
+  integer(i_kind) :: kte
+  
   real(r_kind), dimension(:,:,:), allocatable :: q_ext ! Extended forecast variables
   real(r_kind), dimension(:,:,:), allocatable :: qL    ! Reconstructed q_(i-1/2,k)
   real(r_kind), dimension(:,:,:), allocatable :: qR    ! Reconstructed q_(i+1/2,k)
@@ -42,8 +59,16 @@ MODULE spatial_operators_mod
   real(r_kind), dimension(:,:  ), allocatable :: PB    ! Reconstructed P_(i,k-1/2)
   real(r_kind), dimension(:,:  ), allocatable :: PT    ! Reconstructed P_(i,k+1/2)
   
+  real(r_kind), dimension(:,:,:), allocatable :: Fe    ! F on edges of each cell
+  real(r_kind), dimension(:,:,:), allocatable :: He    ! H on edges of each cell
+  
+  real(r_kind), dimension(:,:  ), allocatable :: sqrtG_ext
+  real(r_kind), dimension(:,:  ), allocatable :: G13_ext
+  
     contains
     subroutine init_spatial_operator
+      integer(i_kind) dir
+      
       pos = 1
       neg = -1
       
@@ -52,26 +77,56 @@ MODULE spatial_operators_mod
       kcs = kds - extPts
       kce = kde + extPts
       
+      ils = ids
+      ile = ide + 1
+      kls = kds
+      kle = kde
+      
+      irs = ids - 1
+      ire = ide
+      krs = kds
+      kre = kde
+      
+      ibs = ids
+      ibe = ide
+      kbs = kds
+      kbe = kde + 1
+      
+      its = ids
+      ite = ide
+      kts = kds - 1
+      kte = kde
+      
       allocate(q_ext(nVar,ics:ice,kcs:kce))
-      allocate(qL   (nVar,ids:ide,kds:kde))
-      allocate(qR   (nVar,ids:ide,kds:kde))
-      allocate(qB   (nVar,ids:ide,kds:kde))
-      allocate(qT   (nVar,ids:ide,kds:kde))
+      allocate(qL   (nVar,ils:ile,kls:kle))
+      allocate(qR   (nVar,irs:ire,krs:kre))
+      allocate(qB   (nVar,ibs:ibe,kbs:kbe))
+      allocate(qT   (nVar,its:ite,kts:kte))
       
-      allocate(FL   (nVar,ids:ide,kds:kde))
-      allocate(FR   (nVar,ids:ide,kds:kde))
-      allocate(FB   (nVar,ids:ide,kds:kde))
-      allocate(FT   (nVar,ids:ide,kds:kde))
+      allocate(FL   (nVar,ils:ile,kls:kle))
+      allocate(FR   (nVar,irs:ire,krs:kre))
       
-      allocate(HL   (nVar,ids:ide,kds:kde))
-      allocate(HR   (nVar,ids:ide,kds:kde))
-      allocate(HB   (nVar,ids:ide,kds:kde))
-      allocate(HT   (nVar,ids:ide,kds:kde))
+      allocate(HB   (nVar,ibs:ibe,kbs:kbe))
+      allocate(HT   (nVar,its:ite,kts:kte))
       
-      allocate(PL   (     ids:ide,kds:kde))
-      allocate(PR   (     ids:ide,kds:kde))
-      allocate(PB   (     ids:ide,kds:kde))
-      allocate(PT   (     ids:ide,kds:kde))
+      allocate(PL   (     ils:ile,kls:kle))
+      allocate(PR   (     irs:ire,krs:kre))
+      allocate(PB   (     ibs:ibe,kbs:kbe))
+      allocate(PT   (     its:ite,kts:kte))
+      
+      allocate(Fe   (nVar,ids:ide+1,kds:kde  ))
+      allocate(He   (nVar,ids:ide  ,kds:kde+1))
+      
+      allocate(sqrtG_ext(ics:ice,kcs:kce))
+      allocate(G13_ext  (ics:ice,kcs:kce))
+      
+      dir = 1
+      call fill_ghost(sqrtG_ext,sqrtG,dir,pos)
+      call fill_ghost(G13_ext  ,G13  ,dir,pos)
+      
+      dir = 2
+      call fill_ghost(sqrtG_ext,sqrtG,dir,pos)
+      call fill_ghost(G13_ext  ,G13  ,dir,pos)
     end subroutine init_spatial_operator
     
     subroutine spatial_operator(stat,tend)
@@ -82,8 +137,8 @@ MODULE spatial_operators_mod
       
       character(30) :: bdy_type
       
-      real(r_kind) eigenvalue_x(2)
-      real(r_kind) eigenvalue_z(2)
+      real(r_kind) eigenvalue_x(5,2)
+      real(r_kind) eigenvalue_z(5,2)
       real(r_kind) maxeigen_x
       real(r_kind) maxeigen_z
       
@@ -91,6 +146,8 @@ MODULE spatial_operators_mod
       
       integer(i_kind) i,k,iVar
       
+      integer(i_kind) ip1,im1
+      integer(i_kind) kp1,km1
       integer(i_kind) ip2,im2
       integer(i_kind) kp2,km2
       
@@ -100,11 +157,13 @@ MODULE spatial_operators_mod
       
       !$OMP PARALLEL DO PRIVATE(i,iVar,ip2,im2,q_weno,dir,kp2,km2)
       do k = kds,kde
+        kp2 = k + 2
+        km2 = k - 2
         do i = ids,ide
+          ip2 = i + 2
+          im2 = i - 2
           do iVar = 1,nVar
             ! x-dir
-            ip2 = i + 2
-            im2 = i - 2
             q_weno = q_ext(iVar,im2:ip2,k)
             
             dir = -1
@@ -113,8 +172,6 @@ MODULE spatial_operators_mod
             call WENO_limiter(qR(iVar,i,k),q_weno,dir)
             
             ! z-dir
-            kp2 = k + 2
-            km2 = k - 2
             q_weno = q_ext(iVar,i,km2:kp2)
             
             dir = -1
@@ -122,7 +179,7 @@ MODULE spatial_operators_mod
             dir = 1
             call WENO_limiter(qT(iVar,i,k),q_weno,dir)
           enddo
-          
+        
           PL(i,k) = calc_pressure(sqrtG(i,k),qL(:,i,k))
           PR(i,k) = calc_pressure(sqrtG(i,k),qR(:,i,k))
           PB(i,k) = calc_pressure(sqrtG(i,k),qB(:,i,k))
@@ -130,22 +187,109 @@ MODULE spatial_operators_mod
           
           FL(:,i,k) = calc_F(sqrtG(i,k),qL(:,i,k),PL(i,k))
           FR(:,i,k) = calc_F(sqrtG(i,k),qR(:,i,k),PR(i,k))
-          FB(:,i,k) = calc_F(sqrtG(i,k),qB(:,i,k),PB(i,k))
-          FT(:,i,k) = calc_F(sqrtG(i,k),qT(:,i,k),PT(i,k))
           
-          HL(:,i,k) = calc_H(sqrtG(i,k),G13(i,k),qL(:,i,k),PL(i,k))
-          HR(:,i,k) = calc_H(sqrtG(i,k),G13(i,k),qR(:,i,k),PR(i,k))
           HB(:,i,k) = calc_H(sqrtG(i,k),G13(i,k),qB(:,i,k),PB(i,k))
           HT(:,i,k) = calc_H(sqrtG(i,k),G13(i,k),qT(:,i,k),PT(i,k))
         enddo
       enddo
       !$OMP END PARALLEL DO
       
-      !do k = kds,kde
-      !  do i = ids,ide
-      !    tend%q(:,i,k) = 
-      !  enddo
-      !enddo
+      ! Fill boundary
+      ! left
+      i = ile
+      ip2 = i + 2
+      im2 = i - 2
+      dir = -1
+      do k = kls,kle
+        do iVar = 1,nVar
+          q_weno = q_ext(iVar,im2:ip2,k)
+          call WENO_limiter(qL(iVar,i,k),q_weno,dir)
+        enddo
+        
+        PL(i,k) = calc_pressure(sqrtG_ext(i,k),qL(:,i,k))
+        
+        FL(:,i,k) = calc_F(sqrtG_ext(i,k),qL(:,i,k),PL(i,k))
+      enddo
+      
+      ! right
+      i = irs
+      ip2 = i + 2
+      im2 = i - 2
+      dir = 1
+      do k = krs,kre
+        do iVar = 1,nVar
+          q_weno = q_ext(iVar,im2:ip2,k)
+          call WENO_limiter(qR(iVar,i,k),q_weno,dir)
+        enddo
+        
+        PR(i,k) = calc_pressure(sqrtG_ext(i,k),qR(:,i,k))
+        
+        FR(:,i,k) = calc_F(sqrtG_ext(i,k),qR(:,i,k),PR(i,k))
+      enddo
+      
+      ! bottom
+      k = kbe
+      kp2 = k + 2
+      km2 = k - 2
+      dir = -1
+      do i = ibs,ibe
+        do iVar = 1,nVar
+          q_weno = q_ext(iVar,i,km2:kp2)
+          call WENO_limiter(qB(iVar,i,k),q_weno,dir)
+        enddo
+        
+        PB(i,k) = calc_pressure(sqrtG_ext(i,k),qB(:,i,k))
+        
+        HB(:,i,k) = calc_H(sqrtG_ext(i,k),G13_ext(i,k),qB(:,i,k),PB(i,k))
+      enddo
+      
+      ! top
+      k = kts
+      kp2 = k + 2
+      km2 = k - 2
+      dir = 1
+      do i = its,ite
+        do iVar = 1,nVar
+          q_weno = q_ext(iVar,i,km2:kp2)
+          call WENO_limiter(qT(iVar,i,k),q_weno,dir)
+        enddo
+        
+        PT(i,k) = calc_pressure(sqrtG_ext(i,k),qT(:,i,k))
+        
+        HT(:,i,k) = calc_H(sqrtG_ext(i,k),G13_ext(i,k),qT(:,i,k),PT(i,k))
+      enddo
+      
+      ! calc x flux
+      do k = kds,kde
+        do i = ids,ide+1
+          im1 = i - 1
+          eigenvalue_x(:,1) = calc_eigenvalue_x(sqrtG_ext(im1,k),q_ext(:,im1,k))
+          eigenvalue_x(:,2) = calc_eigenvalue_x(sqrtG_ext(i  ,k),q_ext(:,i  ,k))
+          maxeigen_x        = maxval(abs(eigenvalue_x))
+          
+          Fe(:,i,k) = 0.5 * ( FL(:,i,k) + FR(:,im1,k) - maxeigen_x * ( qL(:,i,k) - qR(:,im1,k) ) )
+        enddo
+      enddo
+      
+      ! calc z flux
+      do i = ids,ide
+        do k = kds,kde+1
+          km1 = k - 1
+          eigenvalue_z(:,1) = calc_eigenvalue_z(sqrtG_ext(i,km1),G13_ext(i,km1),q_ext(:,i,km1))
+          eigenvalue_z(:,2) = calc_eigenvalue_z(sqrtG_ext(i  ,k),G13_ext(i  ,k),q_ext(:,i  ,k))
+          maxeigen_z        = maxval(abs(eigenvalue_z))
+          
+          He(:,i,k) = 0.5 * ( HB(:,i,k) + HT(:,i,km1) - maxeigen_z * ( qB(:,i,k) - qT(:,i,km1) ) )
+        enddo
+      enddo
+      
+      do k = kds,kde
+        do i = ids,ide
+          ip1 = i + 1
+          kp1 = k + 1
+          tend%q(:,i,k) = ( Fe(:,ip1,k) - Fe(:,i,k) ) / dx + ( He(:,i,kp1) - He(:,i,k) ) / deta
+        enddo
+      enddo
       
     end subroutine spatial_operator
     
@@ -159,7 +303,7 @@ MODULE spatial_operators_mod
       
       integer(i_kind), parameter :: nStencil = 3
       real   (r_kind), parameter :: weno_coef(3)  = [0.1, 0.6, 0.3]
-      real   (r_kind), parameter :: eps           = 1.E-2
+      real   (r_kind), parameter :: eps           = 1.E-16
       
       real(r_kind) Qim(nStencil-1)
       real(r_kind) Qip(nStencil-1)
@@ -212,26 +356,26 @@ MODULE spatial_operators_mod
       
       beta = coefA**2 * 13. / 12. + coefB**2 * 0.25
       
-      !! WENO-Z
-      !tau40 = abs( beta(1) - beta(2) )
-      !tau41 = abs( beta(2) - beta(3) )
-      !tau5  = abs( beta(3) - beta(1) )
-      !
-      !! xi
-      !if( tau40<=minval(beta) .and. tau41>minval(beta) )then
-      !  omega = [1./3.,2./3.,0.]
-      !elseif( tau40>minval(beta) .and. tau41<minval(beta) )then
-      !  omega = [0.,2./3.,1./3.]
-      !else
-      !  alpha = weno_coef * ( 1. + tau5 / ( eps + beta ) )
-      !  omega = alpha / sum(alpha)
-      !endif
-      !! WENO-Z
+      ! WENO-Z
+      tau40 = abs( beta(1) - beta(2) )
+      tau41 = abs( beta(2) - beta(3) )
+      tau5  = abs( beta(3) - beta(1) )
       
-      ! origin WENO
-      alpha = weno_coef / ( eps + beta )**2
-      omega = alpha / sum(alpha)
-      ! origin WENO
+      ! xi
+      if( tau40<=minval(beta) .and. tau41>minval(beta) )then
+        omega = [1./3.,2./3.,0.]
+      elseif( tau40>minval(beta) .and. tau41<minval(beta) )then
+        omega = [0.,2./3.,1./3.]
+      else
+        alpha = weno_coef * ( 1. + tau5 / ( eps + beta ) )
+        omega = alpha / sum(alpha)
+      endif
+      ! WENO-Z
+      
+      !! origin WENO
+      !alpha = weno_coef / ( eps + beta )**2
+      !omega = alpha / sum(alpha)
+      !! origin WENO
       
       Qrec = dot_product( stencil, omega )
       
@@ -245,8 +389,6 @@ MODULE spatial_operators_mod
       integer(i_kind) dir
       
       integer(i_kind) i,k
-      
-      q_ext(:,ids:ide,kds:kde) = q
       
       if(trim(adjustl(bdy_type))=='slip_boundary')then
         dir = 1
@@ -269,6 +411,8 @@ MODULE spatial_operators_mod
       elseif(trim(adjustl(bdy_type))=='nonreflecting')then
         
       endif
+      
+      q_ext(:,:,kde+1:kce) = 0
     end subroutine bdy_condition
     
     subroutine fill_ghost(q_ext,q,dir,sign)
@@ -278,6 +422,8 @@ MODULE spatial_operators_mod
       integer(i_kind)                            , intent(in ) :: sign
       
       integer(i_kind) i,k
+      
+      q_ext(ids:ide,kds:kde) = q
       
       if(dir == 1)then
         ! x-dir
@@ -308,7 +454,12 @@ MODULE spatial_operators_mod
       w4 = q(4)
       w5 = q(5)
       
-      calc_pressure = p0 * ( ( 1. + eq*w5/w1 ) * Rd * w4 / sqrtG / p0 )**( ( Cpd + ( Cpv - Cpd ) * w5 / w1) / ( Cvd + ( Cvv - Cvd ) * w5 / w1 ) )
+      if(w1>=tolerance)then
+        calc_pressure = p0 * ( ( 1. + eq*w5/w1 ) * Rd * w4 / sqrtG / p0 )**( ( Cpd + ( Cpv - Cpd ) * w5 / w1) / ( Cvd + ( Cvv - Cvd ) * w5 / w1 ) )
+      else
+        calc_pressure = 0.
+      endif
+      
     end function calc_pressure
     
     function calc_F(sqrtG,q,P)
@@ -329,11 +480,15 @@ MODULE spatial_operators_mod
       w4 = q(4)
       w5 = q(5)
       
-      calc_F(1) = w2
-      calc_F(2) = w2**2 / w1 + sqrtG * P
-      calc_F(3) = w2 * w3 / w1
-      calc_F(4) = w4 * w2 / w1
-      calc_F(5) = w5 * w2 / w1
+      if(w1>=tolerance)then
+        calc_F(1) = w2
+        calc_F(2) = w2**2 / w1 + sqrtG * P
+        calc_F(3) = w2 * w3 / w1
+        calc_F(4) = w4 * w2 / w1
+        calc_F(5) = w5 * w2 / w1
+      else
+        calc_F = 0.
+      endif
       
     end function calc_F
     
@@ -359,11 +514,15 @@ MODULE spatial_operators_mod
       
       ww = w3 / sqrtG + G13 * w2
       
-      calc_H(1) = ww
-      calc_H(2) = ww * w2 / w1 + sqrtG * G13 * P
-      calc_H(3) = ww * w3 / w1 + P
-      calc_H(4) = ww * w4 / w1
-      calc_H(5) = ww * w5 / w1
+      if(w1>=tolerance)then
+        calc_H(1) = ww
+        calc_H(2) = ww * w2 / w1 + sqrtG * G13 * P
+        calc_H(3) = ww * w3 / w1 + P
+        calc_H(4) = ww * w4 / w1
+        calc_H(5) = ww * w5 / w1
+      else
+        calc_H = 0.
+      endif
       
     end function calc_H
     
@@ -378,31 +537,80 @@ MODULE spatial_operators_mod
       real(r_kind) w4
       real(r_kind) w5
       
+      real(r_kind) coef1,coef2,coef3
+      
       w1 = q(1)
       w2 = q(2)
       w3 = q(3)
       w4 = q(4)
       w5 = q(5)
       
-      real coef1,coef2,coef3
       
       coef1 = cvv**2 * w1**2 * w2 * w4 * w5**2                             &
             + cvv**2 * eq * w1 * w2 * w4 * w5**3                           &
             + cvd**2 * w1 * w2 * w4 * (w1 - w5)**2 * (w1 + eq*w5)          &
             + 2. * cvd * cvv * w1 * w2 * w4 * (w1 - w5) * w5 * (w1 + eq*w5)
       
-      coef2 = sqrt( Rd * w1**2 * w4**3 * ( cpd * (w1 - w5) + cpv * w5 ) * ( cvd * (w1 - w5) + cvv * w5 )**3 ( w1 + eq * w5 )**3 * ( ( Rd * w4 * ( w1 + eq * w5 ) )&
-                  / ( sqrtG * p0 * w1 ) )**( -1. + ( cpd * w1 - cpd * w5 + cpv * w5 ) / ( cvd * w1 - cvd * w5 + cvv * w5 ) ) )
+      coef2 = sqrt( Rd * w1**2 * w4**3 * ( cpd * ( w1 - w5 ) + cpv * w5 )   &
+                  * ( cvd * ( w1 - w5 ) + cvv * w5 )**3                     &
+                  * ( w1 + eq * w5 )**3                                     &
+                  * ( ( Rd * w4 * ( w1 + eq * w5 ) ) / ( sqrtG * p0 * w1 ) )&
+                  **( -1. + ( cpd * w1 - cpd * w5 + cpv * w5 ) / ( cvd * w1 - cvd * w5 + cvv * w5 ) ) )
       
-      coef3 = w1**2 * w4 * ( cvd*( w1 - w5 ) + cvv * w5 )**2 ( w1 + eq * w5 )
+      coef3 = w1**2 * w4 * ( cvd * ( w1 - w5 ) + cvv * w5 )**2 * ( w1 + eq * w5 )
       
       calc_eigenvalue_x(1) = w2 / w1
-      calc_eigenvalue_x(2) = w2 / w1
-      calc_eigenvalue_x(3) = w2 / w1
-      calc_eigenvalue_x(4) = ( coef1 + coef2 ) / coef3
-      calc_eigenvalue_x(5) = ( coef1 - coef2 ) / coef3
+      calc_eigenvalue_x(2) = calc_eigenvalue_x(1)
+      calc_eigenvalue_x(3) = calc_eigenvalue_x(1)
+      calc_eigenvalue_x(4) = ( coef1 - coef2 ) / coef3
+      calc_eigenvalue_x(5) = ( coef1 + coef2 ) / coef3
       
     end function calc_eigenvalue_x
+    
+    function calc_eigenvalue_z(sqrtG,G13,q)
+      real(r_kind),dimension(5) :: calc_eigenvalue_z
+      real(r_kind)              :: sqrtG
+      real(r_kind)              :: G13
+      real(r_kind),dimension(5) :: q(5)
+      
+      real(r_kind) w1
+      real(r_kind) w2
+      real(r_kind) w3
+      real(r_kind) w4
+      real(r_kind) w5
+      
+      real(r_kind) drhoetadt
+      
+      real(r_kind) coef1,coef2,coef3
+      
+      w1 = q(1)
+      w2 = q(2)
+      w3 = q(3)
+      w4 = q(4)
+      w5 = q(5)
+      
+      coef1 = cvd**2 * w1 * ( sqrtG * G13 * w2 + w3 ) * w4 * ( w1 - w5 )**2 * ( w1 + eq * w5 )&
+            + 2. * cvd * cvv * w1 * ( sqrtG * G13 * w2 + w3 ) * w4 * ( w1 - w5 ) * w5 * ( w1 + eq * w5 )&
+            + cvv**2 * w1 * ( sqrtG * G13 * w2 + w3 ) * w4 * w5**2 * ( w1 + eq * w5 )
+      
+      coef2 = sqrt( ( 1. + ( sqrtG * G13 )**2) * Rd * w1**2 * w4**3         &
+                  * ( cpd * ( w1 - w5 ) + cpv * w5 )                        &
+                  * ( cvd * ( w1 - w5 ) + cvv * w5 )**3                     &
+                  * ( w1 + eq * w5 )**3                                     &
+                  * ( ( Rd * w4 * ( w1 + eq * w5 ) ) / ( sqrtG * p0 * w1 ) )&
+                  **( -1. + ( cpd * w1 - cpd * w5 + cpv * w5 ) / ( cvd * w1 - cvd * w5 + cvv * w5 ) ) )
+      
+      coef3 = sqrtG * w1**2 * w4 * ( cvd * ( w1 - w5 ) + cvv * w5 )**2 * ( w1 + eq * w5 )
+      
+      drhoetadt = ( G13 * w2 + w3 / sqrtG ) / w1
+      
+      calc_eigenvalue_z(1) = drhoetadt
+      calc_eigenvalue_z(2) = drhoetadt
+      calc_eigenvalue_z(3) = drhoetadt
+      calc_eigenvalue_z(4) = ( coef1 - coef2 ) / coef3
+      calc_eigenvalue_z(5) = ( coef1 + coef2 ) / coef3
+      
+    end function calc_eigenvalue_z
     
 END MODULE spatial_operators_mod
 
