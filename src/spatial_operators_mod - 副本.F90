@@ -200,71 +200,66 @@ MODULE spatial_operators_mod
       ip2 = i + 2
       im2 = i - 2
       dir = -1
-      !$OMP PARALLEL DO PRIVATE(iVar,q_weno)
       do k = kls,kle
         do iVar = 1,nVar
           q_weno = q_ext(iVar,im2:ip2,k)
           call WENO_limiter(qL(iVar,i,k),q_weno,dir)
         enddo
         
-        PL(  i,k) = calc_pressure(sqrtG_ext(i,k),qL(:,i,k))
+        PL(i,k) = calc_pressure(sqrtG_ext(i,k),qL(:,i,k))
+        
         FL(:,i,k) = calc_F(sqrtG_ext(i,k),qL(:,i,k),PL(i,k))
       enddo
-      !$OMP END PARALLEL DO
       
       ! right
       i = irs
       ip2 = i + 2
       im2 = i - 2
       dir = 1
-      !$OMP PARALLEL DO PRIVATE(iVar,q_weno)
       do k = krs,kre
         do iVar = 1,nVar
           q_weno = q_ext(iVar,im2:ip2,k)
           call WENO_limiter(qR(iVar,i,k),q_weno,dir)
         enddo
         
-        PR(  i,k) = calc_pressure(sqrtG_ext(i,k),qR(:,i,k))
+        PR(i,k) = calc_pressure(sqrtG_ext(i,k),qR(:,i,k))
+        
         FR(:,i,k) = calc_F(sqrtG_ext(i,k),qR(:,i,k),PR(i,k))
       enddo
-      !$OMP END PARALLEL DO
       
       ! bottom
       k = kbe
       kp2 = k + 2
       km2 = k - 2
       dir = -1
-      !$OMP PARALLEL DO PRIVATE(iVar,q_weno)
       do i = ibs,ibe
         do iVar = 1,nVar
           q_weno = q_ext(iVar,i,km2:kp2)
           call WENO_limiter(qB(iVar,i,k),q_weno,dir)
         enddo
         
-        PB(  i,k) = calc_pressure(sqrtG_ext(i,k),qB(:,i,k))
+        PB(i,k) = calc_pressure(sqrtG_ext(i,k),qB(:,i,k))
+        
         HB(:,i,k) = calc_H(sqrtG_ext(i,k),G13_ext(i,k),qB(:,i,k),PB(i,k))
       enddo
-      !$OMP END PARALLEL DO
       
       ! top
       k = kts
       kp2 = k + 2
       km2 = k - 2
       dir = 1
-      !$OMP PARALLEL DO PRIVATE(iVar,q_weno)
       do i = its,ite
         do iVar = 1,nVar
           q_weno = q_ext(iVar,i,km2:kp2)
           call WENO_limiter(qT(iVar,i,k),q_weno,dir)
         enddo
         
-        PT(  i,k) = calc_pressure(sqrtG_ext(i,k),qT(:,i,k))
+        PT(i,k) = calc_pressure(sqrtG_ext(i,k),qT(:,i,k))
+        
         HT(:,i,k) = calc_H(sqrtG_ext(i,k),G13_ext(i,k),qT(:,i,k),PT(i,k))
       enddo
-      !$OMP END PARALLEL DO
       
       ! calc x flux
-      !$OMP PARALLEL DO PRIVATE(i,im1,eigenvalue_x,maxeigen_x)
       do k = kds,kde
         do i = ids,ide+1
           im1 = i - 1
@@ -275,23 +270,31 @@ MODULE spatial_operators_mod
           Fe(:,i,k) = 0.5 * ( FL(:,i,k) + FR(:,im1,k) - maxeigen_x * ( qL(:,i,k) - qR(:,im1,k) ) )
         enddo
       enddo
-      !$OMP END PARALLEL DO
+      !! Fill bdy
+      !Fe(:,ids  ,:) = 0.
+      !Fe(:,ide+1,:) = 0.
       
       ! calc z flux
-      !$OMP PARALLEL DO PRIVATE(k,km1,eigenvalue_z,maxeigen_z)
       do i = ids,ide
         do k = kds,kde+1
           km1 = k - 1
           eigenvalue_z(:,1) = calc_eigenvalue_z(sqrtG_ext(i,km1),G13_ext(i,km1),q_ext(:,i,km1))
           eigenvalue_z(:,2) = calc_eigenvalue_z(sqrtG_ext(i  ,k),G13_ext(i  ,k),q_ext(:,i  ,k))
-          maxeigen_z        = maxval(abs(eigenvalue_z))
+          if(q_ext(1,i,km1)==FillValue)then
+            maxeigen_z = maxval(abs(eigenvalue_z(:,2)))
+          elseif(q_ext(1,i,k)==FillValue)then
+            maxeigen_z = maxval(abs(eigenvalue_z(:,1)))
+          else
+            maxeigen_z = maxval(abs(eigenvalue_z))
+          endif
           
           He(:,i,k) = 0.5 * ( HB(:,i,k) + HT(:,i,km1) - maxeigen_z * ( qB(:,i,k) - qT(:,i,km1) ) )
         enddo
       enddo
-      !$OMP END PARALLEL DO
+      !Fill bdy
+      He(:,:,kds  ) = 0.
+      He(:,:,kde+1) = 0.
       
-      !$OMP PARALLEL DO PRIVATE(i,ip1,kp1)
       do k = kds,kde
         do i = ids,ide
           ip1 = i + 1
@@ -299,7 +302,6 @@ MODULE spatial_operators_mod
           tend%q(:,i,k) = - ( ( Fe(:,ip1,k) - Fe(:,i,k) ) / dx + ( He(:,i,kp1) - He(:,i,k) ) / deta )
         enddo
       enddo
-      !$OMP END PARALLEL DO
       
     end subroutine spatial_operator
     
@@ -421,6 +423,9 @@ MODULE spatial_operators_mod
       elseif(trim(adjustl(bdy_type))=='nonreflecting')then
         
       endif
+      
+      !q_ext(:,:,kde+1:kce) = FillValue
+      !q_ext(:,:,kcs:kds-1) = FillValue
     end subroutine bdy_condition
     
     subroutine fill_ghost(q_ext,q,dir,sign)
@@ -462,7 +467,11 @@ MODULE spatial_operators_mod
       w4 = q(4)
       w5 = q(5)
       
-      calc_pressure = p0 * ( ( 1. + eq*w5/w1 ) * Rd * w4 / sqrtG / p0 )**( ( Cpd + ( Cpv - Cpd ) * w5 / w1) / ( Cvd + ( Cvv - Cvd ) * w5 / w1 ) )
+      if(w1>=tolerance)then
+        calc_pressure = p0 * ( ( 1. + eq*w5/w1 ) * Rd * w4 / sqrtG / p0 )**( ( Cpd + ( Cpv - Cpd ) * w5 / w1) / ( Cvd + ( Cvv - Cvd ) * w5 / w1 ) )
+      else
+        calc_pressure = 0.
+      endif
       
     end function calc_pressure
     
@@ -484,11 +493,15 @@ MODULE spatial_operators_mod
       w4 = q(4)
       w5 = q(5)
       
-      calc_F(1) = w2
-      calc_F(2) = w2**2 / w1 + sqrtG * P
-      calc_F(3) = w2 * w3 / w1
-      calc_F(4) = w4 * w2 / w1
-      calc_F(5) = w5 * w2 / w1
+      if(w1>=tolerance)then
+        calc_F(1) = w2
+        calc_F(2) = w2**2 / w1 + sqrtG * P
+        calc_F(3) = w2 * w3 / w1
+        calc_F(4) = w4 * w2 / w1
+        calc_F(5) = w5 * w2 / w1
+      else
+        calc_F = 0.
+      endif
       
     end function calc_F
     
@@ -514,11 +527,15 @@ MODULE spatial_operators_mod
       
       ww = w3 / sqrtG + G13 * w2
       
-      calc_H(1) = ww
-      calc_H(2) = ww * w2 / w1 + sqrtG * G13 * P
-      calc_H(3) = ww * w3 / w1 + P
-      calc_H(4) = ww * w4 / w1
-      calc_H(5) = ww * w5 / w1
+      if(w1>=tolerance)then
+        calc_H(1) = ww
+        calc_H(2) = ww * w2 / w1 + sqrtG * G13 * P
+        calc_H(3) = ww * w3 / w1 + P
+        calc_H(4) = ww * w4 / w1
+        calc_H(5) = ww * w5 / w1
+      else
+        calc_H = 0.
+      endif
       
     end function calc_H
     

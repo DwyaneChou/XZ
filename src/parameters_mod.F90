@@ -9,7 +9,7 @@ module parameters_mod
   integer         :: run_minutes
   integer         :: run_seconds
   real   (r_kind) :: dt               ! time step
-  integer         :: history_interval ! output interval in seconds
+  real   (r_kind) :: history_interval ! output interval in seconds
   real            :: IRK_residual
   
   character*200 :: integral_scheme

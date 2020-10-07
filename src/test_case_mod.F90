@@ -4,6 +4,7 @@ module test_case_mod
   use mesh_mod
   use stat_mod
   use tend_mod
+  use linear_integration_mod
   implicit none
   
     contains
@@ -36,6 +37,8 @@ module test_case_mod
       real(r_kind), dimension(:,:), allocatable :: p
       real(r_kind), dimension(:,:), allocatable :: T
       
+      real(r_kind), dimension(:,:), allocatable :: dexner
+      
       real(r_kind) theta_bar
       real(r_kind) dtheta
       real(r_kind) R_bubble
@@ -55,6 +58,8 @@ module test_case_mod
       allocate(p    (ids:ide,kds:kde))
       allocate(T    (ids:ide,kds:kde))
       
+      allocate(dexner(ids:ide,kds:kde))
+      
       zs    = 0.
       dzsdx = 0.
       
@@ -71,20 +76,19 @@ module test_case_mod
           r    (i,k) = sqrt( ( x(i,k) - x0 )**2 + ( z(i,k) - z0 )**2 )
           theta(i,k) = theta_bar + dtheta * max( 0., 1. - r(i,k) / R_bubble )
           
-          exner(i,k) = ( z(i,kde) - z(i,k) ) * gravity / ( Cpd * theta(i,k) )
-          
-          if(exner(i,k)/=0.)then
-            p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
-            T    (i,k) = exner(i,k) * theta(i,k)
-            rho  (i,k) = p(i,k) / Rd / T(i,k)
-          else
-            p    (i,k) = tiny(p  )
-            T    (i,k) = tiny(T  )
-            rho  (i,k) = tiny(rho)
-          endif
-          
-          !print*,z(i,k),x(i,k),theta(i,k),p(i,k),T(i,k)
-          
+          dexner(i,k) = -gravity / ( Cpd * theta(i,k) )
+        enddo
+      enddo
+      
+      do i = ids,ide
+        call spline2_integration(nz-1,z(i,:),dexner(i,:),0.,0.,nz,z(i,:),dexner(i,:))
+        !call spline4_integration(nz-1,z(i,:),dexner(i,:)      ,nz,z(i,:),dexner(i,:))
+        
+        do k = kds,kde
+          exner(i,k) = 1. + sum(dexner(i,kds:k))
+          p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
+          T    (i,k) = exner(i,k) * theta(i,k)
+          rho  (i,k) = p(i,k) / Rd / T(i,k)
           u    (i,k) = 0.
           w    (i,k) = 0.
           q    (i,k) = 0.

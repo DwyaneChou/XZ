@@ -51,6 +51,7 @@ set(source_files
   src/netcdf_mod.F90
   src/spatial_operators_mod.F90
   src/temporal_mod.F90
+  src/linear_integration_mod.F90
 )
 
 add_library(xz ${source_files})

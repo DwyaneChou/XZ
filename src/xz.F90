@@ -23,6 +23,8 @@
       
       integer :: timeStart,timeEnd
       
+      integer :: output_interval
+      
       !Timing start
       call SYSTEM_CLOCK(timeStart)
       
@@ -35,6 +37,12 @@
       
       output_idx       = 1
       total_output_num = nsteps * dt / history_interval
+      output_interval  = nint( history_interval / dt )
+      
+      if( abs( history_interval / dt - int(history_interval / dt) ) > tolerance )then
+        print*,'history_interval divides dt must be integer'
+        stop
+      endif
       
       call history_init
       call history_write_stat(stat(old),output_idx)
@@ -55,7 +63,7 @@
           call SSPRK(stat(new),stat(old))
         endif
         
-        if( mod(it*dt,real(history_interval))==0 .and. (it*dt>=history_interval) )then
+        if( mod( it, output_interval )==0 .and. ( it >= output_interval ) )then
           total_mass = sum(stat(new)%q(1,:,:))!calc_total_mass     (stat(new))
           
           MCR = ( total_mass - total_mass0 ) / total_mass0
