@@ -271,29 +271,33 @@ MODULE spatial_operators_mod
       !$OMP END PARALLEL DO
       
       ! calc x flux
-      !$OMP PARALLEL DO PRIVATE(i,im1,eigenvalue_x,maxeigen_x)
+      !$OMP PARALLEL DO PRIVATE(i,im1,eigenvalue_x,maxeigen_x,iVar)
       do k = kds,kde
         do i = ids,ide+1
           im1 = i - 1
           eigenvalue_x(:,1) = calc_eigenvalue_x(sqrtG_ext(im1,k),q_ext(:,im1,k))
           eigenvalue_x(:,2) = calc_eigenvalue_x(sqrtG_ext(i  ,k),q_ext(:,i  ,k))
           
-          maxeigen_x = maxval(abs(eigenvalue_x))
-          Fe(:,i,k)  = 0.5 * ( FL(:,i,k) + FR(:,im1,k) - maxeigen_x * ( qL(:,i,k) - qR(:,im1,k) ) )
+          do iVar = 1,nVar
+            maxeigen_x   = maxval(abs(eigenvalue_x(iVar,:)))
+            Fe(iVar,i,k) = 0.5 * ( FL(iVar,i,k) + FR(iVar,im1,k) - maxeigen_x * ( qL(iVar,i,k) - qR(iVar,im1,k) ) )
+          enddo
         enddo
       enddo
       !$OMP END PARALLEL DO
       
       ! calc z flux
-      !$OMP PARALLEL DO PRIVATE(k,km1,eigenvalue_z,maxeigen_z)
+      !$OMP PARALLEL DO PRIVATE(k,km1,eigenvalue_z,maxeigen_z,iVar)
       do i = ids,ide
         do k = kds,kde+1
           km1 = k - 1
           eigenvalue_z(:,1) = calc_eigenvalue_z(sqrtG_ext(i,km1),G13_ext(i,km1),q_ext(:,i,km1))
           eigenvalue_z(:,2) = calc_eigenvalue_z(sqrtG_ext(i  ,k),G13_ext(i  ,k),q_ext(:,i  ,k))
           
-          maxeigen_z = maxval(abs(eigenvalue_z))
-          He(:,i,k)  = 0.5 * ( HB(:,i,k) + HT(:,i,km1) - maxeigen_z * ( qB(:,i,k) - qT(:,i,km1) ) )
+          do iVar = 1,nVar
+            maxeigen_z   = maxval(abs(eigenvalue_z(iVar,:)))
+            He(iVar,i,k) = 0.5 * ( HB(iVar,i,k) + HT(iVar,i,km1) - maxeigen_z * ( qB(iVar,i,k) - qT(iVar,i,km1) ) )
+          enddo
         enddo
       enddo
       !$OMP END PARALLEL DO

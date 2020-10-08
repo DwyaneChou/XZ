@@ -102,6 +102,7 @@ module test_case_mod
       stat%q(5,:,:) = sqrtG * rho * q
       
       print*,'max/min value of sqrtG           ',maxval(sqrtG        ),minval(sqrtG        )
+      print*,'max/min value of G13             ',maxval(G13          ),minval(G13          )
       print*,'max/min value of sqrtG*rho       ',maxval(stat%q(1,:,:)),minval(stat%q(1,:,:))
       print*,'max/min value of sqrtG*rho*u     ',maxval(stat%q(2,:,:)),minval(stat%q(2,:,:))
       print*,'max/min value of sqrtG*rho*v     ',maxval(stat%q(3,:,:)),minval(stat%q(3,:,:))
