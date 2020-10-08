@@ -73,9 +73,8 @@ module test_case_mod
       
       do k = kds,kde
         do i = ids,ide
-          r    (i,k) = sqrt( ( x(i,k) - x0 )**2 + ( z(i,k) - z0 )**2 )
-          theta(i,k) = theta_bar + dtheta * max( 0., 1. - r(i,k) / R_bubble )
-          
+          r     (i,k) = sqrt( ( x(i,k) - x0 )**2 + ( z(i,k) - z0 )**2 )
+          theta (i,k) = theta_bar
           dexner(i,k) = -gravity / ( Cpd * theta(i,k) )
         enddo
       enddo
@@ -92,6 +91,12 @@ module test_case_mod
           u    (i,k) = 0.
           w    (i,k) = 0.
           q    (i,k) = 0.
+        enddo
+      enddo
+      
+      do k = kds,kde
+        do i = ids,ide
+          theta(i,k) = theta_bar + dtheta * max( 0., 1. - r(i,k) / R_bubble )
         enddo
       enddo
       
