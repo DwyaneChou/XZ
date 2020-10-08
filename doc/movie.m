@@ -6,9 +6,9 @@ pic_path  = '.\picture';
 varname   = 'theta';
 
 time_start = 1;
-time_end   = 101;
+time_end   = 201;
 
-history_interval = 10;
+history_interval = 5;
 
 R2D    = 180/pi;
 radius = 6371229;
