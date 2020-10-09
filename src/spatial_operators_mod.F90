@@ -139,8 +139,6 @@ MODULE spatial_operators_mod
       
       real(r_kind), dimension(5) :: q_weno
       
-      character(30) :: bdy_type
-      
       real(r_kind) eigenvalue_x(5,2)
       real(r_kind) eigenvalue_z(5,2)
       real(r_kind) maxeigen_x
@@ -155,9 +153,11 @@ MODULE spatial_operators_mod
       integer(i_kind) ip2,im2
       integer(i_kind) kp2,km2
       
-      ! Fill ghost
-      bdy_type = 'slip_boundary'
-      call bdy_condition(q_ext,stat%q,bdy_type)
+      ! initialize source terms
+      src = 0.
+      
+      ! Set no flux and nonreflecting boundary condition
+      call bdy_condition(q_ext,stat%q,src)
       
       !$OMP PARALLEL DO PRIVATE(i,iVar,ip2,im2,q_weno,dir,kp2,km2)
       do k = kds,kde
@@ -198,7 +198,6 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      src        = 0.
       src(3,:,:) = -stat%q(1,:,:) * gravity
       
       ! Fill boundary
@@ -297,7 +296,6 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
-      !stop
       
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1)
       do k = kds,kde
@@ -305,7 +303,6 @@ MODULE spatial_operators_mod
           ip1 = i + 1
           kp1 = k + 1
           tend%q(:,i,k) = - ( ( Fe(:,ip1,k) - Fe(:,i,k) ) / dx + ( He(:,i,kp1) - He(:,i,k) ) / deta ) + src(:,i,k)
-          !print*,tend%q(3,i,k)
         enddo
       enddo
       !$OMP END PARALLEL DO
@@ -400,36 +397,41 @@ MODULE spatial_operators_mod
       
     end subroutine WENO_limiter
     
-    subroutine bdy_condition(q_ext,q,bdy_type)
+    subroutine bdy_condition(q_ext,q,src)
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(out) :: q_ext
       real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(in ) :: q
-      character(30)                                , intent(in ) :: bdy_type
+      real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(in ) :: src
+      
+      integer(i_kind), parameter :: bdy_width = 5
       
       integer(i_kind) dir
-      
       integer(i_kind) i,k
       
-      if(trim(adjustl(bdy_type))=='slip_boundary')then
-        dir = 1
-        do i = 1,extPts
-          call fill_ghost(q_ext(1,:,:),q(1,:,:),dir,pos)
-          call fill_ghost(q_ext(2,:,:),q(2,:,:),dir,neg)
-          call fill_ghost(q_ext(3,:,:),q(3,:,:),dir,pos)
-          call fill_ghost(q_ext(4,:,:),q(4,:,:),dir,pos)
-          call fill_ghost(q_ext(5,:,:),q(5,:,:),dir,pos)
-        enddo
-        
-        dir = 2
-        do k = 1,extPts
-          call fill_ghost(q_ext(1,:,:),q(1,:,:),dir,pos)
-          call fill_ghost(q_ext(2,:,:),q(2,:,:),dir,pos)
-          call fill_ghost(q_ext(3,:,:),q(3,:,:),dir,neg)
-          call fill_ghost(q_ext(4,:,:),q(4,:,:),dir,pos)
-          call fill_ghost(q_ext(5,:,:),q(5,:,:),dir,pos)
-        enddo
-      elseif(trim(adjustl(bdy_type))=='nonreflecting')then
-        
-      endif
+      ! No flux condition
+      ! x-dir
+      dir = 1
+      do i = 1,extPts
+        call fill_ghost(q_ext(1,:,:),q(1,:,:),dir,pos)
+        call fill_ghost(q_ext(2,:,:),q(2,:,:),dir,neg)
+        call fill_ghost(q_ext(3,:,:),q(3,:,:),dir,pos)
+        call fill_ghost(q_ext(4,:,:),q(4,:,:),dir,pos)
+        call fill_ghost(q_ext(5,:,:),q(5,:,:),dir,pos)
+      enddo
+      
+      ! y-dir
+      dir = 2
+      do k = 1,extPts
+        call fill_ghost(q_ext(1,:,:),q(1,:,:),dir,pos)
+        call fill_ghost(q_ext(2,:,:),q(2,:,:),dir,pos)
+        call fill_ghost(q_ext(3,:,:),q(3,:,:),dir,neg)
+        call fill_ghost(q_ext(4,:,:),q(4,:,:),dir,pos)
+        call fill_ghost(q_ext(5,:,:),q(5,:,:),dir,pos)
+      enddo
+      
+      ! Nonreflecting condition
+      ! x-dir
+      
+      
     end subroutine bdy_condition
     
     subroutine fill_ghost(q_ext,q,dir,sign)
