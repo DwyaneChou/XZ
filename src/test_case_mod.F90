@@ -19,7 +19,6 @@ module test_case_mod
         stop 'Unknown case_num'
       endif
       
-    
     end subroutine init_test_case
     
     ! thermal_bubble according to Li 2013
@@ -60,12 +59,22 @@ module test_case_mod
       
       allocate(dexner(ids:ide,kds:kde))
       
+      print*,'Reset ref_u     to 0   m/s'
+      print*,'Reset ref_w     to 0   m/s'
+      print*,'Reset ref_theta to 300 K'
+      print*,'Reset ref_q     to 0   kg/kg'
+      
+      ref_u     = 0.
+      ref_w     = 0.
+      ref_theta = 300.
+      ref_q     = 0.
+      
       zs    = 0.
       dzsdx = 0.
       
       call init_vertical_coordinate
       
-      theta_bar = 300.
+      theta_bar = ref_theta
       dtheta    = 2.
       R_bubble  = 2000.
       x0        = 10000.
@@ -88,9 +97,9 @@ module test_case_mod
           p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
           T    (i,k) = exner(i,k) * theta(i,k)
           rho  (i,k) = p(i,k) / Rd / T(i,k)
-          u    (i,k) = 0.
-          w    (i,k) = 0.
-          q    (i,k) = 0.
+          u    (i,k) = ref_u
+          w    (i,k) = ref_w
+          q    (i,k) = ref_q
         enddo
       enddo
       
