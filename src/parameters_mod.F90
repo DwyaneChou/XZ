@@ -40,12 +40,6 @@ module parameters_mod
   integer(i_kind) :: total_run_time   ! total run time for this model in seconds, this variable is determined by run_days, run_hours ...
   integer(i_kind) :: total_run_steps  ! total run steps for this model in seconds, this variable is determined by total_run_time and dt
   
-  ! dynamic_opt
-  real(r_kind) :: ref_u     ! reference u wind
-  real(r_kind) :: ref_w     ! reference w wind
-  real(r_kind) :: ref_theta ! reference potential temperature
-  real(r_kind) :: ref_q     ! reference specific humidity
-  
   namelist /time_settings/ dt               ,&
                            run_days         ,&
                            run_hours        ,&
@@ -65,11 +59,6 @@ module parameters_mod
                     m_coef               ,&
                     vertical_distribution,&
                     vertical_coordinate
-  
-  namelist /dynamic_opt/ ref_u    ,&
-                         ref_w    ,&
-                         ref_theta,&
-                         ref_q    
   
   contains
   
@@ -103,11 +92,6 @@ module parameters_mod
     run_seconds      = 0
     history_interval = 360
     integral_scheme  = 'RK4'
-    
-    ref_u     = 0.
-    ref_w     = 0.
-    ref_theta = 300.
-    ref_q     = 0.
     
     ! Read namelist
     call readNamelist

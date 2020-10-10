@@ -4,7 +4,7 @@ MODULE spatial_operators_mod
   use parameters_mod
   use stat_mod
   use tend_mod
-  
+  use test_case_mod
   implicit none
   
   private
@@ -198,15 +198,15 @@ MODULE spatial_operators_mod
             
             ! z-dir
             q_weno = q_ext(iVar,i,km2:kp2)
-            if(km1<kds)then
-              q_weno(1:2) = FillValue
-            elseif(km2<kds.and.km1>=kds)then
-              q_weno(1) = FillValue
-            elseif(kp1>kde)then
-              q_weno(4:5) = FillValue
-            elseif(kp2>kde.and.kp1<=kde)then
-              q_weno(5) = FillValue
-            endif
+            !if(km1<kds)then
+            !  q_weno(1:2) = FillValue
+            !elseif(km2<kds.and.km1>=kds)then
+            !  q_weno(1) = FillValue
+            !elseif(kp1>kde)then
+            !  q_weno(4:5) = FillValue
+            !elseif(kp2>kde.and.kp1<=kde)then
+            !  q_weno(5) = FillValue
+            !endif
             
             dir = -1
             call WENO_limiter(qB(iVar,i,k),q_weno,dir)
@@ -269,39 +269,39 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      !! bottom
-      !k = kbe
-      !kp2 = k + 2
-      !km2 = k - 2
-      !dir = -1
-      !!$OMP PARALLEL DO PRIVATE(iVar,q_weno)
-      !do i = ibs,ibe
-      !  do iVar = 1,nVar
-      !    q_weno = q_ext(iVar,i,km2:kp2)
-      !    call WENO_limiter(qB(iVar,i,k),q_weno,dir)
-      !  enddo
-      !  
-      !  PB(  i,k) = calc_pressure(sqrtG_ext(i,k),qB(:,i,k))
-      !  HB(:,i,k) = calc_H(sqrtG_ext(i,k),G13_ext(i,k),qB(:,i,k),PB(i,k))
-      !enddo
-      !!$OMP END PARALLEL DO
-      !
-      !! top
-      !k = kts
-      !kp2 = k + 2
-      !km2 = k - 2
-      !dir = 1
-      !!$OMP PARALLEL DO PRIVATE(iVar,q_weno)
-      !do i = its,ite
-      !  do iVar = 1,nVar
-      !    q_weno = q_ext(iVar,i,km2:kp2)
-      !    call WENO_limiter(qT(iVar,i,k),q_weno,dir)
-      !  enddo
-      !  
-      !  PT(  i,k) = calc_pressure(sqrtG_ext(i,k),qT(:,i,k))
-      !  HT(:,i,k) = calc_H(sqrtG_ext(i,k),G13_ext(i,k),qT(:,i,k),PT(i,k))
-      !enddo
-      !!$OMP END PARALLEL DO
+      ! bottom
+      k = kbe
+      kp2 = k + 2
+      km2 = k - 2
+      dir = -1
+      !$OMP PARALLEL DO PRIVATE(iVar,q_weno)
+      do i = ibs,ibe
+        do iVar = 1,nVar
+          q_weno = q_ext(iVar,i,km2:kp2)
+          call WENO_limiter(qB(iVar,i,k),q_weno,dir)
+        enddo
+        
+        PB(  i,k) = calc_pressure(sqrtG_ext(i,k),qB(:,i,k))
+        HB(:,i,k) = calc_H(sqrtG_ext(i,k),G13_ext(i,k),qB(:,i,k),PB(i,k))
+      enddo
+      !$OMP END PARALLEL DO
+      
+      ! top
+      k = kts
+      kp2 = k + 2
+      km2 = k - 2
+      dir = 1
+      !$OMP PARALLEL DO PRIVATE(iVar,q_weno)
+      do i = its,ite
+        do iVar = 1,nVar
+          q_weno = q_ext(iVar,i,km2:kp2)
+          call WENO_limiter(qT(iVar,i,k),q_weno,dir)
+        enddo
+        
+        PT(  i,k) = calc_pressure(sqrtG_ext(i,k),qT(:,i,k))
+        HT(:,i,k) = calc_H(sqrtG_ext(i,k),G13_ext(i,k),qT(:,i,k),PT(i,k))
+      enddo
+      !$OMP END PARALLEL DO
       
       ! calc x flux
       !$OMP PARALLEL DO PRIVATE(i,im1,eigenvalue_x,maxeigen_x)
@@ -316,8 +316,6 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
-      !Fe(:,ids,:) = 0.
-      !Fe(:,ide+1,:) = 0.
       
       ! calc z flux
       !$OMP PARALLEL DO PRIVATE(k,km1,eigenvalue_z,maxeigen_z)
@@ -332,8 +330,6 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
-      He(:,:,kds  ) = 0.
-      He(:,:,kde+1) = 0.
       
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1)
       do k = kds,kde
@@ -501,17 +497,11 @@ MODULE spatial_operators_mod
       !  !relax_coef = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
       !  relax_coef = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
       !  
-      !  src(2,il,:) = - relax_coef * ( q(2,il,:) - ref_u     * q(1,il,:) )
-      !  src(3,il,:) = - relax_coef * ( q(3,il,:) - ref_w     * q(1,il,:) )
-      !  src(4,il,:) = - relax_coef * ( q(4,il,:) - ref_theta * q(1,il,:) )
+      !  src(:,il,:) = - relax_coef * ( q(:,il,:) - ref_q(:,il,:) )
       !  
-      !  src(2,ir,:) = - relax_coef * ( q(2,ir,:) - ref_u     * q(1,ir,:) )
-      !  src(3,ir,:) = - relax_coef * ( q(3,ir,:) - ref_w     * q(1,ir,:) )
-      !  src(4,ir,:) = - relax_coef * ( q(4,ir,:) - ref_theta * q(1,ir,:) )
+      !  src(:,ir,:) = - relax_coef * ( q(:,ir,:) - ref_q(:,ir,:) )
       !  
-      !  src(2,:,kt) = - relax_coef * ( q(2,:,kt) - ref_u     * q(1,:,kt) )
-      !  src(3,:,kt) = - relax_coef * ( q(3,:,kt) - ref_w     * q(1,:,kt) )
-      !  src(4,:,kt) = - relax_coef * ( q(4,:,kt) - ref_theta * q(1,:,kt) )
+      !  src(:,:,kt) = - relax_coef * ( q(:,:,kt) - ref_q(:,:,kt) )
       !enddo
       
       !! Open boundary

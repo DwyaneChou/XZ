@@ -24,10 +24,3 @@ vertical_distribution = 1
 vertical_coordinate   = 1
 m_coef                = 2
 /
-
-&dynamic_opt
-ref_u     = 0.
-ref_w     = 0.
-ref_theta = 300.
-ref_q     = 0.
-/
