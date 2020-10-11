@@ -31,25 +31,25 @@ module mesh_mod
     contains
     subroutine init_mesh
       
-      allocate( x      (ids:ide,kds:kde) )
+      allocate( x      (ics:ice,kcs:kce) )
       
-      allocate( eta    (ids:ide,kds:kde) )
-      allocate( xi     (ids:ide,kds:kde) )
-      allocate( z      (ids:ide,kds:kde) )
+      allocate( eta    (ics:ice,kcs:kce) )
+      allocate( xi     (ics:ice,kcs:kce) )
+      allocate( z      (ics:ice,kcs:kce) )
       
-      allocate( dzdxi  (ids:ide,kds:kde) )
-      allocate( dxideta(ids:ide,kds:kde) )
-      allocate( dzdeta (ids:ide,kds:kde) )
+      allocate( dzdxi  (ics:ice,kcs:kce) )
+      allocate( dxideta(ics:ice,kcs:kce) )
+      allocate( dzdeta (ics:ice,kcs:kce) )
       
-      allocate( detadxi(ids:ide,kds:kde) )
-      allocate( dxidz  (ids:ide,kds:kde) )
-      allocate( dzdx   (ids:ide,kds:kde) )
-      allocate( dzsdx  (ids:ide,kds:kde) )
-      allocate( detadx (ids:ide,kds:kde) )
+      allocate( detadxi(ics:ice,kcs:kce) )
+      allocate( dxidz  (ics:ice,kcs:kce) )
+      allocate( dzdx   (ics:ice,kcs:kce) )
+      allocate( dzsdx  (ics:ice,kcs:kce) )
+      allocate( detadx (ics:ice,kcs:kce) )
       
-      allocate( sqrtG  (ids:ide,kds:kde) )
-      allocate( G13    (ids:ide,kds:kde) )
-      allocate( zs     (ids:ide,kds:kde) )
+      allocate( sqrtG  (ics:ice,kcs:kce) )
+      allocate( G13    (ics:ice,kcs:kce) )
+      allocate( zs     (ics:ice,kcs:kce) )
       
       x       = FillValue
       
@@ -79,9 +79,9 @@ module mesh_mod
     
     subroutine init_horizontal_mesh
       integer i,k
-      do k = kds,kde
-        do i = ids,ide
-          x (i,k) = dble( i - 1 ) * dx
+      do k = kcs,kce
+        do i = ics,ice
+          x (i,k) = ( real(i) - 0.5 ) * dx
         enddo
       enddo
     end subroutine init_horizontal_mesh
@@ -94,20 +94,20 @@ module mesh_mod
       real(r_kind) xx_min
       real(r_kind) xx_max
     
-      deta = 1. / ( nz - 1 )
+      deta = 1. / nz
       
       if( vertical_distribution == 1 )then
-        dxi = ( z_max - z_min ) / ( nz - 1 )
+        dxi = ( z_max - z_min ) / nz
         
-        do k = kds,kde
-          eta(:,k) = dble( k - 1 ) * deta
-          xi (:,k) = dble( k - 1 ) * dxi
+        do k = kcs,kce
+          eta(:,k) = ( real(k) - 0.5 ) * deta
+          xi (:,k) = ( real(k) - 0.5 ) * dxi
         enddo
         dxideta = z_max - z_min
         detadxi = 1. / dxideta
       elseif( vertical_distribution == 2 )then
-        do k = kds,kde
-          eta(:,k) = dble( k - 1 ) * deta
+        do k = kcs,kce
+          eta(:,k) = ( real(i) - 0.5 ) * deta
           xx       = 2. * pi * m_coef * ( eta(1,k) - 0.5 )
           xx_min   = -pi * m_coef
           xx_max   = xx
@@ -134,8 +134,8 @@ module mesh_mod
       
       if(vertical_coordinate==1)then
         ! Gal-Chen coordinate
-        do k = kds,kde
-          do i = ids,ide
+        do k = kcs,kce
+          do i = ics,ice
             dzdxi(i,k) = ( z_max + zs(i,k) ) / z_max
             dxidz(i,k) = z_max / ( z_max + zs(i,k) )
             dzdx (i,k) = dzsdx(i,k)
@@ -152,7 +152,7 @@ module mesh_mod
       else
         stop 'Unknown vertical_coordinate'
       endif
-    
+      
     end subroutine init_vertical_coordinate
 end module mesh_mod
     

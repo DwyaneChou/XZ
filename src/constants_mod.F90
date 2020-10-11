@@ -18,7 +18,7 @@ MODULE constants_mod
   real(r_kind),parameter :: pi        = 2.*asin(1.)
   real(r_kind),parameter :: D2R       = PI/180.    ! convert degree into radian
   real(r_kind),parameter :: R2D       = 180./PI    ! convert radian into degree
-  real(r_kind),parameter :: FillValue = -9999999999999999999.  
+  real(r_kind),parameter :: FillValue = -9999999999999999999999.  
   
   real(r_kind),parameter :: piq       = 0.25_r16*pi
   real(r_kind),parameter :: pih       = 0.5_r16 *pi

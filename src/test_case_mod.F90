@@ -7,13 +7,15 @@ module test_case_mod
   use linear_integration_mod
   implicit none
   
-  real(r_kind), dimension(:,:,:), allocatable :: ref_q     ! reference q
+  real(r_kind), dimension(:,:,:), allocatable :: q_ref      ! reference q
+  real(r_kind), dimension(:,:,:), allocatable :: q_init_ext ! extended intial q
   
     contains
     subroutine init_test_case
       integer iT
       
-      allocate(ref_q(nVar,ids:ide,kds:kde))
+      allocate(q_ref     (nVar,ics:ice,kcs:kce))
+      allocate(q_init_ext(nVar,ics:ice,kcs:kce))
       
       iT = 0
       
@@ -50,18 +52,18 @@ module test_case_mod
       
       integer i,k,iVar
       
-      allocate(rho  (ids:ide,kds:kde))
-      allocate(theta(ids:ide,kds:kde))
-      allocate(u    (ids:ide,kds:kde))
-      allocate(w    (ids:ide,kds:kde))
-      allocate(q    (ids:ide,kds:kde))
+      allocate(rho  (ics:ice,kcs:kce))
+      allocate(theta(ics:ice,kcs:kce))
+      allocate(u    (ics:ice,kcs:kce))
+      allocate(w    (ics:ice,kcs:kce))
+      allocate(q    (ics:ice,kcs:kce))
       
-      allocate(r    (ids:ide,kds:kde))
-      allocate(exner(ids:ide,kds:kde))
-      allocate(p    (ids:ide,kds:kde))
-      allocate(T    (ids:ide,kds:kde))
+      allocate(r    (ics:ice,kcs:kce))
+      allocate(exner(ics:ice,kcs:kce))
+      allocate(p    (ics:ice,kcs:kce))
+      allocate(T    (ics:ice,kcs:kce))
       
-      allocate(dexner(ids:ide,kds:kde))
+      allocate(dexner(ics:ice,kcs:kce))
       
       zs    = 0.
       dzsdx = 0.
@@ -74,20 +76,27 @@ module test_case_mod
       x0        = 10000.
       z0        = 2000.
       
-      do k = kds,kde
-        do i = ids,ide
+      do k = kcs,kce
+        do i = ics,ice
           r     (i,k) = sqrt( ( x(i,k) - x0 )**2 + ( z(i,k) - z0 )**2 )
           theta (i,k) = theta_bar
           dexner(i,k) = -gravity / ( Cpd * theta(i,k) )
         enddo
       enddo
       
-      do i = ids,ide
-        call spline2_integration(nz-1,z(i,:),dexner(i,:),0.,0.,nz,z(i,:),dexner(i,:))
-        !call spline4_integration(nz-1,z(i,:),dexner(i,:)      ,nz,z(i,:),dexner(i,:))
+      do i = ics,ice
+        call spline2_integration(nz_ext-1,z(i,:),dexner(i,:),0.,0.,nz_ext,z(i,:),dexner(i,:))
+        !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
         
-        do k = kds,kde
-          exner(i,k) = 1. + sum(dexner(i,kds:k))
+        do k = kds,kce
+          exner(i,k) = 1. + sum(dexner(i,kds+1:k))
+        enddo
+        
+        do k = kcs,kds-1
+          exner(i,k) = 1. - sum(dexner(i,kds:k+1:-1))
+        enddo
+        
+        do k = kcs,kce
           p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
           T    (i,k) = exner(i,k) * theta(i,k)
           rho  (i,k) = p(i,k) / Rd / T(i,k)
@@ -97,11 +106,11 @@ module test_case_mod
         enddo
       enddo
       
-      !do k = kds,kde
-      !  do i = ids,ide
-      !    theta(i,k) = theta_bar + dtheta * max( 0., 1. - r(i,k) / R_bubble )
-      !  enddo
-      !enddo
+      do k = kcs,kce
+        do i = ics,ice
+          theta(i,k) = theta_bar + dtheta * max( 0., 1. - r(i,k) / R_bubble )
+        enddo
+      enddo
       
       stat%q(1,:,:) = sqrtG * rho
       stat%q(2,:,:) = sqrtG * rho * u
@@ -118,16 +127,16 @@ module test_case_mod
       print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,:,:)),minval(stat%q(5,:,:))
       
       print*,'Reset reference fields'
-      do k = kds,kde
-        ref_q(1,:,k) = sum(stat%q(1,:,k))
+      do k = kcs,kce
+        q_ref(1,:,k) = sum(sqrtG(:,k)*rho(:,k)) / nx_ext
       enddo
-      ref_q(2,:,:) = 0.
-      ref_q(3,:,:) = 0.
-      ref_q(4,:,:) = 300.
-      ref_q(5,:,:) = 0.
+      q_ref(2,:,:) = 0.
+      q_ref(3,:,:) = 0.
+      q_ref(4,:,:) = 300.
+      q_ref(5,:,:) = 0.
       
       do iVar = 2,nVar
-        ref_q(iVar,:,:) = ref_q(iVar,:,:) * stat%q(1,:,:)
+        q_ref(iVar,:,:) = q_ref(iVar,:,:) * q_ref(1,:,:)
       enddo
       
     end subroutine thermal_bubble

@@ -69,10 +69,10 @@ module io_mod
       status = nf90_enddef(ncid)
       if(status/=nf90_noerr) call handle_err(status)
       
-      status = nf90_put_var(ncid,x_id     , real(x    ,r8))
-      status = nf90_put_var(ncid,z_id     , real(z    ,r8))
-      status = nf90_put_var(ncid,sqrtG_id , real(sqrtG,r8))
-      status = nf90_put_var(ncid,G13_id   , real(G13  ,r8))
+      status = nf90_put_var(ncid,x_id     , real(x    (ids:ide,kds:kde),r8))
+      status = nf90_put_var(ncid,z_id     , real(z    (ids:ide,kds:kde),r8))
+      status = nf90_put_var(ncid,sqrtG_id , real(sqrtG(ids:ide,kds:kde),r8))
+      status = nf90_put_var(ncid,G13_id   , real(G13  (ids:ide,kds:kde),r8))
       if(status/=nf90_noerr) call handle_err(status)
       
       status = nf90_close(ncid)
@@ -121,11 +121,11 @@ module io_mod
       if(status/=nf90_noerr) call handle_err(status)
       
       ! diag air status
-      rho   = stat%q(1,:,:)/sqrtG
-      u     = stat%q(2,:,:)/stat%q(1,:,:)
-      w     = stat%q(3,:,:)/stat%q(1,:,:)
-      theta = stat%q(4,:,:)/stat%q(1,:,:)
-      q     = stat%q(5,:,:)/stat%q(1,:,:)
+      rho   = stat%q(1,ids:ide,kds:kde)/sqrtG(ids:ide,kds:kde)
+      u     = stat%q(2,ids:ide,kds:kde)/stat%q(1,ids:ide,kds:kde)
+      w     = stat%q(3,ids:ide,kds:kde)/stat%q(1,ids:ide,kds:kde)
+      theta = stat%q(4,ids:ide,kds:kde)/stat%q(1,ids:ide,kds:kde)
+      q     = stat%q(5,ids:ide,kds:kde)/stat%q(1,ids:ide,kds:kde)
       Cp    = Cpd + ( Cpv - Cpd ) * q
       Cv    = Cvd + ( Cvv - Cvd ) * q
       kappa = Cp / Cv

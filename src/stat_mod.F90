@@ -16,7 +16,7 @@ module stat_mod
       allocate(stat(-nIntegralSubSteps:1))
       
       do iT = -nIntegralSubSteps, 1
-        allocate(stat(iT)%q(nVar,ids:ide,kds:kde))
+        allocate(stat(iT)%q(nVar,ics:ice,kcs:kce))
       enddo
     end subroutine init_stat
 

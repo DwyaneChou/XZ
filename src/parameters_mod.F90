@@ -30,15 +30,22 @@ module parameters_mod
   integer(i_kind) :: vertical_distribution ! 1 for even, 2 for atan function
   integer(i_kind) :: vertical_coordinate   ! 1 for Gal-Chen, 2 for Klemp 2011
   
-  integer(i_kind) ids,ide
-  integer(i_kind) kds,kde
-  
   integer(i_kind) :: nIntegralSubSteps ! number of integral substeps in temporal integration scheme
   integer(i_kind) :: nsteps            ! total integral steps
   
   ! Model run time control variables
   integer(i_kind) :: total_run_time   ! total run time for this model in seconds, this variable is determined by run_days, run_hours ...
   integer(i_kind) :: total_run_steps  ! total run steps for this model in seconds, this variable is determined by total_run_time and dt
+  
+  integer(i_kind), parameter :: extPts = 3
+  
+  integer(i_kind) :: ids, ide
+  integer(i_kind) :: kds, kde
+  integer(i_kind) :: ics, ice
+  integer(i_kind) :: kcs, kce
+  
+  integer(i_kind) :: nx_ext
+  integer(i_kind) :: nz_ext
   
   namelist /time_settings/ dt               ,&
                            run_days         ,&
@@ -126,11 +133,19 @@ module parameters_mod
     endif
     
     ids = 1
-    ide = ( x_max - x_min ) / dx + 1
+    ide = ( x_max - x_min ) / dx
     kds = 1
     kde = nz
     
-    nx = ( x_max - x_min ) / dx + 1
+    ics = ids - extPts
+    ice = ide + extPts
+    kcs = kds - extPts
+    kce = kde + extPts
+      
+    nx = ide - ids + 1
+    
+    nx_ext = ice - ics + 1
+    nz_ext = kce - kcs + 1
     
     nsteps = total_run_time / dt
     

@@ -11,15 +11,8 @@ MODULE spatial_operators_mod
   
   public init_spatial_operator, spatial_operator
   
-  integer(i_kind), parameter :: extPts = 3
-  
   integer(i_kind) :: pos
   integer(i_kind) :: neg
-      
-  integer(i_kind) :: ics
-  integer(i_kind) :: ice
-  integer(i_kind) :: kcs
-  integer(i_kind) :: kce
   
   integer(i_kind) :: ils
   integer(i_kind) :: ile
@@ -39,6 +32,8 @@ MODULE spatial_operators_mod
   integer(i_kind) :: kte
   
   real(r_kind), dimension(:,:,:), allocatable :: q_ext ! Extended forecast variables
+  real(r_kind), dimension(:,:,:), allocatable :: q_p   ! perturbation forecast variables
+  
   real(r_kind), dimension(:,:,:), allocatable :: qL    ! Reconstructed q_(i-1/2,k)
   real(r_kind), dimension(:,:,:), allocatable :: qR    ! Reconstructed q_(i+1/2,k)
   real(r_kind), dimension(:,:,:), allocatable :: qB    ! Reconstructed q_(i,k-1/2)
@@ -78,11 +73,6 @@ MODULE spatial_operators_mod
       pos = 1
       neg = -1
       
-      ics = ids - extPts
-      ice = ide + extPts
-      kcs = kds - extPts
-      kce = kde + extPts
-      
       ils = ids
       ile = ide + 1
       kls = kds
@@ -104,6 +94,8 @@ MODULE spatial_operators_mod
       kte = kde
       
       allocate(q_ext(nVar,ics:ice,kcs:kce))
+      allocate(q_p  (nVar,ids:ide,kds:kde))
+      
       allocate(qL   (nVar,ils:ile,kls:kle))
       allocate(qR   (nVar,irs:ire,krs:kre))
       allocate(qB   (nVar,ibs:ibe,kbs:kbe))
@@ -164,8 +156,17 @@ MODULE spatial_operators_mod
       ! initialize source terms
       src = 0.
       
+      q_p = stat%q(:,ids:ide,kds:kde) - q_ref(:,ids:ide,kds:kde)
+      !do k = kds,kde
+      !  do i = ids,ide
+      !    do iVar = 1,nVar
+      !      if(q_ref(iVar,i,k)/=0.)print*,k,i,iVar,q_p(iVar,i,k)/q_ref(iVar,i,k),stat%q(iVar,i,k),q_ref(iVar,i,k)
+      !    enddo
+      !  enddo
+      !enddo
+      
       ! Set no flux and nonreflecting boundary condition
-      call bdy_condition(q_ext,stat%q,src)
+      call bdy_condition(q_ext,stat%q(:,ids:ide,kds:kde),q_p,q_ref,src)
       
       !$OMP PARALLEL DO PRIVATE(i,iVar,ip1,im1,ip2,im2,q_weno,dir,kp1,km1,kp2,km2)
       do k = kds,kde
@@ -181,15 +182,10 @@ MODULE spatial_operators_mod
           do iVar = 1,nVar
             ! x-dir
             q_weno = q_ext(iVar,im2:ip2,k)
-            !if(im1<ids)then
-            !  q_weno(1:2) = FillValue
-            !elseif(im2<ids.and.im1>=ids)then
-            !  q_weno(1) = FillValue
-            !elseif(ip1>ide)then
-            !  q_weno(4:5) = FillValue
-            !elseif(ip2>ide.and.ip1<=ide)then
-            !  q_weno(5) = FillValue
-            !endif
+            !if(im1<ids             )q_weno(1:2) = FillValue
+            !if(im2<ids.and.im1>=ids)q_weno(1  ) = FillValue
+            !if(ip1>ide             )q_weno(4:5) = FillValue
+            !if(ip2>ide.and.ip1<=ide)q_weno(5  ) = FillValue
             
             dir = -1
             call WENO_limiter(qL(iVar,i,k),q_weno,dir)
@@ -198,20 +194,20 @@ MODULE spatial_operators_mod
             
             ! z-dir
             q_weno = q_ext(iVar,i,km2:kp2)
-            !if(km1<kds)then
-            !  q_weno(1:2) = FillValue
-            !elseif(km2<kds.and.km1>=kds)then
-            !  q_weno(1) = FillValue
-            !elseif(kp1>kde)then
-            !  q_weno(4:5) = FillValue
-            !elseif(kp2>kde.and.kp1<=kde)then
-            !  q_weno(5) = FillValue
-            !endif
+            !if(km1<kds             )q_weno(1:2) = FillValue
+            !if(km2<kds.and.km1>=kds)q_weno(1  ) = FillValue
+            !if(kp1>kde             )q_weno(4:5) = FillValue
+            !if(kp2>kde.and.kp1<=kde)q_weno(5  ) = FillValue
             
             dir = -1
             call WENO_limiter(qB(iVar,i,k),q_weno,dir)
             dir = 1
             call WENO_limiter(qT(iVar,i,k),q_weno,dir)
+            
+            !!if(iVar==4.and.(k==kds.or.k==kds+1.or.k==kds+2))then
+            !if(iVar==4.and.(k==kds))then
+            !  print*,k,i,iVar,qB(iVar,i,k),stat%q(iVar,i,k)
+            !endif
           enddo
           
           !P(  i,k) = calc_pressure(sqrtG(i,k),stat%q(:,i,k))
@@ -231,8 +227,6 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
-      
-      src(3,:,:) = -stat%q(1,:,:) * gravity
       
       ! Fill boundary
       ! left
@@ -303,6 +297,8 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
+      src(3,ids:ide,kds:kde) = -stat%q(1,ids:ide,kds:kde) * gravity
+      
       ! calc x flux
       !$OMP PARALLEL DO PRIVATE(i,im1,eigenvalue_x,maxeigen_x)
       do k = kds,kde
@@ -327,9 +323,14 @@ MODULE spatial_operators_mod
           
           maxeigen_z = maxval(abs(eigenvalue_z))
           He(:,i,k)  = 0.5 * ( HB(:,i,k) + HT(:,i,km1) - maxeigen_z * ( qB(:,i,k) - qT(:,i,km1) ) )
+          !if(k==kds)print*,k,i,He(1,i,k),maxeigen_z,qB(1,i,k), qT(1,i,km1),HB(1,i,k) + HT(1,i,km1), maxeigen_z * ( qB(1,i,k) - qT(1,i,km1) )
         enddo
       enddo
       !$OMP END PARALLEL DO
+      He(1,:,kds  ) = 0
+      He(1,:,kde+1) = 0
+      He(4,:,kds  ) = 0
+      He(4,:,kde+1) = 0
       
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1)
       do k = kds,kde
@@ -446,14 +447,18 @@ MODULE spatial_operators_mod
       
     end subroutine WENO_limiter
     
-    subroutine bdy_condition(q_ext,q,src)
+    subroutine bdy_condition(q_ext,q,q_p,q_ref,src)
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(out  ) :: q_ext
       real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(in   ) :: q
+      real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(in   ) :: q_p
+      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
       real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(inout) :: src
       
       real(r_kind), dimension(nVar,kds:kde) :: dqx
       real(r_kind), dimension(nVar,ids:ide) :: dqz
       
+      integer(i_kind), parameter :: vs = 2
+      integer(i_kind), parameter :: ve = 4
       integer(i_kind), parameter :: bdy_width = 5
       real   (r_kind), parameter :: exp_ceof  = 2
       
@@ -463,45 +468,71 @@ MODULE spatial_operators_mod
       integer(i_kind) il,ir
       integer(i_kind) kt
       
-      real(r_kind) :: relax_coef
+      integer(i_kind) kls,kle ! pure lateral boundary layer indices
+      integer(i_kind) its,ite ! pure top boundary layer indices
+      
+      real(r_kind) :: relax_coef(bdy_width)
       real(r_kind) :: max_exp
       
       ! No flux condition
       ! x-dir
       dir = 1
-      do i = 1,extPts
-        call fill_ghost(q_ext(1,:,:),q(1,:,:),dir,pos)
-        call fill_ghost(q_ext(2,:,:),q(2,:,:),dir,neg)
-        call fill_ghost(q_ext(3,:,:),q(3,:,:),dir,pos)
-        call fill_ghost(q_ext(4,:,:),q(4,:,:),dir,pos)
-        call fill_ghost(q_ext(5,:,:),q(5,:,:),dir,pos)
-      enddo
+      call fill_ghost(q_ext(1,:,:),q_p(1,:,:),dir,pos)
+      call fill_ghost(q_ext(2,:,:),q  (2,:,:),dir,neg)
+      call fill_ghost(q_ext(3,:,:),q  (3,:,:),dir,pos)
+      call fill_ghost(q_ext(4,:,:),q_p(4,:,:),dir,pos)
+      call fill_ghost(q_ext(5,:,:),q  (5,:,:),dir,pos)
       
       ! y-dir
       dir = 2
-      do k = 1,extPts
-        call fill_ghost(q_ext(1,:,:),q(1,:,:),dir,pos)
-        call fill_ghost(q_ext(2,:,:),q(2,:,:),dir,pos)
-        call fill_ghost(q_ext(3,:,:),q(3,:,:),dir,neg)
-        call fill_ghost(q_ext(4,:,:),q(4,:,:),dir,pos)
-        call fill_ghost(q_ext(5,:,:),q(5,:,:),dir,pos)
+      call fill_ghost(q_ext(1,:,:),q_p(1,:,:),dir,pos)
+      call fill_ghost(q_ext(2,:,:),q  (2,:,:),dir,pos)
+      call fill_ghost(q_ext(3,:,:),q  (3,:,:),dir,neg)
+      call fill_ghost(q_ext(4,:,:),q_p(4,:,:),dir,pos)
+      call fill_ghost(q_ext(5,:,:),q  (5,:,:),dir,pos)
+      
+      q_ext(1,:,:) = q_ext(1,:,:) + q_ref(1,:,:)
+      q_ext(4,:,:) = q_ext(4,:,:) + q_ref(4,:,:)
+      
+      ! Nonreflecting condition
+      kls = kds
+      kle = kde-bdy_width
+      its = ids+bdy_width
+      ite = ide-bdy_width
+      ! calculate relax coefficients
+      max_exp = exp( ( real( bdy_width - 1 ) / real(bdy_width) )**exp_ceof ) - 1.
+      do i = 1,bdy_width
+        relax_coef(i) = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
+        !relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
       enddo
       
-      !! Nonreflecting condition
-      !max_exp = exp( ( real( bdy_width - 1 ) / real(bdy_width) )**exp_ceof ) - 1.
+      !! pure zone
       !do i = 1,bdy_width
       !  il = i
       !  ir = ide-i+1
       !  kt = kde-i+1
-      !  
-      !  !relax_coef = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
-      !  relax_coef = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
-      !  
-      !  src(:,il,:) = - relax_coef * ( q(:,il,:) - ref_q(:,il,:) )
-      !  
-      !  src(:,ir,:) = - relax_coef * ( q(:,ir,:) - ref_q(:,ir,:) )
-      !  
-      !  src(:,:,kt) = - relax_coef * ( q(:,:,kt) - ref_q(:,:,kt) )
+      !  src(vs:ve,ids:ide,kt     ) = - relax_coef(i) * ( q(vs:ve,ids:ide,kt) - q_ref(vs:ve,ids:ide,kt) )
+      !enddo
+      
+      !! pure zone
+      !do i = 1,bdy_width
+      !  il = i
+      !  ir = ide-i+1
+      !  kt = kde-i+1
+      !  src(vs:ve,il     ,kls:kle) = - relax_coef(i) * ( q(vs:ve,il,kls:kle) - q_ref(vs:ve,il,kls:kle) )
+      !  src(vs:ve,ir     ,kls:kle) = - relax_coef(i) * ( q(vs:ve,ir,kls:kle) - q_ref(vs:ve,ir,kls:kle) )
+      !  src(vs:ve,its:ite,kt     ) = - relax_coef(i) * ( q(vs:ve,its:ite,kt) - q_ref(vs:ve,its:ite,kt) )
+      !enddo
+      !
+      !!overlap zone
+      !do k = 1,bdy_width
+      !  do i = 1,bdy_width
+      !    il = i
+      !    ir = ide-i+1
+      !    kt = kde-i+1
+      !    src(vs:ve,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(vs:ve,il,kt) - q_ref(vs:ve,il,kt) )
+      !    src(vs:ve,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(vs:ve,ir,kt) - q_ref(vs:ve,ir,kt) )
+      !  enddo
       !enddo
       
       !! Open boundary

@@ -18,7 +18,7 @@ module tend_mod
     allocate( tend(-nIntegralSubSteps:1) )
     
     do iT = -nIntegralSubSteps, 1
-      allocate(tend(iT)%q(nVar,ids:ide,kds:kde))
+      allocate(tend(iT)%q(nVar,ics:ice,kcs:kce))
     enddo
     
   end subroutine init_tend
