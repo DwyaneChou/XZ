@@ -458,7 +458,7 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(nVar,ids:ide) :: dqz
       
       integer(i_kind), parameter :: vs = 2
-      integer(i_kind), parameter :: ve = 4
+      integer(i_kind), parameter :: ve = 3
       integer(i_kind), parameter :: bdy_width = 5
       real   (r_kind), parameter :: exp_ceof  = 2
       
@@ -514,26 +514,26 @@ MODULE spatial_operators_mod
       !  src(vs:ve,ids:ide,kt     ) = - relax_coef(i) * ( q(vs:ve,ids:ide,kt) - q_ref(vs:ve,ids:ide,kt) )
       !enddo
       
-      !! pure zone
-      !do i = 1,bdy_width
-      !  il = i
-      !  ir = ide-i+1
-      !  kt = kde-i+1
-      !  src(vs:ve,il     ,kls:kle) = - relax_coef(i) * ( q(vs:ve,il,kls:kle) - q_ref(vs:ve,il,kls:kle) )
-      !  src(vs:ve,ir     ,kls:kle) = - relax_coef(i) * ( q(vs:ve,ir,kls:kle) - q_ref(vs:ve,ir,kls:kle) )
-      !  src(vs:ve,its:ite,kt     ) = - relax_coef(i) * ( q(vs:ve,its:ite,kt) - q_ref(vs:ve,its:ite,kt) )
-      !enddo
-      !
-      !!overlap zone
-      !do k = 1,bdy_width
-      !  do i = 1,bdy_width
-      !    il = i
-      !    ir = ide-i+1
-      !    kt = kde-i+1
-      !    src(vs:ve,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(vs:ve,il,kt) - q_ref(vs:ve,il,kt) )
-      !    src(vs:ve,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(vs:ve,ir,kt) - q_ref(vs:ve,ir,kt) )
-      !  enddo
-      !enddo
+      ! pure zone
+      do i = 1,bdy_width
+        il = i
+        ir = ide-i+1
+        kt = kde-i+1
+        src(vs:ve,il     ,kls:kle) = - relax_coef(i) * ( q(vs:ve,il,kls:kle) - q_ref(vs:ve,il,kls:kle) )
+        src(vs:ve,ir     ,kls:kle) = - relax_coef(i) * ( q(vs:ve,ir,kls:kle) - q_ref(vs:ve,ir,kls:kle) )
+        src(vs:ve,its:ite,kt     ) = - relax_coef(i) * ( q(vs:ve,its:ite,kt) - q_ref(vs:ve,its:ite,kt) )
+      enddo
+      
+      !overlap zone
+      do k = 1,bdy_width
+        do i = 1,bdy_width
+          il = i
+          ir = ide-i+1
+          kt = kde-i+1
+          src(vs:ve,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(vs:ve,il,kt) - q_ref(vs:ve,il,kt) )
+          src(vs:ve,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(vs:ve,ir,kt) - q_ref(vs:ve,ir,kt) )
+        enddo
+      enddo
       
       !! Open boundary
       !do i = 1,extPts
