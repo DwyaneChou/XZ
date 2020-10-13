@@ -458,7 +458,7 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(nVar,ids:ide) :: dqz
       
       integer(i_kind), parameter :: vs = 2
-      integer(i_kind), parameter :: ve = 3
+      integer(i_kind), parameter :: ve = 4
       integer(i_kind), parameter :: bdy_width = 5
       real   (r_kind), parameter :: exp_ceof  = 2
       
@@ -483,7 +483,7 @@ MODULE spatial_operators_mod
       call fill_ghost(q_ext(4,:,:),q_p(4,:,:),dir,pos)
       call fill_ghost(q_ext(5,:,:),q  (5,:,:),dir,pos)
       
-      ! y-dir
+      ! z-dir
       dir = 2
       call fill_ghost(q_ext(1,:,:),q_p(1,:,:),dir,pos)
       call fill_ghost(q_ext(2,:,:),q  (2,:,:),dir,pos)
@@ -502,8 +502,8 @@ MODULE spatial_operators_mod
       ! calculate relax coefficients
       max_exp = exp( ( real( bdy_width - 1 ) / real(bdy_width) )**exp_ceof ) - 1.
       do i = 1,bdy_width
-        relax_coef(i) = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
-        !relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
+        !relax_coef(i) = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
+        relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
       enddo
       
       !! pure zone
