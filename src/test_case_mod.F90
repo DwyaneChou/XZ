@@ -106,11 +106,11 @@ module test_case_mod
         enddo
       enddo
       
-      do k = kcs,kce
-        do i = ics,ice
-          theta(i,k) = theta_bar + dtheta * max( 0., 1. - r(i,k) / R_bubble )
-        enddo
-      enddo
+      !do k = kcs,kce
+      !  do i = ics,ice
+      !    theta(i,k) = theta_bar + dtheta * max( 0., 1. - r(i,k) / R_bubble )
+      !  enddo
+      !enddo
       
       stat%q(1,:,:) = sqrtG * rho
       stat%q(2,:,:) = sqrtG * rho * u
@@ -128,8 +128,10 @@ module test_case_mod
       
       print*,'Reset reference fields'
       do k = kcs,kce
+        !q_ref(1,:,k) = stat%q(1,:,k)
         q_ref(1,:,k) = sum(sqrtG(:,k)*rho(:,k)) / nx_ext
       enddo
+      
       q_ref(2,:,:) = 0.
       q_ref(3,:,:) = 0.
       q_ref(4,:,:) = 300.
