@@ -410,8 +410,8 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(nVar,kds:kde) :: dqx
       real(r_kind), dimension(nVar,ids:ide) :: dqz
       
-      integer(i_kind), parameter :: vs = 1
-      integer(i_kind), parameter :: ve = 5
+      integer(i_kind), parameter :: vs = 2
+      integer(i_kind), parameter :: ve = 4
       integer(i_kind), parameter :: bdy_width = 5
       real   (r_kind), parameter :: exp_ceof  = 2
       
@@ -459,9 +459,9 @@ MODULE spatial_operators_mod
         ir = ide-i+1
         kt = kde-i+1
         do iVar = vs,ve
-          src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
-          src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
-          src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
+          src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) / q_ref(1,il,kls:kle) * q(1,il,kls:kle) )
+          src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) / q_ref(1,ir,kls:kle) * q(1,ir,kls:kle) )
+          src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) / q_ref(1,its:ite,kt) * q(1,its:ite,kt) )
         enddo
       enddo
       
@@ -472,8 +472,8 @@ MODULE spatial_operators_mod
           ir = ide-i+1
           kt = kde-i+1
           do iVar = vs,ve
-            src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
-            src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
+            src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) / q_ref(1,il,kt) * q(1,il,kt) )
+            src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) / q_ref(1,ir,kt) * q(1,ir,kt) )
           enddo
         enddo
       enddo
