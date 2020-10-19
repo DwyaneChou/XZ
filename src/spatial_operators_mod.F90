@@ -412,11 +412,11 @@ MODULE spatial_operators_mod
       
       integer(i_kind), parameter :: vs = 2
       integer(i_kind), parameter :: ve = 4
-      integer(i_kind), parameter :: bdy_width = 10
+      integer(i_kind), parameter :: bdy_width = 5
       real   (r_kind), parameter :: exp_ceof  = 2
       
       integer(i_kind) dir
-      integer(i_kind) i,k
+      integer(i_kind) i,k,iVar
       
       integer(i_kind) il,ir
       integer(i_kind) kt
@@ -441,34 +441,42 @@ MODULE spatial_operators_mod
         !relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
       enddo
       
-      ! pure zone
-      do i = 1,bdy_width
-        il = i
-        ir = ide-i+1
-        kt = kde-i+1
-        src(vs:ve,ids:ide,kt     ) = - relax_coef(i) * ( q(vs:ve,ids:ide,kt) - q_ref(vs:ve,ids:ide,kt) )
-      enddo
-      
       !! pure zone
       !do i = 1,bdy_width
       !  il = i
       !  ir = ide-i+1
       !  kt = kde-i+1
-      !  src(vs:ve,il     ,kls:kle) = - relax_coef(i) * ( q(vs:ve,il,kls:kle) - q_ref(vs:ve,il,kls:kle) )
-      !  src(vs:ve,ir     ,kls:kle) = - relax_coef(i) * ( q(vs:ve,ir,kls:kle) - q_ref(vs:ve,ir,kls:kle) )
-      !  src(vs:ve,its:ite,kt     ) = - relax_coef(i) * ( q(vs:ve,its:ite,kt) - q_ref(vs:ve,its:ite,kt) )
-      !enddo
-      !
-      !!overlap zone
-      !do k = 1,bdy_width
-      !  do i = 1,bdy_width
-      !    il = i
-      !    ir = ide-i+1
-      !    kt = kde-i+1
-      !    src(vs:ve,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(vs:ve,il,kt) - q_ref(vs:ve,il,kt) )
-      !    src(vs:ve,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(vs:ve,ir,kt) - q_ref(vs:ve,ir,kt) )
+      !  do iVar = 1,4
+      !    src(iVar,ids:ide,kt     ) = - relax_coef(i) * ( q(iVar,ids:ide,kt) - q_ref(iVar,ids:ide,kt) )
       !  enddo
+      !  !iVar = 4
+      !  !src(iVar,ids:ide,kt     ) = - relax_coef(i) * ( q(iVar,ids:ide,kt) - q_ref(iVar,ids:ide,kt) / q_ref(1,ids:ide,kt) * q(1,ids:ide,kt) )
       !enddo
+      
+      ! pure zone
+      do i = 1,bdy_width
+        il = i
+        ir = ide-i+1
+        kt = kde-i+1
+        do iVar = vs,ve
+          src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) / q(1,il,kls:kle) * q(1,il,kls:kle) )
+          src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) / q(1,ir,kls:kle) * q(1,ir,kls:kle) )
+          src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) / q(1,its:ite,kt) * q(1,its:ite,kt) )
+        enddo
+      enddo
+      
+      !overlap zone
+      do k = 1,bdy_width
+        do i = 1,bdy_width
+          il = i
+          ir = ide-i+1
+          kt = kde-i+1
+          do iVar = vs,ve
+            src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) / q(1,il,kt) * q(1,il,kt) )
+            src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) / q(1,ir,kt) * q(1,ir,kt) )
+          enddo
+        enddo
+      enddo
     end subroutine bdy_condition
     
     subroutine fill_ghost(q_ext,q,dir,sign)

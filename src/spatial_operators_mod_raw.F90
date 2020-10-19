@@ -471,7 +471,7 @@ MODULE spatial_operators_mod
       real   (r_kind), parameter :: exp_ceof  = 2
       
       integer(i_kind) dir
-      integer(i_kind) i,k
+      integer(i_kind) i,k,iVar
       
       integer(i_kind) il,ir
       integer(i_kind) kt
@@ -519,9 +519,11 @@ MODULE spatial_operators_mod
         il = i
         ir = ide-i+1
         kt = kde-i+1
-        src(vs:ve,il     ,kls:kle) = - relax_coef(i) * ( q(vs:ve,il,kls:kle) - q_ref(vs:ve,il,kls:kle) )
-        src(vs:ve,ir     ,kls:kle) = - relax_coef(i) * ( q(vs:ve,ir,kls:kle) - q_ref(vs:ve,ir,kls:kle) )
-        src(vs:ve,its:ite,kt     ) = - relax_coef(i) * ( q(vs:ve,its:ite,kt) - q_ref(vs:ve,its:ite,kt) )
+        do iVar = vs,ve
+          src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) / q_ref(1,il,kls:kle) * q(1,il,kls:kle) )
+          src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) / q_ref(1,ir,kls:kle) * q(1,ir,kls:kle) )
+          src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) / q_ref(1,its:ite,kt) * q(1,its:ite,kt) )
+        enddo
       enddo
       
       !overlap zone
@@ -530,8 +532,10 @@ MODULE spatial_operators_mod
           il = i
           ir = ide-i+1
           kt = kde-i+1
-          src(vs:ve,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(vs:ve,il,kt) - q_ref(vs:ve,il,kt) )
-          src(vs:ve,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(vs:ve,ir,kt) - q_ref(vs:ve,ir,kt) )
+          do iVar = vs,ve
+            src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) / q_ref(1,il,kt) * q(1,il,kt) )
+            src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) / q_ref(1,ir,kt) * q(1,ir,kt) )
+          enddo
         enddo
       enddo
       

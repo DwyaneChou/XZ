@@ -121,7 +121,7 @@ module io_mod
       if(status/=nf90_noerr) call handle_err(status)
       
       ! diag air status
-      rho   = stat%q(1,ids:ide,kds:kde)/sqrtG(ids:ide,kds:kde)
+      rho   = stat%q(1,ids:ide,kds:kde)/sqrtG(   ids:ide,kds:kde)
       u     = stat%q(2,ids:ide,kds:kde)/stat%q(1,ids:ide,kds:kde)
       w     = stat%q(3,ids:ide,kds:kde)/stat%q(1,ids:ide,kds:kde)
       theta = stat%q(4,ids:ide,kds:kde)/stat%q(1,ids:ide,kds:kde)
