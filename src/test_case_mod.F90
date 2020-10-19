@@ -106,11 +106,11 @@ module test_case_mod
         enddo
       enddo
       
-      do k = kcs,kce
-        do i = ics,ice
-          theta(i,k) = theta_bar + dtheta * max( 0., 1. - r(i,k) / R_bubble )
-        enddo
-      enddo
+      !do k = kcs,kce
+      !  do i = ics,ice
+      !    theta(i,k) = theta_bar + dtheta * max( 0., 1. - r(i,k) / R_bubble )
+      !  enddo
+      !enddo
       
       stat%q(1,:,:) = sqrtG * rho
       stat%q(2,:,:) = sqrtG * rho * u

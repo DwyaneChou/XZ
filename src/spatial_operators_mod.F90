@@ -359,43 +359,45 @@ MODULE spatial_operators_mod
       
       beta = coefA**2 * 13. / 12. + coefB**2 * 0.25
       
-      !! WENO-Z
-      !tau40 = abs( beta(1) - beta(2) )
-      !tau41 = abs( beta(2) - beta(3) )
-      !tau5  = abs( beta(3) - beta(1) )
-      !
-      !if( tau40<=minval(beta) .and. tau41>minval(beta) )then
-      !  omega = [1./3.,2./3.,0.]
-      !elseif( tau40>minval(beta) .and. tau41<minval(beta) )then
-      !  omega = [0.,2./3.,1./3.]
-      !else
-      !  alpha = weno_coef * ( 1. + tau5 / ( eps + beta ) )
-      !  omega = alpha / sum(alpha)
-      !endif
-      !! WENO-Z
-      
-      ! origin WENO
-      alpha = weno_coef / ( eps + beta )**2
-      omega = alpha / sum(alpha)
-      ! origin WENO
+      if(.not.any(Q==FillValue))then
+        ! WENO-Z
+        tau40 = abs( beta(1) - beta(2) )
+        tau41 = abs( beta(2) - beta(3) )
+        tau5  = abs( beta(3) - beta(1) )
+        
+        if( tau40<=minval(beta) .and. tau41>minval(beta) )then
+          omega = [1./3.,2./3.,0.]
+        elseif( tau40>minval(beta) .and. tau41<minval(beta) )then
+          omega = [0.,2./3.,1./3.]
+        else
+          alpha = weno_coef * ( 1. + tau5 / ( eps + beta ) )
+          omega = alpha / sum(alpha)
+        endif
+        ! WENO-Z
+      else
+        ! origin WENO
+        alpha = weno_coef / ( eps + beta )**2
+        omega = alpha / sum(alpha)
+        ! origin WENO
+      endif
       
       !print*,Q
       !print*,alpha,beta
       
-      if(any(Q==FillValue))then
-        if(dir>0)then
-          if(Q(1)==FillValue)alpha(1  ) = 0
-          if(Q(2)==FillValue)alpha(1:2) = 0
-          if(Q(4)==FillValue)alpha(2:3) = 0
-          if(Q(5)==FillValue)alpha(3  ) = 0
-        elseif(dir<0)then
-          if(Q(5)==FillValue)alpha(1  ) = 0
-          if(Q(4)==FillValue)alpha(1:2) = 0
-          if(Q(2)==FillValue)alpha(2:3) = 0
-          if(Q(1)==FillValue)alpha(3  ) = 0
-        endif
-        omega = alpha / sum(alpha)
-      endif
+      !if(any(Q==FillValue))then
+      !  if(dir>0)then
+      !    if(Q(1)==FillValue)alpha(1  ) = 0
+      !    if(Q(2)==FillValue)alpha(1:2) = 0
+      !    if(Q(4)==FillValue)alpha(2:3) = 0
+      !    if(Q(5)==FillValue)alpha(3  ) = 0
+      !  elseif(dir<0)then
+      !    if(Q(5)==FillValue)alpha(1  ) = 0
+      !    if(Q(4)==FillValue)alpha(1:2) = 0
+      !    if(Q(2)==FillValue)alpha(2:3) = 0
+      !    if(Q(1)==FillValue)alpha(3  ) = 0
+      !  endif
+      !  omega = alpha / sum(alpha)
+      !endif
       
       Qrec = dot_product( stencil, omega )
       
@@ -412,7 +414,7 @@ MODULE spatial_operators_mod
       
       integer(i_kind), parameter :: vs = 1
       integer(i_kind), parameter :: ve = 5
-      integer(i_kind), parameter :: bdy_width = 5
+      integer(i_kind), parameter :: bdy_width = 10
       real   (r_kind), parameter :: exp_ceof  = 2
       
       integer(i_kind) dir
