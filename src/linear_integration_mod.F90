@@ -379,4 +379,21 @@ module linear_integration_mod
     end do
     
     end subroutine chase
+    
+    subroutine poly_integration(n,x,y,nt,t,ty)
+      integer(i_kind), intent(in ) :: n
+      integer(i_kind), intent(in ) :: nt
+      real   (r_kind), intent(in ) :: x  (n )
+      real   (r_kind), intent(in ) :: y  (n )
+      real   (r_kind), intent(in ) :: t  (nt)
+      real   (r_kind), intent(out) :: ty (nt)
+      
+      integer k
+      
+      integer nsample
+      
+      do k = 1,n
+      
+      enddo
+    end poly_integration
 end module linear_integration_mod

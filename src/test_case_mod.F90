@@ -50,6 +50,8 @@ module test_case_mod
       real(r_kind) x0
       real(r_kind) z0
       
+      real(r_kind) residual_error
+      
       integer i,k,iVar
       
       allocate(rho  (ics:ice,kcs:kce))
@@ -64,6 +66,7 @@ module test_case_mod
       allocate(T    (ics:ice,kcs:kce))
       
       allocate(dexner(ics:ice,kcs:kce))
+      allocate(rhog  (ics:ice,kcs:kce))
       
       zs    = 0.
       dzsdx = 0.
@@ -103,7 +106,13 @@ module test_case_mod
           u    (i,k) = 0.
           w    (i,k) = 0.
           q    (i,k) = 0.
+          rhog (i,k) = rho(i,k) * gravity
         enddo
+      enddo
+      
+      residual_error = 10
+      do while( abs(residual_error) > tolerance )
+        
       enddo
       
       !do k = kcs,kce
