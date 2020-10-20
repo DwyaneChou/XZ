@@ -455,30 +455,30 @@ MODULE spatial_operators_mod
       !  !src(iVar,ids:ide,kt     ) = - relax_coef(i) * ( q(iVar,ids:ide,kt) - q_ref(iVar,ids:ide,kt) / q_ref(1,ids:ide,kt) * q(1,ids:ide,kt) )
       !enddo
       
-      ! pure zone
-      do i = 1,bdy_width
-        il = i
-        ir = ide-i+1
-        kt = kde-i+1
-        do iVar = vs,ve
-          src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
-          src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
-          src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
-        enddo
-      enddo
-      
-      !overlap zone
-      do k = 1,bdy_width
-        do i = 1,bdy_width
-          il = i
-          ir = ide-i+1
-          kt = kde-i+1
-          do iVar = vs,ve
-            src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
-            src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
-          enddo
-        enddo
-      enddo
+      !! pure zone
+      !do i = 1,bdy_width
+      !  il = i
+      !  ir = ide-i+1
+      !  kt = kde-i+1
+      !  do iVar = vs,ve
+      !    src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
+      !    src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
+      !    src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
+      !  enddo
+      !enddo
+      !
+      !!overlap zone
+      !do k = 1,bdy_width
+      !  do i = 1,bdy_width
+      !    il = i
+      !    ir = ide-i+1
+      !    kt = kde-i+1
+      !    do iVar = vs,ve
+      !      src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
+      !      src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
+      !    enddo
+      !  enddo
+      !enddo
     end subroutine bdy_condition
     
     subroutine fill_ghost(q_ext,q,dir,sign)

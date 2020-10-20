@@ -50,9 +50,15 @@ module test_case_mod
       real(r_kind) x0
       real(r_kind) z0
       
-      real(r_kind) residual_error
+      ! hydrostatic again
+      integer(i_kind),parameter :: max_iter = 100
+      real   (r_kind)           :: residual_error
       
-      integer i,k,iVar
+      real(r_kind), dimension(:,:), allocatable :: rhog
+      real(r_kind), dimension(:,:), allocatable :: dp
+      real(r_kind), dimension(:,:), allocatable :: p_raw
+      
+      integer i,k,kp1,iVar,iter
       
       allocate(rho  (ics:ice,kcs:kce))
       allocate(theta(ics:ice,kcs:kce))
@@ -66,7 +72,11 @@ module test_case_mod
       allocate(T    (ics:ice,kcs:kce))
       
       allocate(dexner(ics:ice,kcs:kce))
+      
+      ! hydrostatic again
       allocate(rhog  (ics:ice,kcs:kce))
+      allocate(dp    (ics:ice,kcs:kce))
+      allocate(p_raw (ics:ice,kcs:kce))
       
       zs    = 0.
       dzsdx = 0.
@@ -88,8 +98,12 @@ module test_case_mod
       enddo
       
       do i = ics,ice
-        call spline2_integration(nz_ext-1,z(i,:),dexner(i,:),0.,0.,nz_ext,z(i,:),dexner(i,:))
-        !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
+        !call spline2_integration(nz_ext-1,z(i,:),dexner(i,:),0.,0.,nz_ext,z(i,:),dexner(i,:))
+        call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
+        
+        !do k = kcs,kce
+        !  print*,k,dexner(i,k)
+        !enddo
         
         do k = kds,kce
           exner(i,k) = 1. + sum(dexner(i,kds+1:k))
@@ -102,18 +116,32 @@ module test_case_mod
         do k = kcs,kce
           p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
           T    (i,k) = exner(i,k) * theta(i,k)
-          rho  (i,k) = p(i,k) / Rd / T(i,k)
+          rho  (i,k) = p(i,k) / ( Rd * T(i,k) )
           u    (i,k) = 0.
           w    (i,k) = 0.
           q    (i,k) = 0.
-          rhog (i,k) = rho(i,k) * gravity
         enddo
       enddo
       
-      residual_error = 10
-      do while( abs(residual_error) > tolerance )
-        
-      enddo
+      !iter = 0
+      !residual_error = 10
+      !rhog = sqrtG * rho * gravity
+      !do while( abs(residual_error) > 1.E-9 .and. iter <max_iter )
+      !  p_raw = p
+      !  do i = 1,nx
+      !    call poly5_integration(nz,eta(i,kds:kde),rhog(i,kds:kde),dp(i,kds:kde))
+      !    !call spline2_integration(nz-1,eta(i,kds:kde),rhog(i,kds:kde),0.,0.,nz-1,eta(i,kds:kde),dp(i,kds:kde))
+      !    do k = 1,nz-1
+      !      kp1 = k + 1
+      !      p   (i,kp1) = p0 - sum(dp(i,kds:k))
+      !      rho (i,kp1) = p(i,kp1) / ( Rd * T(i,kp1) )
+      !      rhog(i,kp1) = sqrtG(i,kp1) * rho (i,kp1) * gravity
+      !    enddo
+      !  enddo
+      !  iter = iter + 1
+      !  residual_error = maxval( abs( ( p - p_raw ) / p_raw ) )
+      !  print*,iter,residual_error
+      !enddo
       
       !do k = kcs,kce
       !  do i = ics,ice
