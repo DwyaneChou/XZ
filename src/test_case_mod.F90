@@ -58,7 +58,9 @@ module test_case_mod
       real(r_kind), dimension(:,:), allocatable :: dp
       real(r_kind), dimension(:,:), allocatable :: p_raw
       
-      integer i,k,kp1,iVar,iter
+      integer kp1,iter
+      
+      integer i,k,iVar
       
       allocate(rho  (ics:ice,kcs:kce))
       allocate(theta(ics:ice,kcs:kce))
@@ -101,12 +103,10 @@ module test_case_mod
         !call spline2_integration(nz_ext-1,z(i,:),dexner(i,:),0.,0.,nz_ext,z(i,:),dexner(i,:))
         call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
         
-        !do k = kcs,kce
-        !  print*,k,dexner(i,k)
-        !enddo
+        exner(i,1) = 1.
         
-        do k = kds,kce
-          exner(i,k) = 1. + sum(dexner(i,kds+1:k))
+        do k = kds+1,kce
+          exner(i,k) = exner(i,1) + sum(dexner(i,kds+1:k))
         enddo
         
         do k = kcs,kds-1
@@ -143,11 +143,11 @@ module test_case_mod
       !  print*,iter,residual_error
       !enddo
       
-      !do k = kcs,kce
-      !  do i = ics,ice
-      !    theta(i,k) = theta_bar + dtheta * max( 0., 1. - r(i,k) / R_bubble )
-      !  enddo
-      !enddo
+      do k = kcs,kce
+        do i = ics,ice
+          theta(i,k) = theta_bar + dtheta * max( 0., 1. - r(i,k) / R_bubble )
+        enddo
+      enddo
       
       stat%q(1,:,:) = sqrtG * rho
       stat%q(2,:,:) = sqrtG * rho * u
@@ -165,7 +165,6 @@ module test_case_mod
       
       print*,'Reset reference fields'
       do k = kcs,kce
-        !q_ref(1,:,k) = stat%q(1,:,k)
         q_ref(1,:,k) = sum(sqrtG(:,k)*rho(:,k)) / nx_ext
       enddo
       

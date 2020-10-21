@@ -412,7 +412,7 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(nVar,kds:kde) :: dqx
       real(r_kind), dimension(nVar,ids:ide) :: dqz
       
-      integer(i_kind), parameter :: vs = 1
+      integer(i_kind), parameter :: vs = 2
       integer(i_kind), parameter :: ve = 5
       integer(i_kind), parameter :: bdy_width = 10
       real   (r_kind), parameter :: exp_ceof  = 2
@@ -431,30 +431,26 @@ MODULE spatial_operators_mod
       
       q_ext(:,ids:ide,kds:kde) = q
       
-      ! Nonreflecting condition
-      kls = kds
-      kle = kde-bdy_width
-      its = ids+bdy_width
-      ite = ide-bdy_width
-      ! calculate relax coefficients
-      !max_exp = exp( ( real( bdy_width - 1 ) / real(bdy_width) )**exp_ceof ) - 1.
-      do i = 1,bdy_width
-        relax_coef(i) = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
-        !relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
-      enddo
-      
-      !! pure zone
+      !! Nonreflecting condition
+      !kls = kds
+      !kle = kde-bdy_width
+      !its = ids+bdy_width
+      !ite = ide-bdy_width
+      !! calculate relax coefficients
+      !!max_exp = exp( ( real( bdy_width - 1 ) / real(bdy_width) )**exp_ceof ) - 1.
+      !do i = 1,bdy_width
+      !  relax_coef(i) = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
+      !  !relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
+      !enddo
+      !
+      !! top only
       !do i = 1,bdy_width
       !  il = i
       !  ir = ide-i+1
       !  kt = kde-i+1
-      !  do iVar = 1,4
-      !    src(iVar,ids:ide,kt     ) = - relax_coef(i) * ( q(iVar,ids:ide,kt) - q_ref(iVar,ids:ide,kt) )
-      !  enddo
-      !  !iVar = 4
-      !  !src(iVar,ids:ide,kt     ) = - relax_coef(i) * ( q(iVar,ids:ide,kt) - q_ref(iVar,ids:ide,kt) / q_ref(1,ids:ide,kt) * q(1,ids:ide,kt) )
+      !  src(vs:ve,ids:ide,kt) = - relax_coef(i) * ( q(vs:ve,ids:ide,kt) - q_ref(vs:ve,ids:ide,kt) )
       !enddo
-      
+      !
       !! pure zone
       !do i = 1,bdy_width
       !  il = i
