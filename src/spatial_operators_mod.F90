@@ -62,9 +62,6 @@ MODULE spatial_operators_mod
   
   real(r_kind), dimension(:,:,:), allocatable :: src   ! source term
   
-  real(r_kind), dimension(:,:  ), allocatable :: sqrtG_ext
-  real(r_kind), dimension(:,:  ), allocatable :: G13_ext
-  
     contains
     subroutine init_spatial_operator
       integer(i_kind) dir
@@ -202,19 +199,19 @@ MODULE spatial_operators_mod
       !$OMP END PARALLEL DO
       
       ! Fill boundary
-      ! left
+      ! left boundary
       qR(:,irs,:) = qL(:,ids,:)
       FR(:,irs,:) = FL(:,ids,:)
       
-      ! right
+      ! right boundary
       qL(:,ile,:) = qR(:,ide,:)
       FL(:,ile,:) = FR(:,ide,:)
       
-      ! bottom
+      ! bottom boundary
       qT(:,:,kts) = qB(:,:,kds)
       HT(:,:,kts) = HB(:,:,kds)
       
-      ! top
+      ! top boundary
       qB(:,:,kbe) = qT(:,:,kde)
       HB(:,:,kbe) = HT(:,:,kde)
       
