@@ -4,7 +4,7 @@ run_hours        = 0
 run_minutes      = 0
 run_seconds      = 1000
 dt               = 0.1
-history_interval = 2
+history_interval = 0.1
 integral_scheme  = 'RK4' ! Choose from 'RK3' or 'RK4'
 IRK_residual     = 1.E-5
 /

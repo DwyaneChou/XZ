@@ -5,17 +5,16 @@ module test_case_mod
   use stat_mod
   use tend_mod
   use linear_integration_mod
+  use spatial_operators_mod, only: WENO_limiter, calc_H, calc_pressure, calc_eigenvalue_z
   implicit none
   
   real(r_kind), dimension(:,:,:), allocatable :: q_ref      ! reference q
-  real(r_kind), dimension(:,:,:), allocatable :: q_init_ext ! extended intial q
   
     contains
     subroutine init_test_case
       integer iT
       
-      allocate(q_ref     (nVar,ics:ice,kcs:kce))
-      allocate(q_init_ext(nVar,ics:ice,kcs:kce))
+      allocate(q_ref(nVar,ics:ice,kcs:kce))
       
       iT = 0
       
@@ -50,16 +49,6 @@ module test_case_mod
       real(r_kind) x0
       real(r_kind) z0
       
-      ! hydrostatic again
-      integer(i_kind),parameter :: max_iter = 100
-      real   (r_kind)           :: residual_error
-      
-      real(r_kind), dimension(:,:), allocatable :: rhog
-      real(r_kind), dimension(:,:), allocatable :: dp
-      real(r_kind), dimension(:,:), allocatable :: p_raw
-      
-      integer kp1,iter
-      
       integer i,k,iVar
       
       allocate(rho  (ics:ice,kcs:kce))
@@ -74,11 +63,6 @@ module test_case_mod
       allocate(T    (ics:ice,kcs:kce))
       
       allocate(dexner(ics:ice,kcs:kce))
-      
-      ! hydrostatic again
-      allocate(rhog  (ics:ice,kcs:kce))
-      allocate(dp    (ics:ice,kcs:kce))
-      allocate(p_raw (ics:ice,kcs:kce))
       
       zs    = 0.
       dzsdx = 0.
@@ -123,31 +107,30 @@ module test_case_mod
         enddo
       enddo
       
-      !iter = 0
-      !residual_error = 10
-      !rhog = sqrtG * rho * gravity
-      !do while( abs(residual_error) > 1.E-9 .and. iter <max_iter )
-      !  p_raw = p
-      !  do i = 1,nx
-      !    call poly5_integration(nz,eta(i,kds:kde),rhog(i,kds:kde),dp(i,kds:kde))
-      !    !call spline2_integration(nz-1,eta(i,kds:kde),rhog(i,kds:kde),0.,0.,nz-1,eta(i,kds:kde),dp(i,kds:kde))
-      !    do k = 1,nz-1
-      !      kp1 = k + 1
-      !      p   (i,kp1) = p0 - sum(dp(i,kds:k))
-      !      rho (i,kp1) = p(i,kp1) / ( Rd * T(i,kp1) )
-      !      rhog(i,kp1) = sqrtG(i,kp1) * rho (i,kp1) * gravity
-      !    enddo
-      !  enddo
-      !  iter = iter + 1
-      !  residual_error = maxval( abs( ( p - p_raw ) / p_raw ) )
-      !  print*,iter,residual_error
-      !enddo
-      
+      print*,'Set reference fields'
       do k = kcs,kce
-        do i = ics,ice
-          theta(i,k) = theta_bar + dtheta * max( 0., 1. - r(i,k) / R_bubble )
-        enddo
+        q_ref(1,:,k) = sum(sqrtG(:,k)*rho(:,k)) / nx_ext
       enddo
+      
+      q_ref(2,:,:) = 0.
+      q_ref(3,:,:) = 0.
+      q_ref(4,:,:) = 300.
+      q_ref(5,:,:) = 0.
+      
+      do iVar = 2,nVar
+        q_ref(iVar,:,:) = q_ref(iVar,:,:) * q_ref(1,:,:)
+      enddo
+      
+      ref%q = q_ref
+      
+      call hydrostatic(ref%q)
+      
+      !! Set theta perturbation
+      !do k = kcs,kce
+      !  do i = ics,ice
+      !    theta(i,k) = theta_bar + dtheta * max( 0., 1. - r(i,k) / R_bubble )
+      !  enddo
+      !enddo
       
       stat%q(1,:,:) = sqrtG * rho
       stat%q(2,:,:) = sqrtG * rho * u
@@ -163,21 +146,161 @@ module test_case_mod
       print*,'max/min value of sqrtG*rho*theta ',maxval(stat%q(4,:,:)),minval(stat%q(4,:,:))
       print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,:,:)),minval(stat%q(5,:,:))
       
-      print*,'Reset reference fields'
-      do k = kcs,kce
-        q_ref(1,:,k) = sum(sqrtG(:,k)*rho(:,k)) / nx_ext
-      enddo
-      
-      q_ref(2,:,:) = 0.
-      q_ref(3,:,:) = 0.
-      q_ref(4,:,:) = 300.
-      q_ref(5,:,:) = 0.
-      
-      do iVar = 2,nVar
-        q_ref(iVar,:,:) = q_ref(iVar,:,:) * q_ref(1,:,:)
-      enddo
-      
     end subroutine thermal_bubble
+    
+    subroutine hydrostatic(q)
+      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: q
+      
+      real(r_kind), dimension(:,:), allocatable :: rho
+      real(r_kind), dimension(:,:), allocatable :: rho_theta
+      real(r_kind), dimension(:,:), allocatable :: theta
+      real(r_kind), dimension(:,:), allocatable :: p
+      
+      real(r_kind), dimension(:,:,:), allocatable :: q_ext
+      
+      real(r_kind), dimension(:,:,:), allocatable :: qB    ! Reconstructed q_(i,k-1/2)
+      real(r_kind), dimension(:,:,:), allocatable :: qT    ! Reconstructed q_(i,k+1/2)
+      
+      real(r_kind), dimension(:,:,:), allocatable :: HB    ! Reconstructed H_(i,k-1/2)
+      real(r_kind), dimension(:,:,:), allocatable :: HT    ! Reconstructed H_(i,k+1/2)
+      
+      real(r_kind), dimension(:,:  ), allocatable :: PB    ! Reconstructed P_(i,k-1/2)
+      real(r_kind), dimension(:,:  ), allocatable :: PT    ! Reconstructed P_(i,k+1/2)
+      
+      real(r_kind), dimension(:,:,:), allocatable :: He    ! H on edges of each cell
+      
+      real(r_kind), dimension(5) :: q_weno
+      
+      real(r_kind) eigenvalue_z(5,2)
+      real(r_kind) maxeigen_z
+      
+      integer(i_kind) dir
+      
+      integer(i_kind) ip1,im1
+      integer(i_kind) kp1,km1
+      integer(i_kind) ip2,im2
+      integer(i_kind) kp2,km2
+      
+      integer iter
+      
+      integer(i_kind),parameter :: max_iter = 100
+      real   (r_kind)           :: residual_error
+      
+      integer i,k,iVar
+      
+      
+      allocate(rho      (ics:ice,kcs:kce))
+      allocate(rho_theta(ics:ice,kcs:kce))
+      allocate(theta    (ics:ice,kcs:kce))
+      allocate(p        (ics:ice,kcs:kce))
+      
+      allocate(q_ext(nVar,ics:ice,kcs:kce))
+      allocate(qB   (nVar,ids:ide,kds:kde+1))
+      allocate(qT   (nVar,ids:ide,kds-1:kde))
+      
+      allocate(HB   (nVar,ids:ide,kds:kde+1))
+      allocate(HT   (nVar,ids:ide,kds-1:kde))
+      
+      allocate(PB(ids:ide,kds:kde+1))
+      allocate(PT(ids:ide,kds-1:kde))
+      
+      allocate(He(nVar,ids:ide,kds:kde+1))
+      
+      theta = q(4,:,:) / q(1,:,:)
+      
+      iter           = 0
+      residual_error = 10
+      do while(residual_error>1.e-10 .and. iter<=max_iter)
+        q_ext = q
+        !$OMP PARALLEL DO PRIVATE(i,iVar,q_weno,dir,kp1,km1,kp2,km2)
+        do k = kds,kde
+          kp1 = k + 1
+          km1 = k - 1
+          kp2 = k + 2
+          km2 = k - 2
+          do i = ids,ide
+            do iVar = 1,nVar
+              ! z-dir
+              q_weno = q_ext(iVar,i,km2:kp2)
+              if(km1<kds             )q_weno(1:2) = FillValue
+              if(km2<kds.and.km1>=kds)q_weno(1  ) = FillValue
+              if(kp1>kde             )q_weno(4:5) = FillValue
+              if(kp2>kde.and.kp1<=kde)q_weno(5  ) = FillValue
+              
+              dir = -1
+              call WENO_limiter(qB(iVar,i,k),q_weno,dir)
+              dir = 1
+              call WENO_limiter(qT(iVar,i,k),q_weno,dir)
+            enddo
+            if(k==kds)qB(3,i,k) = 0
+            if(k==kde)qT(3,i,k) = 0
+            
+            PB(i,k) = calc_pressure(sqrtG(i,k),qB(:,i,k))
+            PT(i,k) = calc_pressure(sqrtG(i,k),qT(:,i,k))
+            
+            HB(:,i,k) = calc_H(sqrtG(i,k),G13(i,k),qB(:,i,k),PB(i,k))
+            HT(:,i,k) = calc_H(sqrtG(i,k),G13(i,k),qT(:,i,k),PT(i,k))
+          enddo
+        enddo
+        !$OMP END PARALLEL DO
+        HB(3,:,kde+1) = PT(:,kde)
+        HT(3,:,kds-1) = PB(:,kds)
+        
+        ! calc z flux
+        !$OMP PARALLEL DO PRIVATE(k,km1,eigenvalue_z,maxeigen_z,iVar)
+        do i = ids,ide
+          do k = kds,kde+1
+            km1 = k - 1
+            eigenvalue_z(:,1) = calc_eigenvalue_z(sqrtG(i,km1),G13(i,km1),q_ext(:,i,km1))
+            eigenvalue_z(:,2) = calc_eigenvalue_z(sqrtG(i  ,k),G13(i  ,k),q_ext(:,i  ,k))
+            
+            maxeigen_z = maxval(abs(eigenvalue_z))
+            
+            He(:,i,k) = 0.5 * ( HB(:,i,k) + HT(:,i,km1) - maxeigen_z * ( qB(:,i,k) - qT(:,i,km1) ) )
+            !do iVar = 1,nVar
+            !  if(abs(HB(iVar,i,k) + HT(iVar,i,km1))<=1.E-15)then
+            !    He(iVar,i,k) = 0
+            !  else
+            !    He(iVar,i,k) = 0.5 * ( HB(iVar,i,k) + HT(iVar,i,km1) - maxeigen_z * ( qB(iVar,i,k) - qT(iVar,i,km1) ) )
+            !  endif
+            !enddo
+          enddo
+        enddo
+        !$OMP END PARALLEL DO
+        !He(1,ids:ide,kds  ) = 0
+        !He(1,ids:ide,kde+1) = 0
+        !He(2,ids:ide,kds  ) = sqrtG(ids:ide,kds) * G13(ids:ide,kds) * PB(ids:ide,kds)
+        !He(2,ids:ide,kde+1) = sqrtG(ids:ide,kde) * G13(ids:ide,kde) * PT(ids:ide,kde)
+        !He(3,ids:ide,kds  ) = PB(ids:ide,kds)
+        !He(3,ids:ide,kde+1) = PT(ids:ide,kde)
+        !He(4,ids:ide,kds  ) = 0
+        !He(4,ids:ide,kde+1) = 0
+        !He(5,ids:ide,kds  ) = 0
+        !He(5,ids:ide,kde+1) = 0
+        
+        do i = ids,ide
+          do k = kds,kde
+            rho      (i,k) = -( He(3,i,k+1) - He(3,i,k) ) / ( deta * sqrtG(i,k) * gravity )
+            rho_theta(i,k) = rho(i,k) * theta(i,k)
+          enddo
+        enddo
+        
+        !i = ids
+        !do k = kds,kde
+        !  print*,iter, k, q(1,i,k)/sqrtG(i,k), rho(i,k), rho_theta(i,k), He(3,i,k+1), He(3,i,k)
+        !enddo
+        
+        q(1,ids:ide,kds:kde) = sqrtG(ids:ide,kds:kde) * rho      (ids:ide,kds:kde)
+        q(4,ids:ide,kds:kde) = sqrtG(ids:ide,kds:kde) * rho_theta(ids:ide,kds:kde)
+        
+        residual_error = max( maxval( abs( q(1,ids:ide,kds:kde) - q_ext(1,ids:ide,kds:kde) ) / q_ext(1,ids:ide,kds:kde) ),&
+                              maxval( abs( q(4,ids:ide,kds:kde) - q_ext(4,ids:ide,kds:kde) ) / q_ext(4,ids:ide,kds:kde) ) )
+        
+        iter = iter + 1
+        
+        print*,'iter, residual_error:',iter,residual_error
+      enddo
+    end subroutine hydrostatic
     
 end module test_case_mod
     

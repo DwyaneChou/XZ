@@ -8,6 +8,7 @@ module stat_mod
   end type stat_field
   
   type(stat_field), dimension(:), allocatable :: stat  ! allocated by n time points, which is used by temporal integration schemes
+  type(stat_field)                            :: ref   ! reference fields
   
     contains
     subroutine init_stat
@@ -18,6 +19,8 @@ module stat_mod
       do iT = -nIntegralSubSteps, 1
         allocate(stat(iT)%q(nVar,ics:ice,kcs:kce))
       enddo
+      
+      allocate(ref%q(nVar,ics:ice,kcs:kce))
     end subroutine init_stat
 
     subroutine copyStat(stat_out,stat_in)

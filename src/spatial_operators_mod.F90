@@ -4,12 +4,16 @@ MODULE spatial_operators_mod
   use parameters_mod
   use stat_mod
   use tend_mod
-  use test_case_mod
   implicit none
   
   private
   
-  public init_spatial_operator, spatial_operator
+  public init_spatial_operator, &
+         spatial_operator     , &
+         weno_limiter         , &
+         calc_H               , &
+         calc_pressure        , &
+         calc_eigenvalue_z
   
   integer(i_kind) :: pos
   integer(i_kind) :: neg
@@ -141,7 +145,7 @@ MODULE spatial_operators_mod
       src = 0.
       
       ! Set no flux and nonreflecting boundary condition
-      call bdy_condition(q_ext,stat%q(:,ids:ide,kds:kde),q_ref,src)
+      call bdy_condition(q_ext,stat%q(:,ids:ide,kds:kde),ref%q,src)
       
       !$OMP PARALLEL DO PRIVATE(i,iVar,ip1,im1,ip2,im2,q_weno,dir,kp1,km1,kp2,km2)
       do k = kds,kde
