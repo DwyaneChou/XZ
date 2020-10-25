@@ -95,11 +95,19 @@ module io_mod
       integer p_id    
       integer T_id    
       
+      real(r_kind), dimension(nx,nz) :: w1
+      real(r_kind), dimension(nx,nz) :: w2
+      real(r_kind), dimension(nx,nz) :: w3
+      real(r_kind), dimension(nx,nz) :: w4
+      real(r_kind), dimension(nx,nz) :: w5
+      
       real(r_kind), dimension(nx,nz) :: rho
+      real(r_kind), dimension(nx,nz) :: sqrtGrho
       real(r_kind), dimension(nx,nz) :: u
       real(r_kind), dimension(nx,nz) :: w
       real(r_kind), dimension(nx,nz) :: theta
-      real(r_kind), dimension(nx,nz) :: q
+      real(r_kind), dimension(nx,nz) :: q     !±ÈÊª
+      real(r_kind), dimension(nx,nz) :: gamma !»ìºÏ±È
       real(r_kind), dimension(nx,nz) :: T
       real(r_kind), dimension(nx,nz) :: p
       real(r_kind), dimension(nx,nz) :: kappa
@@ -121,23 +129,25 @@ module io_mod
       if(status/=nf90_noerr) call handle_err(status)
       
       ! diag air status
-      rho   = stat%q(1,ids:ide,kds:kde)/sqrtG(   ids:ide,kds:kde)
-      u     = stat%q(2,ids:ide,kds:kde)/stat%q(1,ids:ide,kds:kde)
-      w     = stat%q(3,ids:ide,kds:kde)/stat%q(1,ids:ide,kds:kde)
-      theta = stat%q(4,ids:ide,kds:kde)/stat%q(1,ids:ide,kds:kde)
-      q     = stat%q(5,ids:ide,kds:kde)/stat%q(1,ids:ide,kds:kde)
-      Cp    = Cpd + ( Cpv - Cpd ) * q
-      Cv    = Cvd + ( Cvv - Cvd ) * q
-      kappa = Cp / Cv
-      Ra    = Rd * ( 1. + eq * q )
-      p     = p0 * ( rho * Ra * theta / p0 )** kappa
-      T     = p / ( rho * Ra )
+      w1 = stat%q(1,ids:ide,kds:kde)
+      w2 = stat%q(2,ids:ide,kds:kde)
+      w3 = stat%q(3,ids:ide,kds:kde)
+      w4 = stat%q(4,ids:ide,kds:kde)
+      w5 = stat%q(5,ids:ide,kds:kde)
       
-      where( rho == 0. )
-        theta = 300.
-        p     = 0.
-        T     = 0.
-      endwhere
+      sqrtGrho = w1 + w5
+      rho      = sqrtGrho / sqrtG(   ids:ide,kds:kde)
+      u        = w2 / sqrtGrho
+      w        = w3 / sqrtGrho
+      theta    = w4 / w1
+      gamma    = w5 / w1
+      q        = gamma / ( 1. + gamma )
+      Cp       = Cpd + ( Cpv - Cpd ) * q
+      Cv       = Cvd + ( Cvv - Cvd ) * q
+      kappa    = Cp / Cv
+      Ra       = Rd * ( 1. + eq * q )
+      p        = p0 * ( rho * Ra * theta / p0 )** kappa
+      T        = p / ( rho * Ra )
       
       !if(time_slot_num==1.and.case_num==1)theta(:,kde)=300.
       
