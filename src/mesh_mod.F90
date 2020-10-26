@@ -103,7 +103,7 @@ module mesh_mod
       integer i,k
       do k = kcs,kce
         do i = ics,ice
-          x (i,k) = ( real(i) - 0.5 ) * dx
+          x (i,k) = x_min + ( real(i) - 0.5 ) * dx
         enddo
       enddo
     end subroutine init_horizontal_mesh
@@ -167,16 +167,16 @@ module mesh_mod
       
       integer i,k,iVar
       
+      ! For Schar, 2001
+      real(r_kind) :: H
+      real(r_kind) :: s
+      
       allocate(q_ext(nMertric,ics:ice,kcs:kce))
       
       allocate(qL   (nMertric,ids:ide,kds:kde))
       allocate(qR   (nMertric,ids:ide,kds:kde))
       allocate(qB   (nMertric,ids:ide,kds:kde))
       allocate(qT   (nMertric,ids:ide,kds:kde))
-      
-      ! For Schar, 2001
-      real(r_kind) :: H
-      real(r_kind) :: s
       
       ! Check necessary fields
       if(any(zs    == FillValue)) stop 'zs    is not fully filled'
@@ -203,7 +203,7 @@ module mesh_mod
       elseif(vertical_coordinate==2)then
         ! Schar, 2001
         H = z_max - z_min
-        s = H / exp(1)
+        s = H / exp(1.)
         do k = kcs,kce
           do i = ics,ice
             dzdxi(i,k) = 1. - zs(i,k) * cosh( ( H - xi(i,k) ) / s ) / ( s * sinh( H / s ) )

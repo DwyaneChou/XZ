@@ -19,6 +19,8 @@ module test_case_mod
       
       if(case_num==1)then
         call thermal_bubble(stat(iT))
+      elseif(case_num==2)then
+        call schar_mountain(stat(iT))
       else
         stop 'Unknown case_num'
       endif
@@ -144,6 +146,123 @@ module test_case_mod
       print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,:,:)),minval(stat%q(5,:,:))
       
     end subroutine thermal_bubble
+    
+    subroutine schar_mountain(stat)
+      type(stat_field),intent(inout) :: stat
+      
+      real(r_kind), dimension(:,:), allocatable :: rho
+      real(r_kind), dimension(:,:), allocatable :: theta
+      real(r_kind), dimension(:,:), allocatable :: u
+      real(r_kind), dimension(:,:), allocatable :: w
+      real(r_kind), dimension(:,:), allocatable :: q
+      
+      real(r_kind), dimension(:,:), allocatable :: r
+      real(r_kind), dimension(:,:), allocatable :: exner
+      real(r_kind), dimension(:,:), allocatable :: p
+      real(r_kind), dimension(:,:), allocatable :: T
+      
+      real(r_kind), dimension(:,:), allocatable :: dexner
+      
+      real(r_kind), dimension(:,:), allocatable :: theta_bar
+      
+      real(r_kind) dtheta
+      real(r_kind) a0
+      real(r_kind) h0
+      real(r_kind) lambda0
+      real(r_kind) theta0
+      real(r_kind) N0
+      
+      integer i,k,iVar
+      
+      allocate(rho  (ics:ice,kcs:kce))
+      allocate(theta(ics:ice,kcs:kce))
+      allocate(u    (ics:ice,kcs:kce))
+      allocate(w    (ics:ice,kcs:kce))
+      allocate(q    (ics:ice,kcs:kce))
+      
+      allocate(r    (ics:ice,kcs:kce))
+      allocate(exner(ics:ice,kcs:kce))
+      allocate(p    (ics:ice,kcs:kce))
+      allocate(T    (ics:ice,kcs:kce))
+      
+      allocate(dexner(ics:ice,kcs:kce))
+      
+      allocate(theta_bar(ics:ice,kcs:kce))
+      
+      h0      = 250.
+      a0      = 5000.
+      lambda0 = 4000.
+      theta0  = 280.
+      N0      = 0.01
+      
+      zs    = h0 * exp( -( x / a0 )**2 ) * cos( pi * x / lambda0 )
+      dzsdx = - (h0 * ( 2. * lambda0 * x * cos( ( pi * x ) / lambda0 ) + a0**2 * pi * sin( ( pi * x ) / lambda0 ) ) )&
+                / ( exp( x**2 / a0**2 ) * ( a0**2 * lambda0 ) )
+      
+      call init_vertical_coordinate
+      
+      do k = kcs,kce
+        do i = ics,ice
+          theta_bar(i,k) = theta0 * exp( N0**2 /gravity * z(i,k) )
+          theta    (i,k) = theta_bar(i,k)
+          dexner   (i,k) = -gravity / ( Cpd * theta(i,k) )
+        enddo
+      enddo
+      
+      do i = ics,ice
+        call spline2_integration(nz_ext-1,z(i,:),dexner(i,:),0.,0.,nz_ext,z(i,:),dexner(i,:))
+        !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
+        
+        exner(i,1) = 1.
+        
+        do k = kds+1,kce
+          exner(i,k) = exner(i,1) + sum(dexner(i,kds+1:k))
+        enddo
+        
+        do k = kcs,kds-1
+          exner(i,k) = 1. - sum(dexner(i,kds:k+1:-1))
+        enddo
+        
+        do k = kcs,kce
+          p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
+          T    (i,k) = exner(i,k) * theta(i,k)
+          rho  (i,k) = p(i,k) / ( Rd * T(i,k) )
+          u    (i,k) = 10.
+          w    (i,k) = 0.
+          q    (i,k) = 0.
+        enddo
+      enddo
+      
+      print*,'Set reference fields'
+      do k = kcs,kce
+        q_ref(1,:,k) = sum(sqrtG(:,k)*rho(:,k)) / nx_ext
+      enddo
+      
+      q_ref(2,:,:) = u
+      q_ref(3,:,:) = 0.
+      q_ref(4,:,:) = theta
+      q_ref(5,:,:) = 0.
+      
+      do iVar = 2,nVar
+        q_ref(iVar,:,:) = q_ref(iVar,:,:) * q_ref(1,:,:)
+      enddo
+      
+      ref%q = q_ref
+      
+      stat%q(1,:,:) = sqrtG * rho
+      stat%q(2,:,:) = sqrtG * rho * u
+      stat%q(3,:,:) = sqrtG * rho * w
+      stat%q(4,:,:) = sqrtG * rho * theta
+      stat%q(5,:,:) = sqrtG * rho * q
+      
+      print*,'max/min value of sqrtG           ',maxval(sqrtG        ),minval(sqrtG        )
+      print*,'max/min value of G13             ',maxval(G13          ),minval(G13          )
+      print*,'max/min value of sqrtG*rho       ',maxval(stat%q(1,:,:)),minval(stat%q(1,:,:))
+      print*,'max/min value of sqrtG*rho*u     ',maxval(stat%q(2,:,:)),minval(stat%q(2,:,:))
+      print*,'max/min value of sqrtG*rho*v     ',maxval(stat%q(3,:,:)),minval(stat%q(3,:,:))
+      print*,'max/min value of sqrtG*rho*theta ',maxval(stat%q(4,:,:)),minval(stat%q(4,:,:))
+      print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,:,:)),minval(stat%q(5,:,:))
+    end subroutine schar_mountain
     
 end module test_case_mod
     

@@ -19,6 +19,8 @@ module io_mod
       
       integer x_id
       integer z_id
+      
+      integer zs_id
 
       integer sqrtG_id
       integer G13_id
@@ -52,6 +54,7 @@ module io_mod
       
       status = nf90_def_var(ncid,'x'    ,NF90_DOUBLE,(/nx_dimid,nz_dimid/),x_id     )
       status = nf90_def_var(ncid,'z'    ,NF90_DOUBLE,(/nx_dimid,nz_dimid/),z_id     )
+      status = nf90_def_var(ncid,'zs'   ,NF90_DOUBLE,(/nx_dimid,nz_dimid/),zs_id    )
       
       status = nf90_def_var(ncid,'sqrtG',NF90_DOUBLE,(/nx_dimid,nz_dimid/),sqrtG_id )
       status = nf90_def_var(ncid,'G13'  ,NF90_DOUBLE,(/nx_dimid,nz_dimid/),G13_id   )
@@ -71,6 +74,7 @@ module io_mod
       
       status = nf90_put_var(ncid,x_id     , real(x    (ids:ide,kds:kde),r8))
       status = nf90_put_var(ncid,z_id     , real(z    (ids:ide,kds:kde),r8))
+      status = nf90_put_var(ncid,zs_id    , real(zs   (ids:ide,kds:kde),r8))
       status = nf90_put_var(ncid,sqrtG_id , real(sqrtG(ids:ide,kds:kde),r8))
       status = nf90_put_var(ncid,G13_id   , real(G13  (ids:ide,kds:kde),r8))
       if(status/=nf90_noerr) call handle_err(status)

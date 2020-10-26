@@ -128,6 +128,16 @@ module parameters_mod
       x_max = 20. * 1000.
       z_min = 0.
       z_max = 10. * 1000.
+    elseif(case_num==2)then
+      print*,'Schar Mountain case is selected'
+      print*,'Reset x_min to -25 km'
+      print*,'Reset x_max to  25 km'
+      print*,'Reset z_min to  0  km'
+      print*,'Reset z_max to  21 km'
+      x_min = -25000.
+      x_max = 25000.
+      z_min = 0.
+      z_max = 21000.
     else
       stop 'Unknow case_num'
     endif

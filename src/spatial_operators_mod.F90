@@ -141,6 +141,7 @@ MODULE spatial_operators_mod
       
       ! Set reference pressure
       q_ext = ref%q
+      call bdy_condition(q_ext,q_ext,ref%q,src)
       !$OMP PARALLEL DO PRIVATE(i,iVar,ip1,im1,ip2,im2,q_weno,dir,kp1,km1,kp2,km2)
       do k = kds,kde
         kp1 = k + 1
@@ -155,10 +156,6 @@ MODULE spatial_operators_mod
           do iVar = 1,nVar
             ! x-dir
             q_weno = q_ext(iVar,im2:ip2,k)
-            if(im1<ids             )q_weno(1:2) = FillValue
-            if(im2<ids.and.im1>=ids)q_weno(1  ) = FillValue
-            if(ip1>ide             )q_weno(4:5) = FillValue
-            if(ip2>ide.and.ip1<=ide)q_weno(5  ) = FillValue
             
             dir = -1
             call WENO_limiter(qL(iVar,i,k),q_weno,dir)
@@ -167,20 +164,12 @@ MODULE spatial_operators_mod
             
             ! z-dir
             q_weno = q_ext(iVar,i,km2:kp2)
-            if(km1<kds             )q_weno(1:2) = FillValue
-            if(km2<kds.and.km1>=kds)q_weno(1  ) = FillValue
-            if(kp1>kde             )q_weno(4:5) = FillValue
-            if(kp2>kde.and.kp1<=kde)q_weno(5  ) = FillValue
             
             dir = -1
             call WENO_limiter(qB(iVar,i,k),q_weno,dir)
             dir = 1
             call WENO_limiter(qT(iVar,i,k),q_weno,dir)
           enddo
-          if(i==ids)qL(2,i,k) = 0
-          if(i==ide)qR(2,i,k) = 0
-          if(k==kds)qB(3,i,k) = 0
-          if(k==kde)qT(3,i,k) = 0
           
           PL_ref(i,k) = calc_pressure(sqrtGL(i,k),qL(:,i,k))
           PR_ref(i,k) = calc_pressure(sqrtGR(i,k),qR(:,i,k))
@@ -235,10 +224,6 @@ MODULE spatial_operators_mod
           do iVar = 1,nVar
             ! x-dir
             q_weno = q_ext(iVar,im2:ip2,k)
-            if(im1<ids             )q_weno(1:2) = FillValue
-            if(im2<ids.and.im1>=ids)q_weno(1  ) = FillValue
-            if(ip1>ide             )q_weno(4:5) = FillValue
-            if(ip2>ide.and.ip1<=ide)q_weno(5  ) = FillValue
             
             dir = -1
             call WENO_limiter(qL(iVar,i,k),q_weno,dir)
@@ -247,25 +232,19 @@ MODULE spatial_operators_mod
             
             ! z-dir
             q_weno = q_ext(iVar,i,km2:kp2)
-            if(km1<kds             )q_weno(1:2) = FillValue
-            if(km2<kds.and.km1>=kds)q_weno(1  ) = FillValue
-            if(kp1>kde             )q_weno(4:5) = FillValue
-            if(kp2>kde.and.kp1<=kde)q_weno(5  ) = FillValue
             
             dir = -1
             call WENO_limiter(qB(iVar,i,k),q_weno,dir)
             dir = 1
             call WENO_limiter(qT(iVar,i,k),q_weno,dir)
           enddo
-          if(i==ids)qL(2,i,k) = 0
-          if(i==ide)qR(2,i,k) = 0
-          if(k==kds)qB(3,i,k) = 0
-          if(k==kde)qT(3,i,k) = 0
           
-          !PL(i,k) = calc_pressure(sqrtGL(i,k),qL(:,i,k)) - PL_ref(i,k)
-          !PR(i,k) = calc_pressure(sqrtGR(i,k),qR(:,i,k)) - PR_ref(i,k)
-          !PB(i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k)) - PB_ref(i,k)
-          !PT(i,k) = calc_pressure(sqrtGT(i,k),qT(:,i,k)) - PT_ref(i,k)
+          if(case_num==1)then
+            if(i==ids)qL(2,i,k) = 0
+            if(i==ide)qR(2,i,k) = 0
+            if(k==kds)qB(3,i,k) = 0
+            if(k==kde)qT(3,i,k) = 0
+          endif
           
           PL(i,k) = calc_pressure(sqrtGL(i,k),qL(:,i,k))
           PR(i,k) = calc_pressure(sqrtGR(i,k),qR(:,i,k))
@@ -287,21 +266,39 @@ MODULE spatial_operators_mod
       !$OMP END PARALLEL DO
       
       ! Fill boundary
-      ! left boundary
-      qR(:,irs,:) = qL(:,ids,:)
-      FR(:,irs,:) = FL(:,ids,:)
-      
-      ! right boundary
-      qL(:,ile,:) = qR(:,ide,:)
-      FL(:,ile,:) = FR(:,ide,:)
-      
-      ! bottom boundary
-      qT(:,:,kts) = qB(:,:,kds)
-      HT(:,:,kts) = HB(:,:,kds)
-      
-      ! top boundary
-      qB(:,:,kbe) = qT(:,:,kde)
-      HB(:,:,kbe) = HT(:,:,kde)
+      if(case_num==1)then
+        ! left boundary
+        qR(:,irs,:) = qL(:,ids,:)
+        FR(:,irs,:) = FL(:,ids,:)
+        
+        ! right boundary
+        qL(:,ile,:) = qR(:,ide,:)
+        FL(:,ile,:) = FR(:,ide,:)
+        
+        ! bottom boundary
+        qT(:,:,kts) = qB(:,:,kds)
+        HT(:,:,kts) = HB(:,:,kds)
+        
+        ! top boundary
+        qB(:,:,kbe) = qT(:,:,kde)
+        HB(:,:,kbe) = HT(:,:,kde)
+      elseif(case_num==2)then
+        ! left boundary
+        qR(:,irs,:) = qL(:,ids,:)
+        FR(:,irs,:) = FL(:,ids,:)
+        
+        ! right boundary
+        qL(:,ile,:) = qR(:,ide,:)
+        FL(:,ile,:) = FR(:,ide,:)
+        
+        ! bottom boundary
+        qT(:,:,kts) = qB(:,:,kds)
+        HT(:,:,kts) = HB(:,:,kds)
+        
+        ! top boundary
+        qB(:,:,kbe) = qT(:,:,kde)
+        HB(:,:,kbe) = HT(:,:,kde)
+      endif
       
       rho_p = ( stat%q(1,ids:ide,kds:kde) + stat%q(5,ids:ide,kds:kde) &
               - ref%q (1,ids:ide,kds:kde) - ref%q (5,ids:ide,kds:kde) ) / sqrtG(ids:ide,kds:kde)
@@ -332,16 +329,6 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
-      Fe(1,ids  ,kds:kde) = 0
-      Fe(1,ide+1,kds:kde) = 0
-      Fe(2,ids  ,kds:kde) = sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
-      Fe(2,ide+1,kds:kde) = sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
-      Fe(3,ids  ,kds:kde) = 0
-      Fe(3,ide+1,kds:kde) = 0
-      Fe(4,ids  ,kds:kde) = 0
-      Fe(4,ide+1,kds:kde) = 0
-      Fe(5,ids  ,kds:kde) = 0
-      Fe(5,ide+1,kds:kde) = 0
       
       ! calc z flux
       !$OMP PARALLEL DO PRIVATE(k,km1,eigenvalue_z,maxeigen_z,iVar)
@@ -365,16 +352,53 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
-      He(1,ids:ide,kds  ) = 0
-      He(1,ids:ide,kde+1) = 0
-      He(2,ids:ide,kds  ) = sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) * PB(ids:ide,kds)
-      He(2,ids:ide,kde+1) = sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) * PT(ids:ide,kde)
-      He(3,ids:ide,kds  ) = PB(ids:ide,kds)
-      He(3,ids:ide,kde+1) = PT(ids:ide,kde)
-      He(4,ids:ide,kds  ) = 0
-      He(4,ids:ide,kde+1) = 0
-      He(5,ids:ide,kds  ) = 0
-      He(5,ids:ide,kde+1) = 0
+      
+      if(case_num==1)then
+        ! Fill no-flux bdy
+        Fe(1,ids  ,kds:kde) = 0
+        Fe(1,ide+1,kds:kde) = 0
+        Fe(2,ids  ,kds:kde) = sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
+        Fe(2,ide+1,kds:kde) = sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
+        Fe(3,ids  ,kds:kde) = 0
+        Fe(3,ide+1,kds:kde) = 0
+        Fe(4,ids  ,kds:kde) = 0
+        Fe(4,ide+1,kds:kde) = 0
+        Fe(5,ids  ,kds:kde) = 0
+        Fe(5,ide+1,kds:kde) = 0
+        
+        He(1,ids:ide,kds  ) = 0
+        He(1,ids:ide,kde+1) = 0
+        He(2,ids:ide,kds  ) = sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) * PB(ids:ide,kds)
+        He(2,ids:ide,kde+1) = sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) * PT(ids:ide,kde)
+        He(3,ids:ide,kds  ) = PB(ids:ide,kds)
+        He(3,ids:ide,kde+1) = PT(ids:ide,kde)
+        He(4,ids:ide,kds  ) = 0
+        He(4,ids:ide,kde+1) = 0
+        He(5,ids:ide,kds  ) = 0
+        He(5,ids:ide,kde+1) = 0
+      elseif(case_num==2)then
+        Fe(1,ids  ,kds:kde) = ref%q(2,ids-1,kds:kde)
+        Fe(1,ide+1,kds:kde) = ref%q(2,ide+1,kds:kde)
+        Fe(2,ids  ,kds:kde) = ref%q(2,ids-1,kds:kde)**2 / ref%q(1,ids-1,kds:kde) + sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
+        Fe(2,ide+1,kds:kde) = ref%q(2,ide+1,kds:kde)**2 / ref%q(1,ide+1,kds:kde) + sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
+        Fe(3,ids  ,kds:kde) = 0
+        Fe(3,ide+1,kds:kde) = 0
+        Fe(4,ids  ,kds:kde) = ref%q(4,ids-1,kds:kde) * ref%q(2,ids-1,kds:kde) / ref%q(1,ids-1,kds:kde)
+        Fe(4,ide+1,kds:kde) = ref%q(4,ide+1,kds:kde) * ref%q(2,ide+1,kds:kde) / ref%q(1,ide+1,kds:kde)
+        Fe(5,ids  ,kds:kde) = 0
+        Fe(5,ide+1,kds:kde) = 0
+        
+        He(1,ids:ide,kds  ) = 0
+        He(1,ids:ide,kde+1) = 0
+        He(2,ids:ide,kds  ) = sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) * PB(ids:ide,kds)
+        He(2,ids:ide,kde+1) = sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) * PT(ids:ide,kde)
+        He(3,ids:ide,kds  ) = PB(ids:ide,kds)
+        He(3,ids:ide,kde+1) = PT(ids:ide,kde)
+        He(4,ids:ide,kds  ) = 0
+        He(4,ids:ide,kde+1) = 0
+        He(5,ids:ide,kds  ) = 0
+        He(5,ids:ide,kde+1) = 0
+      endif
       
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1)
       do k = kds,kde
@@ -413,6 +437,55 @@ MODULE spatial_operators_mod
       
       real(r_kind) :: relax_coef(bdy_width)
       real(r_kind) :: max_exp
+      
+      if(case_num==1)then
+        ! No-flux
+        ! left
+        q_ext(:,ics:ids-1,:) = FillValue
+        
+        ! right
+        q_ext(:,ide+1:ice,:) = FillValue
+        
+        ! bottom
+        q_ext(:,:,kcs:kds-1) = FillValue
+        
+        ! top
+        q_ext(:,:,kde+1:kce) = FillValue
+        
+      elseif(case_num==2)then
+        ! left
+        q_ext(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
+        
+        ! right
+        q_ext(:,ide+1:ice,:) = q_ref(:,ide+1:ice,:)
+        
+        ! bottom
+        q_ext(:,:,kcs:kds-1) = FillValue
+        
+        ! top
+        q_ext(:,:,kde+1:kce) = FillValue
+      
+        ! Nonreflecting condition
+        kls = kds
+        kle = kde-bdy_width
+        its = ids+bdy_width
+        ite = ide-bdy_width
+        ! calculate relax coefficients
+        !max_exp = exp( ( real( bdy_width - 1 ) / real(bdy_width) )**exp_ceof ) - 1.
+        do i = 1,bdy_width
+          relax_coef(i) = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
+          !relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
+        enddo
+        
+        ! top only
+        do i = 1,bdy_width
+          il = i
+          ir = ide-i+1
+          kt = kde-i+1
+          src(vs:ve,ids:ide,kt) = - relax_coef(i) * ( q(vs:ve,ids:ide,kt) - q_ref(vs:ve,ids:ide,kt) )
+        enddo
+        
+      endif
       
       !! Nonreflecting condition
       !kls = kds
