@@ -379,10 +379,10 @@ MODULE spatial_operators_mod
       elseif(case_num==2)then
         Fe(1,ids  ,kds:kde) = ref%q(2,ids-1,kds:kde)
         Fe(1,ide+1,kds:kde) = ref%q(2,ide+1,kds:kde)
-        Fe(2,ids  ,kds:kde) = ref%q(2,ids-1,kds:kde)**2 / ref%q(1,ids-1,kds:kde) + sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
-        Fe(2,ide+1,kds:kde) = ref%q(2,ide+1,kds:kde)**2 / ref%q(1,ide+1,kds:kde) + sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
-        Fe(3,ids  ,kds:kde) = 0
-        Fe(3,ide+1,kds:kde) = 0
+        Fe(2,ids  ,kds:kde) = ref%q(2,ids-1,kds:kde) * ref%q(2,ids-1,kds:kde) / ref%q(1,ids-1,kds:kde) + sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
+        Fe(2,ide+1,kds:kde) = ref%q(2,ide+1,kds:kde) * ref%q(2,ide+1,kds:kde) / ref%q(1,ide+1,kds:kde) + sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
+        Fe(3,ids  ,kds:kde) = ref%q(3,ids-1,kds:kde) * ref%q(2,ids-1,kds:kde) / ref%q(1,ids-1,kds:kde)
+        Fe(3,ide+1,kds:kde) = ref%q(3,ide+1,kds:kde) * ref%q(2,ide+1,kds:kde) / ref%q(1,ide+1,kds:kde)
         Fe(4,ids  ,kds:kde) = ref%q(4,ids-1,kds:kde) * ref%q(2,ids-1,kds:kde) / ref%q(1,ids-1,kds:kde)
         Fe(4,ide+1,kds:kde) = ref%q(4,ide+1,kds:kde) * ref%q(2,ide+1,kds:kde) / ref%q(1,ide+1,kds:kde)
         Fe(5,ids  ,kds:kde) = 0
