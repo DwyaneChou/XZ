@@ -4,16 +4,13 @@ MODULE spatial_operators_mod
   use parameters_mod
   use stat_mod
   use tend_mod
+  use reconstruction_mod, only: weno_limiter
   implicit none
   
   private
   
   public init_spatial_operator, &
-         spatial_operator     , &
-         weno_limiter         , &
-         calc_H               , &
-         calc_pressure        , &
-         calc_eigenvalue_z
+         spatial_operator
   
   integer(i_kind) :: pos
   integer(i_kind) :: neg
@@ -185,10 +182,10 @@ MODULE spatial_operators_mod
           if(k==kds)qB(3,i,k) = 0
           if(k==kde)qT(3,i,k) = 0
           
-          PL_ref(i,k) = calc_pressure(sqrtG(i,k),qL(:,i,k))
-          PR_ref(i,k) = calc_pressure(sqrtG(i,k),qR(:,i,k))
-          PB_ref(i,k) = calc_pressure(sqrtG(i,k),qB(:,i,k))
-          PT_ref(i,k) = calc_pressure(sqrtG(i,k),qT(:,i,k))
+          PL_ref(i,k) = calc_pressure(sqrtGL(i,k),qL(:,i,k))
+          PR_ref(i,k) = calc_pressure(sqrtGR(i,k),qR(:,i,k))
+          PB_ref(i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k))
+          PT_ref(i,k) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
         enddo
       enddo
       !$OMP END PARALLEL DO
@@ -265,26 +262,26 @@ MODULE spatial_operators_mod
           if(k==kds)qB(3,i,k) = 0
           if(k==kde)qT(3,i,k) = 0
           
-          !PL(i,k) = calc_pressure(sqrtG(i,k),qL(:,i,k)) - PL_ref(i,k)
-          !PR(i,k) = calc_pressure(sqrtG(i,k),qR(:,i,k)) - PR_ref(i,k)
-          !PB(i,k) = calc_pressure(sqrtG(i,k),qB(:,i,k)) - PB_ref(i,k)
-          !PT(i,k) = calc_pressure(sqrtG(i,k),qT(:,i,k)) - PT_ref(i,k)
+          !PL(i,k) = calc_pressure(sqrtGL(i,k),qL(:,i,k)) - PL_ref(i,k)
+          !PR(i,k) = calc_pressure(sqrtGR(i,k),qR(:,i,k)) - PR_ref(i,k)
+          !PB(i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k)) - PB_ref(i,k)
+          !PT(i,k) = calc_pressure(sqrtGT(i,k),qT(:,i,k)) - PT_ref(i,k)
           
-          PL(i,k) = calc_pressure(sqrtG(i,k),qL(:,i,k))
-          PR(i,k) = calc_pressure(sqrtG(i,k),qR(:,i,k))
-          PB(i,k) = calc_pressure(sqrtG(i,k),qB(:,i,k))
-          PT(i,k) = calc_pressure(sqrtG(i,k),qT(:,i,k))
+          PL(i,k) = calc_pressure(sqrtGL(i,k),qL(:,i,k))
+          PR(i,k) = calc_pressure(sqrtGR(i,k),qR(:,i,k))
+          PB(i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k))
+          PT(i,k) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
           
           PL(i,k) = merge( PL(i,k) - PL_ref(i,k), 0., abs( PL(i,k) - PL_ref(i,k) ) / PL_ref(i,k) > 1.e-13 )
           PR(i,k) = merge( PR(i,k) - PR_ref(i,k), 0., abs( PR(i,k) - PR_ref(i,k) ) / PR_ref(i,k) > 1.e-13 )
           PB(i,k) = merge( PB(i,k) - PB_ref(i,k), 0., abs( PB(i,k) - PB_ref(i,k) ) / PB_ref(i,k) > 1.e-13 )
           PT(i,k) = merge( PT(i,k) - PT_ref(i,k), 0., abs( PT(i,k) - PT_ref(i,k) ) / PT_ref(i,k) > 1.e-13 )
           
-          FL(:,i,k) = calc_F(sqrtG(i,k),qL(:,i,k),PL(i,k))
-          FR(:,i,k) = calc_F(sqrtG(i,k),qR(:,i,k),PR(i,k))
+          FL(:,i,k) = calc_F(sqrtGL(i,k),qL(:,i,k),PL(i,k))
+          FR(:,i,k) = calc_F(sqrtGR(i,k),qR(:,i,k),PR(i,k))
           
-          HB(:,i,k) = calc_H(sqrtG(i,k),G13(i,k),qB(:,i,k),PB(i,k))
-          HT(:,i,k) = calc_H(sqrtG(i,k),G13(i,k),qT(:,i,k),PT(i,k))
+          HB(:,i,k) = calc_H(sqrtGB(i,k),G13B(i,k),qB(:,i,k),PB(i,k))
+          HT(:,i,k) = calc_H(sqrtGT(i,k),G13T(i,k),qT(:,i,k),PT(i,k))
         enddo
       enddo
       !$OMP END PARALLEL DO
@@ -337,8 +334,8 @@ MODULE spatial_operators_mod
       !$OMP END PARALLEL DO
       Fe(1,ids  ,kds:kde) = 0
       Fe(1,ide+1,kds:kde) = 0
-      Fe(2,ids  ,kds:kde) = sqrtG(ids,kds:kde) * PL(ids,kds:kde)
-      Fe(2,ide+1,kds:kde) = sqrtG(ide,kds:kde) * PR(ide,kds:kde)
+      Fe(2,ids  ,kds:kde) = sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
+      Fe(2,ide+1,kds:kde) = sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
       Fe(3,ids  ,kds:kde) = 0
       Fe(3,ide+1,kds:kde) = 0
       Fe(4,ids  ,kds:kde) = 0
@@ -370,8 +367,8 @@ MODULE spatial_operators_mod
       !$OMP END PARALLEL DO
       He(1,ids:ide,kds  ) = 0
       He(1,ids:ide,kde+1) = 0
-      He(2,ids:ide,kds  ) = sqrtG(ids:ide,kds) * G13(ids:ide,kds) * PB(ids:ide,kds)
-      He(2,ids:ide,kde+1) = sqrtG(ids:ide,kde) * G13(ids:ide,kde) * PT(ids:ide,kde)
+      He(2,ids:ide,kds  ) = sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) * PB(ids:ide,kds)
+      He(2,ids:ide,kde+1) = sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) * PT(ids:ide,kde)
       He(3,ids:ide,kds  ) = PB(ids:ide,kds)
       He(3,ids:ide,kde+1) = PT(ids:ide,kde)
       He(4,ids:ide,kds  ) = 0
@@ -390,113 +387,6 @@ MODULE spatial_operators_mod
       !$OMP END PARALLEL DO
       
     end subroutine spatial_operator
-    
-    ! 1D WENO slope limiter, according to Sun,2015
-    ! "A Slope Constrained 4th OrderMulti-Moment Finite Volume Method with WENO Limiter"
-    ! and Jiang and Shu, 1996
-    subroutine WENO_limiter(Qrec,Q,dir)
-      real   (r_kind)              , intent(out) :: Qrec
-      real   (r_kind), dimension(5), intent(in ) :: Q
-      integer(i_kind)              , intent(in ) :: dir
-      
-      integer(i_kind), parameter :: nStencil = 3
-      real   (r_kind), parameter :: weno_coef(3)  = [0.1, 0.6, 0.3]
-      real   (r_kind), parameter :: eps           = 1.E-16
-      
-      real(r_kind) Qim(nStencil-1)
-      real(r_kind) Qip(nStencil-1)
-      real(r_kind) Qi
-      
-      real(r_kind), dimension(nStencil) :: stencil
-      real(r_kind), dimension(nStencil) :: coefA
-      real(r_kind), dimension(nStencil) :: coefB
-      real(r_kind), dimension(nStencil) :: alpha
-      real(r_kind), dimension(nStencil) :: beta
-      real(r_kind), dimension(nStencil) :: omega
-      
-      real(r_kind) tau40
-      real(r_kind) tau41
-      real(r_kind) tau5
-      
-      integer(i_kind) iStencil
-      
-      Qim(2) = Q(1)
-      Qim(1) = Q(2)
-      Qi     = Q(3)
-      Qip(1) = Q(4)
-      Qip(2) = Q(5)
-      
-      if(dir>0)then
-        stencil (1) =  Qim(2)/3. - 7./6. * Qim(1) + 11./6. * Qi     
-        stencil (2) = -Qim(1)/6. + 5./6. * Qi     +  1./3. * Qip(1) 
-        stencil (3) =  Qi    /3. + 5./6. * Qip(1) -  1./6. * Qip(2)
-        
-        coefA(1) = Qim(2) - 2. * Qim(1) + Qi
-        coefA(2) = Qim(1) - 2. * Qi     + Qip(1)
-        coefA(3) = Qi     - 2. * Qip(1) + Qip(2)
-        
-        coefB(1) =      Qim(2) - 4. * Qim(1) + 3. * Qi
-        coefB(2) =      Qim(1) -      Qip(1)
-        coefB(3) = 3. * Qi     - 4. * Qip(1) +      Qip(2)
-      elseif(dir<0)then
-        stencil (1) =  Qip(2)/3. - 7./6. * Qip(1) + 11./6. * Qi     
-        stencil (2) = -Qip(1)/6. + 5./6. * Qi     +  1./3. * Qim(1) 
-        stencil (3) =  Qi    /3. + 5./6. * Qim(1) -  1./6. * Qim(2)
-        
-        coefA(1) = Qip(2) - 2. * Qip(1) + Qi
-        coefA(2) = Qip(1) - 2. * Qi     + Qim(1)
-        coefA(3) = Qi     - 2. * Qim(1) + Qim(2)
-        
-        coefB(1) =      Qip(2) - 4. * Qip(1) + 3. * Qi
-        coefB(2) =      Qip(1) -      Qim(1)
-        coefB(3) = 3. * Qi     - 4. * Qim(1) +      Qim(2)
-      endif
-      
-      beta = coefA**2 * 13. / 12. + coefB**2 * 0.25
-      
-      if(.not.any(Q==FillValue))then
-        ! WENO-Z
-        tau40 = abs( beta(1) - beta(2) )
-        tau41 = abs( beta(2) - beta(3) )
-        tau5  = abs( beta(3) - beta(1) )
-        
-        if( tau40<=minval(beta) .and. tau41>minval(beta) )then
-          omega = [1./3.,2./3.,0.]
-        elseif( tau40>minval(beta) .and. tau41<minval(beta) )then
-          omega = [0.,2./3.,1./3.]
-        else
-          alpha = weno_coef * ( 1. + tau5 / ( eps + beta ) )
-          omega = alpha / sum(alpha)
-        endif
-        ! WENO-Z
-      else
-        ! origin WENO
-        alpha = weno_coef / ( eps + beta )**2
-        omega = alpha / sum(alpha)
-        ! origin WENO
-      endif
-      
-      !print*,Q
-      !print*,alpha,beta
-      
-      !if(any(Q==FillValue))then
-      !  if(dir>0)then
-      !    if(Q(1)==FillValue)alpha(1  ) = 0
-      !    if(Q(2)==FillValue)alpha(1:2) = 0
-      !    if(Q(4)==FillValue)alpha(2:3) = 0
-      !    if(Q(5)==FillValue)alpha(3  ) = 0
-      !  elseif(dir<0)then
-      !    if(Q(5)==FillValue)alpha(1  ) = 0
-      !    if(Q(4)==FillValue)alpha(1:2) = 0
-      !    if(Q(2)==FillValue)alpha(2:3) = 0
-      !    if(Q(1)==FillValue)alpha(3  ) = 0
-      !  endif
-      !  omega = alpha / sum(alpha)
-      !endif
-      
-      Qrec = dot_product( stencil, omega )
-      
-    end subroutine WENO_limiter
     
     subroutine bdy_condition(q_ext,q,q_ref,src)
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(out  ) :: q_ext
@@ -725,8 +615,7 @@ MODULE spatial_operators_mod
             cvv**2*w1*w2*w4*w5**2*(w1 + w5)*(w1 + w5 + eq*w5)
       
       coef2 = sqrt( p0*sqrtG*w1**2*w4**2*(w1 + w5)**3*(cpd*w1 + cpv*w5)*(cvd*w1 + cvv*w5)**3* &
-      (w1 + w5 + eq*w5)**2*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))**((cpd*w1 +              &
-      cpv*w5)/(cvd*w1 + cvv*w5)) )
+      (w1 + w5 + eq*w5)**2*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))**((cpd*w1 + cpv*w5)/(cvd*w1 + cvv*w5)) )
       
       coef3 = w1*w4*(w1 + w5)**2*(cvd*w1 + cvv*w5)**2*(w1 + w5 + eq*w5)
       

@@ -5,7 +5,6 @@ module test_case_mod
   use stat_mod
   use tend_mod
   use linear_integration_mod
-  use spatial_operators_mod, only: WENO_limiter, calc_H, calc_pressure, calc_eigenvalue_z
   implicit none
   
   real(r_kind), dimension(:,:,:), allocatable :: q_ref      ! reference q
