@@ -202,9 +202,9 @@ MODULE spatial_operators_mod
       do k = kds,kde
         do i = ids,ide
           if(i==ids  )then
-            dpdx =-( 3. * sqrtGP(i,k) - 4. * sqrtGP(i+1,k) + sqrtGP(i+2,k) ) / dx
+            dpdx =-( 3. * sqrtGP(i,k) - 4. * sqrtGP(i+1,k) + sqrtGP(i+2,k) ) / dx / 2.
           elseif(i==ide  )then
-            dpdx = ( 3. * sqrtGP(i,k) - 4. * sqrtGP(i-1,k) + sqrtGP(i-2,k) ) / dx
+            dpdx = ( 3. * sqrtGP(i,k) - 4. * sqrtGP(i-1,k) + sqrtGP(i-2,k) ) / dx / 2.
           elseif(i==ids+1)then
             dpdx =-( 2. * sqrtGP(i-1,k) + 3. * sqrtGP(i,k) - 6. * sqrtGP(i+1,k) + sqrtGP(i+2,k) ) / ( 6. * dx )
           elseif(i==ide-1)then
@@ -214,9 +214,9 @@ MODULE spatial_operators_mod
           endif
           
           if(k==kds  )then
-            dpdeta =-( 3. * sqrtGG13P(i,k) - 4. * sqrtGG13P(i,k+1) + sqrtGG13P(i,k+2) ) / deta
+            dpdeta =-( 3. * sqrtGG13P(i,k) - 4. * sqrtGG13P(i,k+1) + sqrtGG13P(i,k+2) ) / deta / 2.
           elseif(k==kde  )then
-            dpdeta = ( 3. * sqrtGG13P(i,k) - 4. * sqrtGG13P(i,k-1) + sqrtGG13P(i,k-2) ) / deta
+            dpdeta = ( 3. * sqrtGG13P(i,k) - 4. * sqrtGG13P(i,k-1) + sqrtGG13P(i,k-2) ) / deta / 2.
           elseif(k==kds+1)then
             dpdeta =-( 2. * sqrtGG13P(i,k-1) + 3. * sqrtGG13P(i,k) - 6. * sqrtGG13P(i,k+1) + sqrtGG13P(i,k+2) ) / ( 6. * deta )
           elseif(k==kde-1)then
@@ -242,9 +242,12 @@ MODULE spatial_operators_mod
           !endif
           
           src_ref(2,i,k) = - dpdx - dpdeta
+          !if(i==94.and.k==kds+1)then
+          !  print*,sqrtGP(i+1,k)-sqrtGP(i-1,k),2.*dx, sqrtGG13P(i,k+1)-sqrtGG13P(i,k-1), 2. * deta
+          !  print*,dpdx, dpdeta, ( sqrtGP(i+1,k) - sqrtGP(i-1,k) ) / dx / 2. ,( sqrtGG13P(i,k+1)-sqrtGG13P(i,k-1) ) / deta
+          !endif
         enddo
       enddo
-      
     end subroutine init_spatial_operator
     
     subroutine spatial_operator(stat,tend)
@@ -476,12 +479,13 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
-      i = 94
-      k = kds
-      ip1 = i + 1
-      kp1 = k + 1
-      !print*,-( Fe(2,ip1,k) - Fe(2,i,k) ) / dx,-( He(2,i,kp1) - He(2,i,k) ) / deta, src_ref(2,i,k)
-      print*, Fe(2,ip1,k), Fe(2,i,k), He(2,i,kp1), He(2,i,k)
+      !iVar = 2
+      !i = 94
+      !k = kds
+      !ip1 = i + 1
+      !kp1 = k + 1
+      !print*,-( Fe(iVar,ip1,k) - Fe(iVar,i,k) ) / dx,-( He(iVar,i,kp1) - He(iVar,i,k) ) / deta, src_ref(iVar,i,k)
+      !!print*, Fe(2,ip1,k), Fe(2,i,k), He(2,i,kp1), He(2,i,k)
       
     end subroutine spatial_operator
     
