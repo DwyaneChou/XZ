@@ -234,18 +234,11 @@ module test_case_mod
       enddo
       
       print*,'Set reference fields'
-      do k = kcs,kce
-        q_ref(1,:,k) = sum(sqrtG(:,k)*rho(:,k)) / nx_ext
-      enddo
-      
-      q_ref(2,:,:) = u
-      q_ref(3,:,:) = 0.
-      q_ref(4,:,:) = theta
-      q_ref(5,:,:) = 0.
-      
-      do iVar = 2,nVar
-        q_ref(iVar,:,:) = q_ref(iVar,:,:) * q_ref(1,:,:)
-      enddo
+      q_ref(1,:,:) = sqrtG * rho
+      q_ref(2,:,:) = sqrtG * rho * u
+      q_ref(3,:,:) = sqrtG * rho * w
+      q_ref(4,:,:) = sqrtG * rho * theta
+      q_ref(5,:,:) = sqrtG * rho * q
       
       ref%q = q_ref
       

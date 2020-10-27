@@ -19,6 +19,7 @@ module mesh_mod
   real(r_kind), dimension(:,:), allocatable :: detadxi
   real(r_kind), dimension(:,:), allocatable :: dxidz
   real(r_kind), dimension(:,:), allocatable :: dzdx
+  real(r_kind), dimension(:,:), allocatable :: dzdzs
   real(r_kind), dimension(:,:), allocatable :: dzsdx
   real(r_kind), dimension(:,:), allocatable :: detadx
   
@@ -56,6 +57,7 @@ module mesh_mod
       allocate( detadxi(ics:ice,kcs:kce) )
       allocate( dxidz  (ics:ice,kcs:kce) )
       allocate( dzdx   (ics:ice,kcs:kce) )
+      allocate( dzdzs  (ics:ice,kcs:kce) )
       allocate( dzsdx  (ics:ice,kcs:kce) )
       allocate( detadx (ics:ice,kcs:kce) )
       
@@ -87,6 +89,7 @@ module mesh_mod
       dxidz   = FillValue
       dzsdx   = FillValue
       dzdx    = FillValue
+      dzdzs   = FillValue
       detadx  = FillValue
       
       sqrtG   = FillValue
@@ -187,14 +190,15 @@ module mesh_mod
         ! Gal-Chen, 1975
         do k = kcs,kce
           do i = ics,ice
-            dzdxi(i,k) = ( z_max + zs(i,k) ) / z_max
-            dxidz(i,k) = z_max / ( z_max + zs(i,k) )
-            dzdx (i,k) = dzsdx(i,k)
+            dzdxi(i,k) = ( z_max - zs(i,k) ) / z_max
+            dxidz(i,k) = z_max / ( z_max - zs(i,k) )
+            dzdzs(i,k) = ( z_max - xi(i,k) ) / z_max
+            dzdx (i,k) = dzdzs(i,k) * dzsdx(i,k)
             
             dzdeta(i,k) = dzdxi(i,k) * dxideta(i,k)
             detadx(i,k) = detadxi(i,k) * dxidz(i,k) * dzdx(i,k)
             
-            z(i,k) = ( z_max + zs(i,k) ) / z_max * xi(i,k)  + zs(i,k)
+            z(i,k) = ( z_max - zs(i,k) ) / z_max * xi(i,k)  + zs(i,k)
           enddo
         enddo
         
@@ -213,7 +217,8 @@ module mesh_mod
           do i = ics,ice
             dzdxi(i,k) = 1. - zs(i,k) * cosh( ( H - xi(i,k) ) / s ) / ( s * sinh( H / s ) )
             dxidz(i,k) = s * sinh( H / s ) / ( s * sinh( H / s )  - zs(i,k) * cosh( ( H - xi(i,k) ) / s ) )
-            dzdx (i,k) = dzsdx(i,k)
+            dzdzs(i,k) = sinh( ( H - xi(i,k) ) / s ) / sinh( H / s )
+            dzdx (i,k) = dzdzs(i,k) * dzsdx(i,k)
             
             dzdeta(i,k) = dzdxi(i,k) * dxideta(i,k)
             detadx(i,k) = detadxi(i,k) * dxidz(i,k) * dzdx(i,k)
