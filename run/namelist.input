@@ -3,7 +3,7 @@ run_days         = 0
 run_hours        = 0
 run_minutes      = 0
 run_seconds      = 36000
-dt               = 0.6
+dt               = 0.5
 history_interval = 60
 integral_scheme  = 'RK4' ! Choose from 'RK3' or 'RK4'
 IRK_residual     = 1.E-5
@@ -14,8 +14,6 @@ case_num = 2, ! Choose from 1, 2
 /
 
 &domain
-!dx                    = 100
-!nz                    = 100
 dx                    = 250
 nz                    = 100
 x_max                 = 100000.
@@ -23,6 +21,6 @@ x_min                 = 0.
 z_max                 = 60000.
 z_min                 = 0.
 vertical_distribution = 1
-vertical_coordinate   = 1
+vertical_coordinate   = 2
 m_coef                = 2
 /

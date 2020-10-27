@@ -203,7 +203,12 @@ module mesh_mod
       elseif(vertical_coordinate==2)then
         ! Schar, 2001
         H = z_max - z_min
-        s = H / exp(1.)
+        if(case_num==2)then
+          s = 3000.
+        else
+          s = H / exp(1.)
+        endif
+        
         do k = kcs,kce
           do i = ics,ice
             dzdxi(i,k) = 1. - zs(i,k) * cosh( ( H - xi(i,k) ) / s ) / ( s * sinh( H / s ) )

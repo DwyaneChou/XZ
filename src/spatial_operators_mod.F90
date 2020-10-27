@@ -353,6 +353,7 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
+      ! Fill boundary
       if(case_num==1)then
         ! Fill no-flux bdy
         Fe(1,ids  ,kds:kde) = 0
@@ -398,6 +399,28 @@ MODULE spatial_operators_mod
         He(4,ids:ide,kde+1) = 0
         He(5,ids:ide,kds  ) = 0
         He(5,ids:ide,kde+1) = 0
+        
+        !Fe(1,ids  ,kds:kde) = 0
+        !Fe(1,ide+1,kds:kde) = 0
+        !Fe(2,ids  ,kds:kde) = sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
+        !Fe(2,ide+1,kds:kde) = sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
+        !Fe(3,ids  ,kds:kde) = 0
+        !Fe(3,ide+1,kds:kde) = 0
+        !Fe(4,ids  ,kds:kde) = 0
+        !Fe(4,ide+1,kds:kde) = 0
+        !Fe(5,ids  ,kds:kde) = 0
+        !Fe(5,ide+1,kds:kde) = 0
+        !
+        !He(1,ids:ide,kds  ) = 0
+        !He(1,ids:ide,kde+1) = 0
+        !He(2,ids:ide,kds  ) = sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) * PB(ids:ide,kds)
+        !He(2,ids:ide,kde+1) = sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) * PT(ids:ide,kde)
+        !He(3,ids:ide,kds  ) = PB(ids:ide,kds)
+        !He(3,ids:ide,kde+1) = PT(ids:ide,kde)
+        !He(4,ids:ide,kds  ) = 0
+        !He(4,ids:ide,kde+1) = 0
+        !He(5,ids:ide,kds  ) = 0
+        !He(5,ids:ide,kde+1) = 0
       endif
       
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1)
@@ -421,9 +444,9 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(nVar,kds:kde) :: dqx
       real(r_kind), dimension(nVar,ids:ide) :: dqz
       
-      integer(i_kind), parameter :: vs = 2
+      integer(i_kind), parameter :: vs = 1
       integer(i_kind), parameter :: ve = 5
-      integer(i_kind), parameter :: bdy_width = 10
+      integer(i_kind), parameter :: bdy_width = 20
       real   (r_kind), parameter :: exp_ceof  = 2
       
       integer(i_kind) dir
@@ -477,14 +500,30 @@ MODULE spatial_operators_mod
           !relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
         enddo
         
-        ! top only
+        ! pure zone
         do i = 1,bdy_width
           il = i
           ir = ide-i+1
           kt = kde-i+1
-          src(vs:ve,ids:ide,kt) = - relax_coef(i) * ( q(vs:ve,ids:ide,kt) - q_ref(vs:ve,ids:ide,kt) )
+          do iVar = vs,ve
+            src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
+            src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
+            src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
+          enddo
         enddo
         
+        !overlap zone
+        do k = 1,bdy_width
+          do i = 1,bdy_width
+            il = i
+            ir = ide-i+1
+            kt = kde-i+1
+            do iVar = vs,ve
+              src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
+              src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
+            enddo
+          enddo
+        enddo
       endif
       
       !! Nonreflecting condition
