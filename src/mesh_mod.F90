@@ -2,6 +2,7 @@ module mesh_mod
   use constants_mod
   use parameters_mod
   use reconstruction_mod, only: WENO_limiter
+  use math_mod
   implicit none
   
   real(r_kind), dimension(:,:), allocatable :: x
@@ -41,6 +42,12 @@ module mesh_mod
   
   real(r_kind) deta
   
+  ! Jacobian matrix and inverse Jacobian matrix
+  ! With alpah and z directions in computaional space
+  ! With x and z directions in physical space
+  real(r_kind), dimension(:,:,:,:), allocatable :: jab
+  real(r_kind), dimension(:,:,:,:), allocatable :: invjab
+  
     contains
     subroutine init_mesh
       
@@ -75,6 +82,9 @@ module mesh_mod
       
       allocate( zs     (ics:ice,kcs:kce) )
       
+      allocate( jab   (2,2,ics:ice,kcs:kce) )
+      allocate( invjab(2,2,ics:ice,kcs:kce) )
+      
       x       = FillValue
       
       eta     = FillValue
@@ -96,6 +106,9 @@ module mesh_mod
       G13     = FillValue
       
       zs      = FillValue
+      
+      jab     = FillValue
+      invjab  = FillValue
       
       call init_horizontal_mesh
       call init_vertical_distribiution
@@ -168,6 +181,8 @@ module mesh_mod
       integer(i_kind) ip2,im2
       integer(i_kind) kp2,km2
       
+      real(r_kind) angle
+      
       integer i,k,iVar
       
       ! For Schar, 2001
@@ -196,7 +211,7 @@ module mesh_mod
             dzdx (i,k) = dzdzs(i,k) * dzsdx(i,k)
             
             dzdeta(i,k) = dzdxi(i,k) * dxideta(i,k)
-            detadx(i,k) = detadxi(i,k) * dxidz(i,k) * dzdx(i,k)
+            detadx(i,k) = -detadxi(i,k) * dxidz(i,k) * dzdx(i,k)
             
             z(i,k) = ( z_max - zs(i,k) ) / z_max * xi(i,k)  + zs(i,k)
           enddo
@@ -221,7 +236,7 @@ module mesh_mod
             dzdx (i,k) = dzdzs(i,k) * dzsdx(i,k)
             
             dzdeta(i,k) = dzdxi(i,k) * dxideta(i,k)
-            detadx(i,k) = detadxi(i,k) * dxidz(i,k) * dzdx(i,k)
+            detadx(i,k) = -detadxi(i,k) * dxidz(i,k) * dzdx(i,k)
             
             z(i,k) = xi(i,k) + zs(i,k) * sinh( ( H - xi(i,k) ) / s ) / sinh( H / s )
           enddo
@@ -284,6 +299,19 @@ module mesh_mod
       G13R  (ids:ide,kds:kde) = qR(2,:,:)
       G13B  (ids:ide,kds:kde) = qB(2,:,:)
       G13T  (ids:ide,kds:kde) = qT(2,:,:)
+      
+      ! Compute Jacobian matrices
+      do k = kcs,kce
+        do i = ics,ice
+          angle = atan( dzdx(i,k) )
+          jab   (1,1,i,k) = cos( angle )
+          jab   (1,2,i,k) = sin( angle )
+          jab   (2,1,i,k) = 0.
+          jab   (2,2,i,k) = 1.
+          
+          call BRINV(2,jab(:,:,i,k),invjab(:,:,i,k))
+        enddo
+      enddo
       
     end subroutine init_vertical_coordinate
 end module mesh_mod

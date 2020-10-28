@@ -10,7 +10,9 @@ MODULE spatial_operators_mod
   private
   
   public init_spatial_operator, &
-         spatial_operator
+         spatial_operator     , &
+         covert_wind_p2c      , &
+         covert_wind_c2p
   
   integer(i_kind) :: pos
   integer(i_kind) :: neg
@@ -259,11 +261,6 @@ MODULE spatial_operators_mod
           PB(i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k))
           PT(i,k) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
           
-          !PL(i,k) = merge( PL(i,k) - PL_ref(i,k), 0., abs( PL(i,k) - PL_ref(i,k) ) / PL_ref(i,k) > 1.e-13 )
-          !PR(i,k) = merge( PR(i,k) - PR_ref(i,k), 0., abs( PR(i,k) - PR_ref(i,k) ) / PR_ref(i,k) > 1.e-13 )
-          !PB(i,k) = merge( PB(i,k) - PB_ref(i,k), 0., abs( PB(i,k) - PB_ref(i,k) ) / PB_ref(i,k) > 1.e-13 )
-          !PT(i,k) = merge( PT(i,k) - PT_ref(i,k), 0., abs( PT(i,k) - PT_ref(i,k) ) / PT_ref(i,k) > 1.e-13 )
-          
           FL(:,i,k) = calc_F(sqrtGL(i,k),qL(:,i,k),PL(i,k))
           FR(:,i,k) = calc_F(sqrtGR(i,k),qR(:,i,k),PR(i,k))
           
@@ -403,8 +400,8 @@ MODULE spatial_operators_mod
         He(2,ids:ide,kde+1) = G13T(ids:ide,kde) * qT(2,ids:ide,kde)**2 / qT(1,ids:ide,kde) + sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) * PT(ids:ide,kde)
         He(3,ids:ide,kds  ) = PB(ids:ide,kds) - PB_ref(ids:ide,kds)
         He(3,ids:ide,kde+1) = PT(ids:ide,kde) - PT_ref(ids:ide,kde)
-        He(4,ids:ide,kds  ) = 0
-        He(4,ids:ide,kde+1) = 0
+        He(4,ids:ide,kds  ) = G13B(ids:ide,kds) * qB(4,ids:ide,kds) * qB(2,ids:ide,kds) / qB(1,ids:ide,kds)
+        He(4,ids:ide,kde+1) = G13T(ids:ide,kde) * qT(4,ids:ide,kde) * qT(2,ids:ide,kde) / qT(1,ids:ide,kde)
         He(5,ids:ide,kds  ) = 0
         He(5,ids:ide,kde+1) = 0
       endif
@@ -419,12 +416,12 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       !iVar = 2
-      !i = 94
-      !k = kds
+      !i = ids
+      !k = kde
       !ip1 = i + 1
       !kp1 = k + 1
-      !print*,-( Fe(iVar,ip1,k) - Fe(iVar,i,k) ) / dx,-( He(iVar,i,kp1) - He(iVar,i,k) ) / deta, src_ref(iVar,i,k)
-      !!print*, Fe(2,ip1,k), Fe(2,i,k), He(2,i,kp1), He(2,i,k)
+      !print*,-( Fe(iVar,ip1,k) - Fe(iVar,i,k) ) / dx,-( He(iVar,i,kp1) - He(iVar,i,k) ) / deta
+      !print*, Fe(2,ip1,k), Fe(2,i,k), He(2,i,kp1), He(2,i,k), src(2,i,k)
       
     end subroutine spatial_operator
     
@@ -493,30 +490,41 @@ MODULE spatial_operators_mod
           !relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
         enddo
         
-        ! pure zone
+        !! pure zone
+        !do i = 1,bdy_width
+        !  il = i
+        !  ir = ide-i+1
+        !  kt = kde-i+1
+        !  do iVar = vs,ve
+        !    src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
+        !    src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
+        !    src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
+        !  enddo
+        !enddo
+        
+        ! lateral only
         do i = 1,bdy_width
           il = i
           ir = ide-i+1
           kt = kde-i+1
           do iVar = vs,ve
-            src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
-            src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
-            src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
+            src(iVar,il,kds:kde) = - relax_coef(i) * ( q(iVar,il,kds:kde) - q_ref(iVar,il,kds:kde) )
+            src(iVar,ir,kds:kde) = - relax_coef(i) * ( q(iVar,ir,kds:kde) - q_ref(iVar,ir,kds:kde) )
           enddo
         enddo
         
-        !overlap zone
-        do k = 1,bdy_width
-          do i = 1,bdy_width
-            il = i
-            ir = ide-i+1
-            kt = kde-i+1
-            do iVar = vs,ve
-              src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
-              src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
-            enddo
-          enddo
-        enddo
+        !!overlap zone
+        !do k = 1,bdy_width
+        !  do i = 1,bdy_width
+        !    il = i
+        !    ir = ide-i+1
+        !    kt = kde-i+1
+        !    do iVar = vs,ve
+        !      src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
+        !      src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
+        !    enddo
+        !  enddo
+        !enddo
       endif
       
       !! Nonreflecting condition
@@ -786,6 +794,54 @@ MODULE spatial_operators_mod
       calc_eigenvalue_z(5) = ( coef1 + coef2 ) / coef3
       
     end function calc_eigenvalue_z
+    
+    ! Convert wind from physical to computational space
+    subroutine covert_wind_p2c(vc,vp,jab)
+      real(r_kind), dimension(:,:,:  ), intent(out) :: vc
+      real(r_kind), dimension(:,:,:  ), intent(in ) :: vp
+      real(r_kind), dimension(:,:,:,:), intent(in ) :: jab
+      
+      integer(i_kind) i,k
+      
+      integer(i_kind) is,ie
+      integer(i_kind) ks,ke
+      
+      is = lbound(jab,3)
+      ie = ubound(jab,3)
+      ks = lbound(jab,4)
+      ke = ubound(jab,4)
+      
+      do k = ks,ke
+        do i = is,ie
+          vc(:,i,k) = matmul(jab(:,:,i,k),vp(:,i,k))
+        enddo
+      enddo
+      
+    end subroutine covert_wind_p2c
+    
+    ! Convert wind from computational to physical space
+    subroutine covert_wind_c2p(vp,vc,invjab)
+      real(r_kind), dimension(:,:,:  ), intent(out) :: vp
+      real(r_kind), dimension(:,:,:  ), intent(in ) :: vc
+      real(r_kind), dimension(:,:,:,:), intent(in ) :: invjab
+      
+      integer(i_kind) i,k
+      
+      integer(i_kind) is,ie
+      integer(i_kind) ks,ke
+      
+      is = lbound(invjab,3)
+      ie = ubound(invjab,3)
+      ks = lbound(invjab,4)
+      ke = ubound(invjab,4)
+      
+      do k = ks,ke
+        do i = is,ie
+          vp(:,i,k) = matmul(invjab(:,:,i,k),vc(:,i,k))
+        enddo
+      enddo
+      
+    end subroutine covert_wind_c2p
     
 END MODULE spatial_operators_mod
 

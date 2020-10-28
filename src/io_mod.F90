@@ -4,6 +4,7 @@ module io_mod
   use mesh_mod
   use stat_mod
   use tend_mod
+  use spatial_operators_mod
   implicit none
   
   character(500) :: stat_output_file = 'output.nc'
@@ -140,7 +141,7 @@ module io_mod
       w5 = stat%q(5,ids:ide,kds:kde)
       
       sqrtGrho = w1 + w5
-      rho      = sqrtGrho / sqrtG(   ids:ide,kds:kde)
+      rho      = sqrtGrho / sqrtG(ids:ide,kds:kde)
       u        = w2 / sqrtGrho
       w        = w3 / sqrtGrho
       theta    = w4 / w1
@@ -153,9 +154,16 @@ module io_mod
       p        = p0 * ( rho * Ra * theta / p0 )** kappa
       T        = p / ( rho * Ra )
       
-      !if(time_slot_num==1.and.case_num==1)theta(:,kde)=300.
+      ! Convert wind to physical space
+      stat%vc(1,ids:ide,kds:kde) = u
+      stat%vc(2,ids:ide,kds:kde) = w
       
-      ! diag air status
+      call covert_wind_c2p(stat%vp(:,  ids:ide,kds:kde),&
+                           stat%vc(:,  ids:ide,kds:kde),&
+                           invjab (:,:,ids:ide,kds:kde))
+      
+      u = stat%vp(1,ids:ide,kds:kde)
+      w = stat%vp(2,ids:ide,kds:kde)
       
       !print*,'nf90_put_var'
       status = nf90_put_var(ncid, rho_id  , rho  , start=(/1,1,time_slot_num/),count=(/nx,nz,1/))

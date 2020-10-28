@@ -5,13 +5,15 @@ module test_case_mod
   use stat_mod
   use tend_mod
   use linear_integration_mod
+  use spatial_operators_mod
   implicit none
   
   real(r_kind), dimension(:,:,:), allocatable :: q_ref      ! reference q
   
     contains
     subroutine init_test_case
-      integer iT
+      integer(i_kind) iT
+      integer(i_kind) i,k
       
       allocate(q_ref(nVar,ics:ice,kcs:kce))
       
@@ -24,6 +26,19 @@ module test_case_mod
       else
         stop 'Unknown case_num'
       endif
+      
+      ! Convert wind to computational space
+      stat(iT)%vp(1,:,:) = stat(iT)%q(2,:,:) / ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
+      stat(iT)%vp(2,:,:) = stat(iT)%q(3,:,:) / ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
+      call covert_wind_p2c(stat(iT)%vc,stat(iT)%vp,jab)
+      stat(iT)%q(2,:,:) = stat(iT)%vc(1,:,:) * ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
+      stat(iT)%q(3,:,:) = stat(iT)%vc(2,:,:) * ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
+      
+      ref%vp(1,:,:) = ref%q(2,:,:) / ( ref%q(1,:,:) + ref%q(5,:,:) )
+      ref%vp(2,:,:) = ref%q(3,:,:) / ( ref%q(1,:,:) + ref%q(5,:,:) )
+      call covert_wind_p2c(ref%vc,ref%vp,jab)
+      ref%q(2,:,:) = ref%vc(1,:,:) * ( ref%q(1,:,:) + ref%q(5,:,:) )
+      ref%q(3,:,:) = ref%vc(2,:,:) * ( ref%q(1,:,:) + ref%q(5,:,:) )
       
     end subroutine init_test_case
     
@@ -252,7 +267,7 @@ module test_case_mod
       print*,'max/min value of G13             ',maxval(G13          ),minval(G13          )
       print*,'max/min value of sqrtG*rho       ',maxval(stat%q(1,:,:)),minval(stat%q(1,:,:))
       print*,'max/min value of sqrtG*rho*u     ',maxval(stat%q(2,:,:)),minval(stat%q(2,:,:))
-      print*,'max/min value of sqrtG*rho*v     ',maxval(stat%q(3,:,:)),minval(stat%q(3,:,:))
+      print*,'max/min value of sqrtG*rho*w     ',maxval(stat%q(3,:,:)),minval(stat%q(3,:,:))
       print*,'max/min value of sqrtG*rho*theta ',maxval(stat%q(4,:,:)),minval(stat%q(4,:,:))
       print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,:,:)),minval(stat%q(5,:,:))
     end subroutine schar_mountain
