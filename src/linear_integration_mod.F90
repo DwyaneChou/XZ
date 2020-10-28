@@ -1,5 +1,4 @@
 module linear_integration_mod
-    use math_mod
     implicit none
 
     contains

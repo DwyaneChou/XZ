@@ -65,16 +65,10 @@ MODULE spatial_operators_mod
   
   real(r_kind), dimension(  :,:), allocatable :: rho_p ! density perturbation
   
-  real(r_kind), dimension(:,:,:), allocatable :: src_ref ! reference source term
-  
-  real(r_kind), dimension(:,:  ), allocatable :: P_ref ! Reference pressure
   real(r_kind), dimension(:,:  ), allocatable :: PL_ref! Reconstructed P_ref_(i-1/2,k)
   real(r_kind), dimension(:,:  ), allocatable :: PR_ref! Reconstructed P_ref_(i+1/2,k)
   real(r_kind), dimension(:,:  ), allocatable :: PB_ref! Reconstructed P_ref_(i,k-1/2)
   real(r_kind), dimension(:,:  ), allocatable :: PT_ref! Reconstructed P_ref_(i,k+1/2)
-  
-    real(r_kind), dimension(:,:  ), allocatable :: sqrtGP ! sqrtG * P
-    real(r_kind), dimension(:,:  ), allocatable :: sqrtGG13P ! sqrtG * G13 * P
   
     contains
     subroutine init_spatial_operator
@@ -140,18 +134,13 @@ MODULE spatial_operators_mod
       allocate(He   (nVar,ids:ide  ,kds:kde+1))
       
       allocate(src    (nVar,ids:ide,kds:kde))
-      allocate(src_ref(nVar,ids:ide,kds:kde))
       
       allocate(rho_p(     ids:ide,kds:kde))
       
-      allocate(P_ref (    ids:ide,kds:kde))
       allocate(PL_ref(    ids:ide,kds:kde))
       allocate(PR_ref(    ids:ide,kds:kde))
       allocate(PB_ref(    ids:ide,kds:kde))
       allocate(PT_ref(    ids:ide,kds:kde))
-      
-      allocate(sqrtGP    (    ids:ide,kds:kde))
-      allocate(sqrtGG13P (    ids:ide,kds:kde))
       
       ! Set reference pressure
       q_ext = ref%q
@@ -185,10 +174,6 @@ MODULE spatial_operators_mod
             call WENO_limiter(qT(iVar,i,k),q_weno,dir)
           enddo
           
-          P_ref    (i,k) = calc_pressure(sqrtG(i,k),q_ext(:,i,k))
-          sqrtGP   (i,k) = sqrtG(i,k)            * P_ref(i,k)
-          sqrtGG13P(i,k) = sqrtG(i,k) * G13(i,k) * P_ref(i,k)
-          
           PL_ref(i,k) = calc_pressure(sqrtGL(i,k),qL(:,i,k))
           PR_ref(i,k) = calc_pressure(sqrtGR(i,k),qR(:,i,k))
           PB_ref(i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k))
@@ -197,57 +182,6 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      ! Set referenc source term
-      src_ref = 0
-      do k = kds,kde
-        do i = ids,ide
-          if(i==ids  )then
-            dpdx =-( 3. * sqrtGP(i,k) - 4. * sqrtGP(i+1,k) + sqrtGP(i+2,k) ) / dx / 2.
-          elseif(i==ide  )then
-            dpdx = ( 3. * sqrtGP(i,k) - 4. * sqrtGP(i-1,k) + sqrtGP(i-2,k) ) / dx / 2.
-          elseif(i==ids+1)then
-            dpdx =-( 2. * sqrtGP(i-1,k) + 3. * sqrtGP(i,k) - 6. * sqrtGP(i+1,k) + sqrtGP(i+2,k) ) / ( 6. * dx )
-          elseif(i==ide-1)then
-            dpdx = ( 2. * sqrtGP(i+1,k) + 3. * sqrtGP(i,k) - 6. * sqrtGP(i-1,k) + sqrtGP(i-2,k) ) / ( 6. * dx )
-          else
-            dpdx = ( sqrtGP(i-2,k) - 8. * sqrtGP(i-1,k) + 8. * sqrtGP(i+1,k) - sqrtGP(i+2,k) ) / ( 12. * dx )
-          endif
-          
-          if(k==kds  )then
-            dpdeta =-( 3. * sqrtGG13P(i,k) - 4. * sqrtGG13P(i,k+1) + sqrtGG13P(i,k+2) ) / deta / 2.
-          elseif(k==kde  )then
-            dpdeta = ( 3. * sqrtGG13P(i,k) - 4. * sqrtGG13P(i,k-1) + sqrtGG13P(i,k-2) ) / deta / 2.
-          elseif(k==kds+1)then
-            dpdeta =-( 2. * sqrtGG13P(i,k-1) + 3. * sqrtGG13P(i,k) - 6. * sqrtGG13P(i,k+1) + sqrtGG13P(i,k+2) ) / ( 6. * deta )
-          elseif(k==kde-1)then
-            dpdeta = ( 2. * sqrtGG13P(i,k+1) + 3. * sqrtGG13P(i,k) - 6. * sqrtGG13P(i,k-1) + sqrtGG13P(i,k-2) ) / ( 6. * deta )
-          else
-            dpdeta = ( sqrtGG13P(i,k-2) - 8. * sqrtGG13P(i,k-1) + 8. * sqrtGG13P(i,k+1) - sqrtGG13P(i,k+2) ) / ( 12. * deta )
-          endif
-          
-          !if(i>ids.and.i<ide)then
-          !  print*,k,i,dpdx,(sqrtGP(i+1,k)-sqrtGP(i-1,k))/dx/2.
-          !elseif(i==ids)then
-          !  print*,k,i,dpdx,(sqrtGP(i+1,k)-sqrtGP(i,k))/dx
-          !elseif(i==ide)then
-          !  print*,k,i,dpdx,(sqrtGP(i,k)-sqrtGP(i-1,k))/dx
-          !endif
-          
-          !if(k>kds.and.k<kde)then
-          !  print*,k,i,dpdeta,(sqrtGG13P(i,k+1)-sqrtGG13P(i,k-1))/deta/2.
-          !elseif(k==kds)then
-          !  print*,k,i,dpdeta,(sqrtGG13P(i,k+1)-sqrtGG13P(i,k))/deta
-          !elseif(k==kde)then
-          !  print*,k,i,dpdeta,(sqrtGG13P(i,k)-sqrtGG13P(i,k-1))/deta
-          !endif
-          
-          src_ref(2,i,k) = - dpdx - dpdeta
-          !if(i==94.and.k==kds+1)then
-          !  print*,sqrtGP(i+1,k)-sqrtGP(i-1,k),2.*dx, sqrtGG13P(i,k+1)-sqrtGG13P(i,k-1), 2. * deta
-          !  print*,dpdx, dpdeta, ( sqrtGP(i+1,k) - sqrtGP(i-1,k) ) / dx / 2. ,( sqrtGG13P(i,k+1)-sqrtGG13P(i,k-1) ) / deta
-          !endif
-        enddo
-      enddo
     end subroutine init_spatial_operator
     
     subroutine spatial_operator(stat,tend)
@@ -313,6 +247,11 @@ MODULE spatial_operators_mod
             if(i==ide)qR(2,i,k) = 0
             if(k==kds)qB(3,i,k) = 0
             if(k==kde)qT(3,i,k) = 0
+          elseif(case_num==2)then
+            if(i==ids)qL(2,i,k) = qL(1,i,k) * 10.
+            if(i==ide)qR(2,i,k) = qR(1,i,k) * 10.
+            if(k==kds)qB(3,i,k) = 0
+            if(k==kde)qT(3,i,k) = 0
           endif
           
           PL(i,k) = calc_pressure(sqrtGL(i,k),qL(:,i,k))
@@ -320,16 +259,16 @@ MODULE spatial_operators_mod
           PB(i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k))
           PT(i,k) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
           
-          PL(i,k) = merge( PL(i,k) - PL_ref(i,k), 0., abs( PL(i,k) - PL_ref(i,k) ) / PL_ref(i,k) > 1.e-13 )
-          PR(i,k) = merge( PR(i,k) - PR_ref(i,k), 0., abs( PR(i,k) - PR_ref(i,k) ) / PR_ref(i,k) > 1.e-13 )
-          PB(i,k) = merge( PB(i,k) - PB_ref(i,k), 0., abs( PB(i,k) - PB_ref(i,k) ) / PB_ref(i,k) > 1.e-13 )
-          PT(i,k) = merge( PT(i,k) - PT_ref(i,k), 0., abs( PT(i,k) - PT_ref(i,k) ) / PT_ref(i,k) > 1.e-13 )
+          !PL(i,k) = merge( PL(i,k) - PL_ref(i,k), 0., abs( PL(i,k) - PL_ref(i,k) ) / PL_ref(i,k) > 1.e-13 )
+          !PR(i,k) = merge( PR(i,k) - PR_ref(i,k), 0., abs( PR(i,k) - PR_ref(i,k) ) / PR_ref(i,k) > 1.e-13 )
+          !PB(i,k) = merge( PB(i,k) - PB_ref(i,k), 0., abs( PB(i,k) - PB_ref(i,k) ) / PB_ref(i,k) > 1.e-13 )
+          !PT(i,k) = merge( PT(i,k) - PT_ref(i,k), 0., abs( PT(i,k) - PT_ref(i,k) ) / PT_ref(i,k) > 1.e-13 )
           
           FL(:,i,k) = calc_F(sqrtGL(i,k),qL(:,i,k),PL(i,k))
           FR(:,i,k) = calc_F(sqrtGR(i,k),qR(:,i,k),PR(i,k))
           
-          HB(:,i,k) = calc_H(sqrtGB(i,k),G13B(i,k),qB(:,i,k),PB(i,k))
-          HT(:,i,k) = calc_H(sqrtGT(i,k),G13T(i,k),qT(:,i,k),PT(i,k))
+          HB(:,i,k) = calc_H(sqrtGB(i,k),G13B(i,k),qB(:,i,k),PB(i,k),PB_ref(i,k))
+          HT(:,i,k) = calc_H(sqrtGT(i,k),G13T(i,k),qT(:,i,k),PT(i,k),PT_ref(i,k))
         enddo
       enddo
       !$OMP END PARALLEL DO
@@ -458,12 +397,12 @@ MODULE spatial_operators_mod
         Fe(5,ids  ,kds:kde) = 0
         Fe(5,ide+1,kds:kde) = 0
         
-        He(1,ids:ide,kds  ) = 0
-        He(1,ids:ide,kde+1) = 0
+        He(1,ids:ide,kds  ) = G13B(ids:ide,kds) * qB(2,ids:ide,kds)
+        He(1,ids:ide,kde+1) = G13T(ids:ide,kde) * qT(2,ids:ide,kde)
         He(2,ids:ide,kds  ) = G13B(ids:ide,kds) * qB(2,ids:ide,kds)**2 / qB(1,ids:ide,kds) + sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) * PB(ids:ide,kds)
         He(2,ids:ide,kde+1) = G13T(ids:ide,kde) * qT(2,ids:ide,kde)**2 / qT(1,ids:ide,kde) + sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) * PT(ids:ide,kde)
-        He(3,ids:ide,kds  ) = PB(ids:ide,kds)
-        He(3,ids:ide,kde+1) = PT(ids:ide,kde)
+        He(3,ids:ide,kds  ) = PB(ids:ide,kds) - PB_ref(ids:ide,kds)
+        He(3,ids:ide,kde+1) = PT(ids:ide,kde) - PT_ref(ids:ide,kde)
         He(4,ids:ide,kds  ) = 0
         He(4,ids:ide,kde+1) = 0
         He(5,ids:ide,kds  ) = 0
@@ -475,7 +414,7 @@ MODULE spatial_operators_mod
         do i = ids,ide
           ip1 = i + 1
           kp1 = k + 1
-          tend%q(:,i,k) = - ( ( Fe(:,ip1,k) - Fe(:,i,k) ) / dx + ( He(:,i,kp1) - He(:,i,k) ) / deta ) + src(:,i,k)! + src_ref(:,i,k)
+          tend%q(:,i,k) = - ( ( Fe(:,ip1,k) - Fe(:,i,k) ) / dx + ( He(:,i,kp1) - He(:,i,k) ) / deta ) + src(:,i,k)
         enddo
       enddo
       !$OMP END PARALLEL DO
@@ -687,11 +626,11 @@ MODULE spatial_operators_mod
       
     end function calc_pressure
     
-    function calc_F(sqrtG,q,pp)
+    function calc_F(sqrtG,q,p)
       real(r_kind),dimension(5) :: calc_F
       real(r_kind)              :: sqrtG
       real(r_kind),dimension(5) :: q(5)
-      real(r_kind)              :: pp   ! pressure  perturbation
+      real(r_kind)              :: p      ! pressure
       
       real(r_kind) w1
       real(r_kind) w2
@@ -712,19 +651,22 @@ MODULE spatial_operators_mod
       u        = w2 / sqrtGrho
       
       calc_F(1) = w1 * u
-      calc_F(2) = w2 * u + sqrtG * pp
+      calc_F(2) = w2 * u + sqrtG * p
       calc_F(3) = w3 * u
       calc_F(4) = w4 * u
       calc_F(5) = w5 * u
       
     end function calc_F
     
-    function calc_H(sqrtG,G13,q,pp)
+    function calc_H(sqrtG,G13,q,p,p_ref)
       real(r_kind),dimension(5) :: calc_H
       real(r_kind)              :: sqrtG
       real(r_kind)              :: G13
       real(r_kind),dimension(5) :: q(5)
-      real(r_kind)              :: pp   ! pressure perturbation
+      real(r_kind)              :: p      ! pressure
+      real(r_kind)              :: p_ref  ! reference pressure
+      
+      real(r_kind)              :: p_pert ! pressure  perturbation
       
       real(r_kind) w1
       real(r_kind) w2
@@ -746,12 +688,13 @@ MODULE spatial_operators_mod
       sqrtGrho = w1 + w5
       u        = w2 / sqrtGrho
       w        = w3 / sqrtGrho
+      p_pert   = p - p_ref
       
       ww = ( w + sqrtG * G13 * u ) / sqrtG
       
       calc_H(1) = w1 * ww
-      calc_H(2) = w2 * ww + sqrtG * G13 * pp
-      calc_H(3) = w3 * ww + pp
+      calc_H(2) = w2 * ww + sqrtG * G13 * p
+      calc_H(3) = w3 * ww + p_pert
       calc_H(4) = w4 * ww
       calc_H(5) = w5 * ww
       
@@ -776,12 +719,13 @@ MODULE spatial_operators_mod
       w4 = q(4)
       w5 = q(5)
       
-      coef1 = cvd**2*w1**3*w2*w4*(w1 + w5)*(w1 + w5 + eq*w5) + &
+      coef1 = cvd**2*w1**3*w2*w4*(w1 + w5)*(w1 + w5 + eq*w5) +      &
             2.*cvd*cvv*w1**2*w2*w4*w5*(w1 + w5)*(w1 + w5 + eq*w5) + &
             cvv**2*w1*w2*w4*w5**2*(w1 + w5)*(w1 + w5 + eq*w5)
       
-      coef2 = sqrt( p0*sqrtG*w1**2*w4**2*(w1 + w5)**3*(cpd*w1 + cpv*w5)*(cvd*w1 + cvv*w5)**3* &
-      (w1 + w5 + eq*w5)**2*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))**((cpd*w1 + cpv*w5)/(cvd*w1 + cvv*w5)) )
+      coef2 = sqrt( p0*sqrtG*w1**2*w4**2*(w1 + w5)**3*(cpd*w1 + cpv*w5)*                   &
+      (cvd*w1 + cvv*w5)**3*(w1 + w5 + eq*w5)**2*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))**&
+      ((cpd*w1 + cpv*w5)/(cvd*w1 + cvv*w5)) )
       
       coef3 = w1*w4*(w1 + w5)**2*(cvd*w1 + cvv*w5)**2*(w1 + w5 + eq*w5)
       
@@ -823,14 +767,13 @@ MODULE spatial_operators_mod
       u        = w2 / sqrtGrho
       w        = w3 / sqrtGrho
       
-      coef1 = cvd**2*w1**3*(G13*sqrtG*w2 + w3)*w4*(w1 + w5)*(w1 + w5 + eq*w5) +      &
-            2.*cvd*cvv*w1**2*(G13*sqrtG*w2 + w3)*w4*w5*(w1 + w5)*(w1 + w5 + eq*w5) + &
-            cvv**2*w1*(G13*sqrtG*w2 + w3)*w4*w5**2*(w1 + w5)*(w1 + w5 + eq*w5)
+      coef1 = cvd**2*w1**3*(G13*sqrtG*w2 + w3)*w4*(w1 + w5)*(w1 + w5 + eq*w5) +        &
+              2.*cvd*cvv*w1**2*(G13*sqrtG*w2 + w3)*w4*w5*(w1 + w5)*(w1 + w5 + eq*w5) + &
+              cvv**2*w1*(G13*sqrtG*w2 + w3)*w4*w5**2*(w1 + w5)*(w1 + w5 + eq*w5)
       
-      coef2 = sqrt( p0*sqrtG*(1 + G13**2*sqrtG**2)*w1**2*                             &
-            w4**2*(w1 + w5)**3*(cpd*w1 + cpv*w5)*(cvd*w1 + cvv*w5)**3*                &
-           (w1 + w5 + eq*w5)**2*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))**((cpd*w1 + &
-           cpv*w5)/(cvd*w1 + cvv*w5)) )
+      coef2 = sqrt( p0*sqrtG*(1 + G13**2*sqrtG**2)*w1**2*                                                          &
+            w4**2*(w1 + w5)**3*(cpd*w1 + cpv*w5)*(cvd*w1 + cvv*w5)**3*                                             &
+            (w1 + w5 + eq*w5)**2*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))**((cpd*w1 + cpv*w5)/(cvd*w1 + cvv*w5)) )
       
       coef3 = sqrtG*w1*w4*(w1 + w5)**2*(cvd*w1 + cvv*w5)**2*(w1 + w5 + eq*w5)
       
