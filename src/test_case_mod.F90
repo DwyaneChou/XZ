@@ -27,18 +27,18 @@ module test_case_mod
         stop 'Unknown case_num'
       endif
       
-      ! Convert wind to computational space
-      stat(iT)%vp(1,:,:) = stat(iT)%q(2,:,:) / ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
-      stat(iT)%vp(2,:,:) = stat(iT)%q(3,:,:) / ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
-      call covert_wind_p2c(stat(iT)%vc,stat(iT)%vp,jab)
-      stat(iT)%q(2,:,:) = stat(iT)%vc(1,:,:) * ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
-      stat(iT)%q(3,:,:) = stat(iT)%vc(2,:,:) * ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
-      
-      ref%vp(1,:,:) = ref%q(2,:,:) / ( ref%q(1,:,:) + ref%q(5,:,:) )
-      ref%vp(2,:,:) = ref%q(3,:,:) / ( ref%q(1,:,:) + ref%q(5,:,:) )
-      call covert_wind_p2c(ref%vc,ref%vp,jab)
-      ref%q(2,:,:) = ref%vc(1,:,:) * ( ref%q(1,:,:) + ref%q(5,:,:) )
-      ref%q(3,:,:) = ref%vc(2,:,:) * ( ref%q(1,:,:) + ref%q(5,:,:) )
+      !! Convert wind to computational space
+      !stat(iT)%vp(1,:,:) = stat(iT)%q(2,:,:) / ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
+      !stat(iT)%vp(2,:,:) = stat(iT)%q(3,:,:) / ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
+      !call covert_wind_p2c(stat(iT)%vc,stat(iT)%vp,jab)
+      !stat(iT)%q(2,:,:) = stat(iT)%vc(1,:,:) * ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
+      !stat(iT)%q(3,:,:) = stat(iT)%vc(2,:,:) * ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
+      !
+      !ref%vp(1,:,:) = ref%q(2,:,:) / ( ref%q(1,:,:) + ref%q(5,:,:) )
+      !ref%vp(2,:,:) = ref%q(3,:,:) / ( ref%q(1,:,:) + ref%q(5,:,:) )
+      !call covert_wind_p2c(ref%vc,ref%vp,jab)
+      !ref%q(2,:,:) = ref%vc(1,:,:) * ( ref%q(1,:,:) + ref%q(5,:,:) )
+      !ref%q(3,:,:) = ref%vc(2,:,:) * ( ref%q(1,:,:) + ref%q(5,:,:) )
       
     end subroutine init_test_case
     
@@ -224,19 +224,44 @@ module test_case_mod
         enddo
       enddo
       
+      ! Set exner on top
       do i = ics,ice
-        call spline2_integration(nz_ext-1,z(i,:),dexner(i,:),0.,0.,nz_ext,z(i,:),dexner(i,:))
-        !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
-        
         exner(i,1) = 1.
+        
+        call spline2_integration(nz_ext-1,xi(i,:),dexner(i,:),0.,0.,nz_ext,xi(i,:),dexner(i,:))
+        !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
         
         do k = kds+1,kce
           exner(i,k) = exner(i,1) + sum(dexner(i,kds+1:k))
         enddo
         
-        do k = kcs,kds-1
-          exner(i,k) = 1. - sum(dexner(i,kds:k+1:-1))
+      enddo
+      exner(:,kce) = sum( exner(ids:ide,kce) ) / nx
+      
+      do k = kcs,kce
+        do i = ics,ice
+          theta_bar(i,k) = theta0 * exp( N0**2 /gravity * z(i,k) )
+          theta    (i,k) = theta_bar(i,k)
+          dexner   (i,k) = -gravity / ( Cpd * theta(i,k) )
         enddo
+      enddo
+      
+      ! Initialize fields
+      do i = ics,ice
+        call spline2_integration(nz_ext-1,z(i,:),dexner(i,:),0.,0.,nz_ext,z(i,:),dexner(i,:))
+        !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
+        
+        do k = kce,kcs,-1
+          exner(i,k) = exner(i,kce) - sum(dexner(i,k:kce))
+        enddo
+        
+        !do k = kds+1,kce
+        !  exner(i,k) = exner(i,1) + sum(dexner(i,kds+1:k))
+        !enddo
+        !
+        !do k = kcs,kds-1
+        !  exner(i,k) = exner(i,1) - sum(dexner(i,kds:k+1:-1))
+        !enddo
         
         do k = kcs,kce
           p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)

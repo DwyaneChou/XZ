@@ -218,7 +218,7 @@ module mesh_mod
         enddo
         
       elseif(vertical_coordinate==2)then
-        ! Schar, 2001
+        ! Schar, 2002
         H = z_max - z_min
         if(case_num==2)then
           s = 3000.
@@ -299,18 +299,18 @@ module mesh_mod
       G13B  (ids:ide,kds:kde) = qB(2,:,:)
       G13T  (ids:ide,kds:kde) = qT(2,:,:)
       
-      ! Compute Jacobian matrices
-      do k = kcs,kce
-        do i = ics,ice
-          angle = atan( dzdx(i,k) )
-          jab(1,1,i,k) = cos( angle )
-          jab(1,2,i,k) = sin( angle )
-          jab(2,1,i,k) = 0.
-          jab(2,2,i,k) = 1.
-          
-          call BRINV(2,jab(:,:,i,k),invjab(:,:,i,k))
-        enddo
-      enddo
+      !! Compute Jacobian matrices
+      !do k = kcs,kce
+      !  do i = ics,ice
+      !    angle = atan( dzdx(i,k) )
+      !    jab(1,1,i,k) = cos( angle )
+      !    jab(1,2,i,k) = sin( angle )
+      !    jab(2,1,i,k) = 0.
+      !    jab(2,2,i,k) = 1.
+      !    
+      !    call BRINV(2,jab(:,:,i,k),invjab(:,:,i,k))
+      !  enddo
+      !enddo
       
     end subroutine init_vertical_coordinate
 end module mesh_mod
