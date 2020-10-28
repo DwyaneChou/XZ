@@ -217,8 +217,6 @@ module mesh_mod
           enddo
         enddo
         
-        sqrtG = dzdeta
-        G13   = detadx
       elseif(vertical_coordinate==2)then
         ! Schar, 2001
         H = z_max - z_min
@@ -242,11 +240,12 @@ module mesh_mod
           enddo
         enddo
         
-        sqrtG = dzdeta
-        G13   = detadx
       else
         stop 'Unknown vertical_coordinate'
       endif
+        
+      sqrtG = dzdeta
+      G13   = detadx
       
       ! Reconstruct mertric tensor
       q_ext(1,:,:) = sqrtG
@@ -304,10 +303,10 @@ module mesh_mod
       do k = kcs,kce
         do i = ics,ice
           angle = atan( dzdx(i,k) )
-          jab   (1,1,i,k) = cos( angle )
-          jab   (1,2,i,k) = sin( angle )
-          jab   (2,1,i,k) = 0.
-          jab   (2,2,i,k) = 1.
+          jab(1,1,i,k) = cos( angle )
+          jab(1,2,i,k) = sin( angle )
+          jab(2,1,i,k) = 0.
+          jab(2,2,i,k) = 1.
           
           call BRINV(2,jab(:,:,i,k),invjab(:,:,i,k))
         enddo

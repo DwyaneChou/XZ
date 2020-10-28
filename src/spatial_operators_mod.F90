@@ -250,8 +250,8 @@ MODULE spatial_operators_mod
             if(k==kds)qB(3,i,k) = 0
             if(k==kde)qT(3,i,k) = 0
           elseif(case_num==2)then
-            if(i==ids)qL(2,i,k) = qL(1,i,k) * 10.
-            if(i==ide)qR(2,i,k) = qR(1,i,k) * 10.
+            if(i==ids)qL(2,i,k) = ref%q(2,i,k)!qL(1,i,k) * 10.
+            if(i==ide)qR(2,i,k) = ref%q(2,i,k)!qR(1,i,k) * 10.
             if(k==kds)qB(3,i,k) = 0
             if(k==kde)qT(3,i,k) = 0
           endif
