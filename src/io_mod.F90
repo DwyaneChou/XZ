@@ -154,17 +154,6 @@ module io_mod
       p        = p0 * ( rho * Ra * theta / p0 )** kappa
       T        = p / ( rho * Ra )
       
-      !! Convert wind to physical space
-      !stat%vc(1,ids:ide,kds:kde) = u
-      !stat%vc(2,ids:ide,kds:kde) = w
-      !
-      !call covert_wind_c2p(stat%vp(:,  ids:ide,kds:kde),&
-      !                     stat%vc(:,  ids:ide,kds:kde),&
-      !                     invjab (:,:,ids:ide,kds:kde))
-      !
-      !u = stat%vp(1,ids:ide,kds:kde)
-      !w = stat%vp(2,ids:ide,kds:kde)
-      
       !print*,'nf90_put_var'
       status = nf90_put_var(ncid, rho_id  , rho  , start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
       status = nf90_put_var(ncid, u_id    , u    , start=(/1,1,time_slot_num/),count=(/nx,nz,1/))

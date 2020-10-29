@@ -27,19 +27,6 @@ module test_case_mod
         stop 'Unknown case_num'
       endif
       
-      !! Convert wind to computational space
-      !stat(iT)%vp(1,:,:) = stat(iT)%q(2,:,:) / ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
-      !stat(iT)%vp(2,:,:) = stat(iT)%q(3,:,:) / ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
-      !call covert_wind_p2c(stat(iT)%vc,stat(iT)%vp,jab)
-      !stat(iT)%q(2,:,:) = stat(iT)%vc(1,:,:) * ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
-      !stat(iT)%q(3,:,:) = stat(iT)%vc(2,:,:) * ( stat(iT)%q(1,:,:) + stat(iT)%q(5,:,:) )
-      !
-      !ref%vp(1,:,:) = ref%q(2,:,:) / ( ref%q(1,:,:) + ref%q(5,:,:) )
-      !ref%vp(2,:,:) = ref%q(3,:,:) / ( ref%q(1,:,:) + ref%q(5,:,:) )
-      !call covert_wind_p2c(ref%vc,ref%vp,jab)
-      !ref%q(2,:,:) = ref%vc(1,:,:) * ( ref%q(1,:,:) + ref%q(5,:,:) )
-      !ref%q(3,:,:) = ref%vc(2,:,:) * ( ref%q(1,:,:) + ref%q(5,:,:) )
-      
     end subroutine init_test_case
     
     ! thermal_bubble according to Li 2013
@@ -254,14 +241,6 @@ module test_case_mod
         do k = kce,kcs,-1
           exner(i,k) = exner(i,kce) - sum(dexner(i,k:kce))
         enddo
-        
-        !do k = kds+1,kce
-        !  exner(i,k) = exner(i,1) + sum(dexner(i,kds+1:k))
-        !enddo
-        !
-        !do k = kcs,kds-1
-        !  exner(i,k) = exner(i,1) - sum(dexner(i,kds:k+1:-1))
-        !enddo
         
         do k = kcs,kce
           p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
