@@ -18,9 +18,7 @@ module mesh_mod
   
   ! For detadx ( G13 )
   real(r_kind), dimension(:,:), allocatable :: detadxi
-  real(r_kind), dimension(:,:), allocatable :: dxidz
-  real(r_kind), dimension(:,:), allocatable :: dzdx
-  real(r_kind), dimension(:,:), allocatable :: dzdzs
+  real(r_kind), dimension(:,:), allocatable :: dxidx
   real(r_kind), dimension(:,:), allocatable :: dzsdx
   real(r_kind), dimension(:,:), allocatable :: detadx
   
@@ -56,9 +54,7 @@ module mesh_mod
       allocate( dzdeta (ics:ice,kcs:kce) )
       
       allocate( detadxi(ics:ice,kcs:kce) )
-      allocate( dxidz  (ics:ice,kcs:kce) )
-      allocate( dzdx   (ics:ice,kcs:kce) )
-      allocate( dzdzs  (ics:ice,kcs:kce) )
+      allocate( dxidx  (ics:ice,kcs:kce) )
       allocate( dzsdx  (ics:ice,kcs:kce) )
       allocate( detadx (ics:ice,kcs:kce) )
       
@@ -87,10 +83,8 @@ module mesh_mod
       dzdeta  = FillValue
       
       detadxi = FillValue
-      dxidz   = FillValue
+      dxidx   = FillValue
       dzsdx   = FillValue
-      dzdx    = FillValue
-      dzdzs   = FillValue
       detadx  = FillValue
       
       sqrtG   = FillValue
@@ -194,12 +188,10 @@ module mesh_mod
         do k = kcs,kce
           do i = ics,ice
             dzdxi(i,k) = ( z_max - zs(i,k) ) / z_max
-            dxidz(i,k) = z_max / ( z_max - zs(i,k) )
-            dzdzs(i,k) = ( z_max - xi(i,k) ) / z_max
-            dzdx (i,k) = dzdzs(i,k) * dzsdx(i,k)
+            dxidx(i,k) = ( xi(i,k) - z_max ) / ( z_max - zs(i,k) ) * dzsdx(i,k)
             
             dzdeta(i,k) = dzdxi(i,k) * dxideta(i,k)
-            detadx(i,k) = -detadxi(i,k) * dxidz(i,k) * dzdx(i,k)
+            detadx(i,k) = detadxi(i,k) * dxidx(i,k)
             
             z(i,k) = ( z_max - zs(i,k) ) / z_max * xi(i,k)  + zs(i,k)
           enddo
@@ -217,12 +209,11 @@ module mesh_mod
         do k = kcs,kce
           do i = ics,ice
             dzdxi(i,k) = 1. - zs(i,k) * cosh( ( H - xi(i,k) ) / s ) / ( s * sinh( H / s ) )
-            dxidz(i,k) = s * sinh( H / s ) / ( s * sinh( H / s )  - zs(i,k) * cosh( ( H - xi(i,k) ) / s ) )
-            dzdzs(i,k) = sinh( ( H - xi(i,k) ) / s ) / sinh( H / s )
-            dzdx (i,k) = dzdzs(i,k) * dzsdx(i,k)
+            dxidx(i,k) = -sinh( ( z_max - xi(i,k) ) / s ) / sinh( z_max / s ) &
+                       / ( 1. - zs(i,k) / s * cosh( ( z_max - xi(i,k) ) / s ) / sinh( z_max / s ) ) * dzsdx(i,k)
             
             dzdeta(i,k) = dzdxi(i,k) * dxideta(i,k)
-            detadx(i,k) = -detadxi(i,k) * dxidz(i,k) * dzdx(i,k)
+            detadx(i,k) = detadxi(i,k) * dxidx(i,k)
             
             z(i,k) = xi(i,k) + zs(i,k) * sinh( ( H - xi(i,k) ) / s ) / sinh( H / s )
           enddo
