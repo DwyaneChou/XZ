@@ -579,7 +579,7 @@ MODULE spatial_operators_mod
       w        = w3 / sqrtGrho
       p_pert   = p - p_ref
       
-      ww = ( w + sqrtG * G13 * u ) / sqrtG
+      ww = w / sqrtG + G13 * u
       
       calc_H(1) = w1 * ww
       calc_H(2) = w2 * ww + sqrtG * G13 * p

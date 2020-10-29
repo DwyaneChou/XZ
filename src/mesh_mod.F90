@@ -173,7 +173,7 @@ module mesh_mod
       
       integer i,k,iVar
       
-      ! For Schar, 2001
+      ! For Schar, 2002
       real(r_kind) :: H
       real(r_kind) :: s
       
@@ -223,7 +223,6 @@ module mesh_mod
             
             dzdeta(i,k) = dzdxi(i,k) * dxideta(i,k)
             detadx(i,k) = -detadxi(i,k) * dxidz(i,k) * dzdx(i,k)
-            !detadx(i,k) = -detadxi(i,k) / dzdxi(i,k) * dzdx(i,k)
             
             z(i,k) = xi(i,k) + zs(i,k) * sinh( ( H - xi(i,k) ) / s ) / sinh( H / s )
           enddo
