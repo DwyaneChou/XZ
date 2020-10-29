@@ -275,7 +275,6 @@ module test_case_mod
       do i = ics,ice
         do k = kcs,kce
           exner(i,k) = 1. + gravity**2 / ( cpd * theta0 * N0**2 ) * ( exp( -N0**2 / gravity * z(i,k) ) - 1. )
-          !exner(i,k) = 1. - gravity**2 / ( cpd * N0**2 ) * ( theta(i,k) - theta0 ) / ( theta(i,k) * theta0 )
           p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
           T    (i,k) = exner(i,k) * theta(i,k)
           rho  (i,k) = p(i,k) / ( Rd * T(i,k) )
