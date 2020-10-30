@@ -43,6 +43,8 @@ module parameters_mod
   integer(i_kind) :: kds, kde
   integer(i_kind) :: ics, ice
   integer(i_kind) :: kcs, kce
+  integer(i_kind) :: ies, iee
+  integer(i_kind) :: kes, kee
   
   integer(i_kind) :: nx_ext
   integer(i_kind) :: nz_ext
@@ -156,6 +158,11 @@ module parameters_mod
     
     nx_ext = ice - ics + 1
     nz_ext = kce - kcs + 1
+    
+    ies = ics * 2 - 1
+    iee = ice * 2 + 1
+    kes = kcs * 2 - 1
+    kee = kce * 2 + 1
     
     nsteps = total_run_time / dt
     

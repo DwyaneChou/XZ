@@ -70,6 +70,9 @@ module test_case_mod
       zs    = 0.
       dzsdx = 0.
       
+      zs_ext    = 0.
+      dzsdx_ext = 0.
+      
       call init_vertical_coordinate
       
       theta_bar = 300.
@@ -211,6 +214,9 @@ module test_case_mod
       
       zs    = h0 * exp( -( x / a0 )**2 ) * cos( pi * x / lambda0 )**2
       dzsdx = -((2.*h0*Cos((pi*x)/lambda0)*(lambda0*x*Cos((pi*x)/lambda0) + a0**2*pi*Sin((pi*x)/lambda0)))/(Exp(x**2/a0**2)*(a0**2*lambda0)))
+      
+      zs_ext    = h0 * exp( -( x_ext / a0 )**2 ) * cos( pi * x_ext / lambda0 )**2
+      dzsdx_ext = -((2.*h0*Cos((pi*x_ext)/lambda0)*(lambda0*x_ext*Cos((pi*x_ext)/lambda0) + a0**2*pi*Sin((pi*x_ext)/lambda0)))/(Exp(x_ext**2/a0**2)*(a0**2*lambda0)))
       
       call init_vertical_coordinate
       
