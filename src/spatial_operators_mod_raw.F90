@@ -398,10 +398,10 @@ MODULE spatial_operators_mod
         
       elseif(case_num==2)then
         ! left
-        q_ext(:,ics:ids-1,:) = FillValue!q_ref(:,ics:ids-1,:)
+        q_ext(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
         
         ! right
-        q_ext(:,ide+1:ice,:) = FillValue!q_ref(:,ide+1:ice,:)
+        q_ext(:,ide+1:ice,:) = q_ref(:,ide+1:ice,:)
         
         ! bottom
         q_ext(:,:,kcs:kds-1) = FillValue

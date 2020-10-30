@@ -311,16 +311,18 @@ module mesh_mod
       !sqrtG = dzdeta
       !G13   = detadx
         
-      do k = kcs,kce
-        do i = ics,ice
-          sqrtG(i,k) = dzdeta_ext(i*2,k*2)
-          G13  (i,k) = detadx_ext(i*2,k*2)
-      
+      ! Reconstruct mertric tensor by analytical value
+      do k = kds,kde
+        do i = ids,ide
+      !do k = kcs,kce
+      !  do i = ics,ice
+          sqrtG (i,k) = dzdeta_ext(i*2  ,k*2  )
           sqrtGL(i,k) = dzdeta_ext(i*2-1,k*2  )
           sqrtGR(i,k) = dzdeta_ext(i*2+1,k*2  )
           sqrtGB(i,k) = dzdeta_ext(i*2  ,k*2-1)
           sqrtGT(i,k) = dzdeta_ext(i*2  ,k*2+1)
           
+          G13   (i,k) = detadx_ext(i*2  ,k*2  )
           G13L  (i,k) = detadx_ext(i*2-1,k*2  )
           G13R  (i,k) = detadx_ext(i*2+1,k*2  )
           G13B  (i,k) = detadx_ext(i*2  ,k*2-1)
@@ -328,6 +330,7 @@ module mesh_mod
         enddo
       enddo
       
+      !! Reconstruct mertric tensor by  Mid-point average
       !do k = kds,kde
       !  do i = ids,ide
       !    sqrtGL(i,k) = ( sqrtG(i-1,k  ) + sqrtG(i  ,k  ) ) / 2.
@@ -342,10 +345,10 @@ module mesh_mod
       !  enddo
       !enddo
       
-      !! Reconstruct mertric tensor
+      !! Reconstruct mertric tensor by WENO
       !q_ext(1,:,:) = sqrtG
       !q_ext(2,:,:) = G13
-      !!$OMP PARALLEL DO PRIVATE(i,ip1,im1,ip2,im2,q_weno,dir,kp1,km1,kp2,km2)
+      !!$OMP PARALLEL DO PRIVATE(i,ip1,im1,ip2,im2,iVar,q_weno,dir,kp1,km1,kp2,km2)
       !do k = kds,kde
       !  kp1 = k + 1
       !  km1 = k - 1
@@ -384,6 +387,22 @@ module mesh_mod
       !  enddo
       !enddo
       !!$OMP END PARALLEL DO
+      !!do k = kds,kde
+      !!  do i = ids,ide
+      !!    print*,k,i
+      !!    print*,sqrtGL(i,k),qL(1,i,k)
+      !!    print*,sqrtGR(i,k),qR(1,i,k)
+      !!    print*,sqrtGB(i,k),qB(1,i,k)
+      !!    print*,sqrtGT(i,k),qT(1,i,k)
+      !!    
+      !!    print*,G13L(i,k),qL(2,i,k)
+      !!    print*,G13R(i,k),qR(2,i,k)
+      !!    print*,G13B(i,k),qB(2,i,k)
+      !!    print*,G13T(i,k),qT(2,i,k)
+      !!    print*,''
+      !!  enddo
+      !!enddo
+      !
       !sqrtGL(ids:ide,kds:kde) = qL(1,:,:)
       !sqrtGR(ids:ide,kds:kde) = qR(1,:,:)
       !sqrtGB(ids:ide,kds:kde) = qB(1,:,:)

@@ -127,7 +127,7 @@ module test_case_mod
       
       print*,'Set reference fields'
       do k = kcs,kce
-        q_ref(1,:,k) = sum(sqrtG(:,k)*rho(:,k)) / nx_ext
+        q_ref(1,ids:ide,k) = sum(sqrtG(ids:ide,k)*rho(ids:ide,k)) / nx
       enddo
       
       q_ref(2,:,:) = 0.
