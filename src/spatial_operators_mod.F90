@@ -31,6 +31,8 @@ MODULE spatial_operators_mod
   real(r_kind), dimension(  :,:), allocatable :: P
   real(r_kind), dimension(  :,:), allocatable :: P_ref ! reference pressure
   
+  real(r_kind), dimension(  :,:), allocatable :: w_eta ! deta/dt
+  
   real(r_kind), dimension(:,:,:), allocatable :: Fe    ! F on edges of each cell
   real(r_kind), dimension(:,:,:), allocatable :: He    ! H on edges of each cell
   
@@ -77,6 +79,8 @@ MODULE spatial_operators_mod
       
       allocate(P    (     ics:ice,kcs:kce))
       allocate(P_ref(     ics:ice,kcs:kce))
+      
+      allocate(w_eta(     ics:ice,kcs:kce))
       
       allocate(Fe   (nVar,ids:ide+1,kds:kde  ))
       allocate(He   (nVar,ids:ide  ,kds:kde+1))
@@ -131,11 +135,22 @@ MODULE spatial_operators_mod
       ! Set no flux and nonreflecting boundary condition
       call bdy_condition(q_ext,stat%q,ref%q,src)
       
+      !! Set w_eta
+      !do k = kds,kde
+      !  do i = ids,ide
+      !    w_eta(i,k) = q_ext(1,i,k) * calc_w_eta(sqrtG(i,k),G13(i,k),q_ext(:,i,k))
+      !  enddo
+      !enddo
+      !
+      !call fill_ghost(w_eta,w_eta,dir=2,sign=-1)
+      
+      ! Calculate P, F, H and eigenvalues
       do k = kcs,kce
         do i = ics,ice
           P    (  i,k) = calc_pressure(sqrtG(i,k),q_ext(:,i,k))
           F    (:,i,k) = calc_F(sqrtG(i,k),q_ext(:,i,k),P(i,k))
           H    (:,i,k) = calc_H(sqrtG(i,k),G13(i,k),q_ext(:,i,k),P(i,k),P_ref(i,k))
+          !H    (:,i,k) = calc_H_w_eta(sqrtG(i,k),G13(i,k),q_ext(:,i,k),P(i,k),P_ref(i,k),w_eta(i,k))
           
           eig_x(  i,k) = calc_eigenvalue_x(sqrtG(i,k)         ,q_ext(:,i,k))
           eig_z(  i,k) = calc_eigenvalue_z(sqrtG(i,k),G13(i,k),q_ext(:,i,k))
@@ -188,6 +203,10 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
+      do i = ids,ide
+        print*,HB(1,i,kds),HT(1,i,kds-1)
+      enddo
+      
       ! Reconstruct qL and qR
       !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
       do k = kds,kde
@@ -211,7 +230,7 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      ! Reconstruct HB and HT
+      ! Reconstruct qB and qT
       !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
       do k = kds-1,kde+1
         kp1 = k + 1
@@ -246,6 +265,7 @@ MODULE spatial_operators_mod
       do k = kds,kde
         do i = ids,ide+1
           im1 = i - 1
+          
           maxeigen_x = max(abs(eig_x(i,k)),abs(eig_x(im1,k)))
           
           !Fe(:,i,k) = 0.5 * ( FL(:,i,k) + FR(:,im1,k) - maxeigen_x * ( qL(:,i,k) - qR(:,im1,k) ) )
@@ -324,13 +344,19 @@ MODULE spatial_operators_mod
       real(r_kind) :: relax_coef(bdy_width)
       real(r_kind) :: max_exp
       
-      q_p(1,:,:) = ( q(1,:,:) - q_ref(1,:,:) ) /sqrtG  ! rho'
-      q_p(2,:,:) = q(2,:,:) / ( q(1,:,:) + q(5,:,:) )  ! u
-      q_p(3,:,:) = q(3,:,:) / ( q(1,:,:) + q(5,:,:) )  ! w
-      q_p(4,:,:) = ( q(4,:,:) - q_ref(4,:,:) ) / sqrtG ! theta'
-      q_p(5,:,:) = q(5,:,:) / q(1,:,:)                 ! gamma
+      !q_p(1,:,:) = ( q(1,:,:) - q_ref(1,:,:) ) /sqrtG  ! rhod'
+      !q_p(2,:,:) = q(2,:,:) / ( q(1,:,:) + q(5,:,:) )  ! u
+      !q_p(3,:,:) = q(3,:,:) / ( q(1,:,:) + q(5,:,:) )  ! w
+      !q_p(4,:,:) = ( q(4,:,:) - q_ref(4,:,:) ) / sqrtG ! rho * theta'
+      !q_p(5,:,:) = q(5,:,:) / q(1,:,:)                 ! gamma
       
       if(case_num==1)then
+        q_p(1,:,:) = q(1,:,:) - q_ref(1,:,:)
+        q_p(2,:,:) = q(2,:,:)
+        q_p(3,:,:) = q(3,:,:)
+        q_p(4,:,:) = q(4,:,:) - q_ref(4,:,:)
+        q_p(5,:,:) = q(5,:,:)
+        
         ! x-dir
         call fill_ghost(q_ext(1,:,:),q_p(1,:,:),dir=1,sign= 1)
         call fill_ghost(q_ext(2,:,:),q_p(2,:,:),dir=1,sign=-1)
@@ -344,13 +370,15 @@ MODULE spatial_operators_mod
         call fill_ghost(q_ext(4,:,:),q_p(4,:,:),dir=2,sign= 1)
         call fill_ghost(q_ext(5,:,:),q_p(5,:,:),dir=2,sign= 1)
         
-        q_ext(1,:,:) = q_ext(1,:,:) * sqrtG + q_ref(1,:,:)
-        q_ext(5,:,:) = q_ext(5,:,:) * sqrtG + q_ref(5,:,:)
-        
-        q_ext(2,:,:) = q_ext(2,:,:) * ( q_ext(1,:,:) + q_ext(5,:,:) )
-        q_ext(3,:,:) = q_ext(3,:,:) * ( q_ext(1,:,:) + q_ext(5,:,:) )
-        q_ext(4,:,:) = q_ext(4,:,:) * sqrtG + q_ref(4,:,:)
+        q_ext(1,:,:) = q_ext(1,:,:) + q_ref(1,:,:)
+        q_ext(4,:,:) = q_ext(4,:,:) + q_ref(4,:,:)
       elseif(case_num==2)then
+        q_p(1,:,:) = q(1,:,:) - q_ref(1,:,:)
+        q_p(2,:,:) = q(2,:,:)
+        q_p(3,:,:) = q(3,:,:)
+        q_p(4,:,:) = q(4,:,:) - q_ref(4,:,:)
+        q_p(5,:,:) = q(5,:,:)
+        
         ! z-dir
         call fill_ghost(q_ext(1,:,:),q_p(1,:,:),dir=2,sign= 1)
         call fill_ghost(q_ext(2,:,:),q_p(2,:,:),dir=2,sign= 1)
@@ -358,12 +386,8 @@ MODULE spatial_operators_mod
         call fill_ghost(q_ext(4,:,:),q_p(4,:,:),dir=2,sign= 1)
         call fill_ghost(q_ext(5,:,:),q_p(5,:,:),dir=2,sign= 1)
         
-        q_ext(1,:,:) = q_ext(1,:,:) * sqrtG + q_ref(1,:,:)
-        q_ext(5,:,:) = q_ext(5,:,:) * sqrtG + q_ref(5,:,:)
-        
-        q_ext(2,:,:) = q_ext(2,:,:) * ( q_ext(1,:,:) + q_ext(5,:,:) )
-        q_ext(3,:,:) = q_ext(3,:,:) * ( q_ext(1,:,:) + q_ext(5,:,:) )
-        q_ext(4,:,:) = q_ext(4,:,:) * sqrtG + q_ref(4,:,:)
+        q_ext(1,:,:) = q_ext(1,:,:) + q_ref(1,:,:)
+        q_ext(4,:,:) = q_ext(4,:,:) + q_ref(4,:,:)
         
         ! left
         q_ext(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
@@ -493,6 +517,22 @@ MODULE spatial_operators_mod
       
     end function calc_pressure
     
+    function calc_w_eta(sqrtG,G13,q)
+      real(r_kind)              :: calc_w_eta
+      real(r_kind)              :: sqrtG
+      real(r_kind)              :: G13
+      real(r_kind),dimension(5) :: q(5)
+      
+      real(r_kind) :: u
+      real(r_kind) :: w
+
+      u = q(2) / ( q(1) + q(5) )
+      w = q(3) / ( q(1) + q(5) )
+      
+      calc_w_eta = w / sqrtG + G13 * u
+    
+    end function calc_w_eta
+    
     function calc_F(sqrtG,q,P)
       real(r_kind),dimension(5) :: calc_F
       real(r_kind)              :: sqrtG
@@ -569,6 +609,51 @@ MODULE spatial_operators_mod
       calc_H(5) = w5 * ww
       
     end function calc_H
+    
+    function calc_H_w_eta(sqrtG,G13,q,p,p_ref,w_eta)
+      real(r_kind),dimension(5) :: calc_H_w_eta
+      real(r_kind)              :: sqrtG
+      real(r_kind)              :: G13
+      real(r_kind),dimension(5) :: q(5)
+      real(r_kind)              :: p      ! pressure
+      real(r_kind)              :: p_ref  ! reference pressure
+      real(r_kind)              :: w_eta  ! deta/dt
+      
+      real(r_kind)              :: p_pert ! pressure  perturbation
+      
+      real(r_kind) w1
+      real(r_kind) w2
+      real(r_kind) w3
+      real(r_kind) w4
+      real(r_kind) w5
+      real(r_kind) ww
+      
+      real(r_kind) sqrtGrho
+      real(r_kind) u
+      real(r_kind) w
+      
+      w1 = q(1)
+      w2 = q(2)
+      w3 = q(3)
+      w4 = q(4)
+      w5 = q(5)
+      
+      sqrtGrho = w1 + w5
+      u        = w2 / sqrtGrho
+      w        = w3 / sqrtGrho
+      !p        = p0*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))**((cpd*w1 + cpv*w5)/(cvd*w1 + cvv*w5))
+      p_pert   = p - p_ref
+      if(abs(p_pert)/p_ref<1.e-14)p_pert=0
+      
+      ww = w_eta
+      
+      calc_H_w_eta(1) = w1 * ww
+      calc_H_w_eta(2) = w2 * ww + sqrtG * G13 * p
+      calc_H_w_eta(3) = w3 * ww + p_pert
+      calc_H_w_eta(4) = w4 * ww
+      calc_H_w_eta(5) = w5 * ww
+      
+    end function calc_H_w_eta
     
     function calc_eigenvalue_x(sqrtG,q)
       real(r_kind)              :: calc_eigenvalue_x
