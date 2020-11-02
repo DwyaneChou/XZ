@@ -362,12 +362,9 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
       real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(inout) :: src
       
-      real(r_kind), dimension(nVar,kds:kde) :: dqx
-      real(r_kind), dimension(nVar,ids:ide) :: dqz
-      
       integer(i_kind), parameter :: vs = 1
       integer(i_kind), parameter :: ve = 5
-      integer(i_kind), parameter :: bdy_width = 10
+      integer(i_kind), parameter :: bdy_width = 5
       real   (r_kind), parameter :: exp_ceof  = 2
       
       integer(i_kind) dir
@@ -398,10 +395,10 @@ MODULE spatial_operators_mod
         
       elseif(case_num==2)then
         ! left
-        q_ext(:,ics:ids-1,:) = FillValue!q_ref(:,ics:ids-1,:)
+        q_ext(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
         
         ! right
-        q_ext(:,ide+1:ice,:) = FillValue!q_ref(:,ide+1:ice,:)
+        q_ext(:,ide+1:ice,:) = q_ref(:,ide+1:ice,:)
         
         ! bottom
         q_ext(:,:,kcs:kds-1) = FillValue
@@ -431,17 +428,17 @@ MODULE spatial_operators_mod
         !  enddo
         !enddo
         
-        !! outflow only
-        !do i = 1,bdy_width
-        !  il = i
-        !  ir = ide-i+1
-        !  kt = kde-i+1
-        !  do iVar = vs,ve
-        !    !src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
-        !    src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
-        !    src(iVar,ids:ide,kt     ) = - relax_coef(i) * ( q(iVar,ids:ide,kt) - q_ref(iVar,ids:ide,kt) )
-        !  enddo
-        !enddo
+        ! outflow only
+        do i = 1,bdy_width
+          il = i
+          ir = ide-i+1
+          kt = kde-i+1
+          do iVar = vs,ve
+            src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
+            src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
+            src(iVar,ids:ide,kt     ) = - relax_coef(i) * ( q(iVar,ids:ide,kt) - q_ref(iVar,ids:ide,kt) )
+          enddo
+        enddo
         
         !! lateral only
         !do i = 1,bdy_width
@@ -454,17 +451,17 @@ MODULE spatial_operators_mod
         !  enddo
         !enddo
         
-        ! pure zone
-        do i = 1,bdy_width
-          il = i
-          ir = ide-i+1
-          kt = kde-i+1
-          do iVar = vs,ve
-            src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
-            src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
-            src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
-          enddo
-        enddo
+        !! pure zone
+        !do i = 1,bdy_width
+        !  il = i
+        !  ir = ide-i+1
+        !  kt = kde-i+1
+        !  do iVar = vs,ve
+        !    src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
+        !    src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
+        !    src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
+        !  enddo
+        !enddo
         
         !overlap zone
         do k = 1,bdy_width
