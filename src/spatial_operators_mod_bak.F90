@@ -15,21 +15,25 @@ MODULE spatial_operators_mod
   real(r_kind), dimension(:,:,:), allocatable :: q_ext ! Extended forecast variables
   real(r_kind), dimension(:,:,:), allocatable :: q_p   ! q perturbation
   
-  real(r_kind), dimension(:,:,:), allocatable :: qL    ! Reconstructed q_(i-1/2,k)
-  real(r_kind), dimension(:,:,:), allocatable :: qR    ! Reconstructed q_(i+1/2,k)
-  real(r_kind), dimension(:,:,:), allocatable :: qB    ! Reconstructed q_(i,k-1/2)
-  real(r_kind), dimension(:,:,:), allocatable :: qT    ! Reconstructed q_(i,k+1/2)
-  
   real(r_kind), dimension(:,:,:), allocatable :: F
   real(r_kind), dimension(:,:,:), allocatable :: H
   
-  real(r_kind), dimension(:,:,:), allocatable :: FL    ! Reconstructed F_(i-1/2,k)
-  real(r_kind), dimension(:,:,:), allocatable :: FR    ! Reconstructed F_(i+1/2,k)
-  real(r_kind), dimension(:,:,:), allocatable :: HB    ! Reconstructed H_(i,k-1/2)
-  real(r_kind), dimension(:,:,:), allocatable :: HT    ! Reconstructed H_(i,k+1/2)
-  
   real(r_kind), dimension(  :,:), allocatable :: P
   real(r_kind), dimension(  :,:), allocatable :: P_ref ! reference pressure
+  
+  real(r_kind), dimension(:,:,:), allocatable :: Fn     ! Reconstructed F^-
+  real(r_kind), dimension(:,:,:), allocatable :: FnL    ! Reconstructed F^-_(i-1/2,k)
+  real(r_kind), dimension(:,:,:), allocatable :: FnR    ! Reconstructed F^-_(i+1/2,k)
+  real(r_kind), dimension(:,:,:), allocatable :: Fp     ! Reconstructed F^+
+  real(r_kind), dimension(:,:,:), allocatable :: FpL    ! Reconstructed F^+_(i-1/2,k)
+  real(r_kind), dimension(:,:,:), allocatable :: FpR    ! Reconstructed F^+_(i+1/2,k)
+      
+  real(r_kind), dimension(:,:,:), allocatable :: Hn     ! Reconstructed H^-
+  real(r_kind), dimension(:,:,:), allocatable :: HnB    ! Reconstructed H^-_(i,k-1/2)
+  real(r_kind), dimension(:,:,:), allocatable :: HnT    ! Reconstructed H^-_(i,k+1/2)
+  real(r_kind), dimension(:,:,:), allocatable :: Hp     ! Reconstructed H^+
+  real(r_kind), dimension(:,:,:), allocatable :: HpB    ! Reconstructed H^+_(i,k-1/2)
+  real(r_kind), dimension(:,:,:), allocatable :: HpT    ! Reconstructed H^+_(i,k+1/2)
   
   real(r_kind), dimension(:,:,:), allocatable :: Fe    ! F on edges of each cell
   real(r_kind), dimension(:,:,:), allocatable :: He    ! H on edges of each cell
@@ -40,9 +44,6 @@ MODULE spatial_operators_mod
       
   real(r_kind), dimension(  :,:), allocatable :: eig_x
   real(r_kind), dimension(  :,:), allocatable :: eig_z
-  
-  real(r_kind) maxeigen_x
-  real(r_kind) maxeigen_z
   
     contains
     subroutine init_spatial_operator
@@ -62,21 +63,25 @@ MODULE spatial_operators_mod
       allocate(q_ext(nVar,ics:ice,kcs:kce))
       allocate(q_p  (nVar,ics:ice,kcs:kce))
       
-      allocate(qL   (nVar,ics:ice,kcs:kce))
-      allocate(qR   (nVar,ics:ice,kcs:kce))
-      allocate(qB   (nVar,ics:ice,kcs:kce))
-      allocate(qT   (nVar,ics:ice,kcs:kce))
-      
       allocate(F    (nVar,ics:ice,kcs:kce))
       allocate(H    (nVar,ics:ice,kcs:kce))
       
-      allocate(FL   (nVar,ics:ice,kcs:kce))
-      allocate(FR   (nVar,ics:ice,kcs:kce))
-      allocate(HB   (nVar,ics:ice,kcs:kce))
-      allocate(HT   (nVar,ics:ice,kcs:kce))
-      
       allocate(P    (     ics:ice,kcs:kce))
       allocate(P_ref(     ics:ice,kcs:kce))
+      
+      allocate(Fn   (nVar,ics:ice,kcs:kce))
+      allocate(FnL  (nVar,ics:ice,kcs:kce))
+      allocate(FnR  (nVar,ics:ice,kcs:kce))
+      allocate(Fp   (nVar,ics:ice,kcs:kce))
+      allocate(FpL  (nVar,ics:ice,kcs:kce))
+      allocate(FpR  (nVar,ics:ice,kcs:kce))
+      
+      allocate(Hn   (nVar,ics:ice,kcs:kce))
+      allocate(HnB  (nVar,ics:ice,kcs:kce))
+      allocate(HnT  (nVar,ics:ice,kcs:kce))
+      allocate(Hp   (nVar,ics:ice,kcs:kce))
+      allocate(HpB  (nVar,ics:ice,kcs:kce))
+      allocate(HpT  (nVar,ics:ice,kcs:kce))
       
       allocate(Fe   (nVar,ids:ide+1,kds:kde  ))
       allocate(He   (nVar,ids:ide  ,kds:kde+1))
@@ -88,13 +93,14 @@ MODULE spatial_operators_mod
       allocate(eig_x (ics:ice,kcs:kce))
       allocate(eig_z (ics:ice,kcs:kce))
       
+      ! Set reference pressure
+      q_ext = ref%q
+      call bdy_condition(q_ext,q_ext,ref%q,src)
+      
       P     = FillValue
       P_ref = FillValue
       F     = FillValue
       H     = FillValue
-      
-      ! Set reference pressure
-      q_ext = ref%q
       
       do k = kcs,kce
         do i = ics,ice
@@ -125,6 +131,12 @@ MODULE spatial_operators_mod
       ! copy stat
       q_ext = stat%q
       
+      q_p(1,:,:) = stat%q(1,:,:) - ref%q(1,:,:)
+      q_p(2,:,:) = stat%q(2,:,:)
+      q_p(3,:,:) = stat%q(3,:,:)
+      q_p(4,:,:) = stat%q(4,:,:) - ref%q(4,:,:)
+      q_p(5,:,:) = stat%q(5,:,:)
+      
       ! initialize source terms
       src = 0.
       
@@ -142,7 +154,31 @@ MODULE spatial_operators_mod
         enddo
       enddo
       
-      ! Reconstruct FL and FR
+      ! calc Fn and Fp
+      do i = ids-1,ide+1
+        ip2 = i + 2
+        im2 = i - 2
+        do k = kds,kde
+          !Fn(:,i,k) = F(:,i,k) - maxval(eig_x(im2:ip2,k)) * q_ext(:,i,k)
+          !Fp(:,i,k) = F(:,i,k) + maxval(eig_x(im2:ip2,k)) * q_ext(:,i,k)
+          Fn(:,i,k) = F(:,i,k) - eig_x(i,k) * q_ext(:,i,k)
+          Fp(:,i,k) = F(:,i,k) + eig_x(i,k) * q_ext(:,i,k)
+        enddo
+      enddo
+      
+      ! calc Hn and Hp
+      do k = kds-1,kde+1
+        kp2 = k + 2
+        km2 = k - 2
+        do i = ids,ide
+          !Hn(:,i,k) = H(:,i,k) - maxval(eig_z(i,km2:kp2)) * q_ext(:,i,k)
+          !Hp(:,i,k) = H(:,i,k) + maxval(eig_z(i,km2:kp2)) * q_ext(:,i,k)
+          Hn(:,i,k) = H(:,i,k) - eig_z(i,k) * q_ext(:,i,k)
+          Hp(:,i,k) = H(:,i,k) + eig_z(i,k) * q_ext(:,i,k)
+        enddo
+      enddo
+      
+      ! Reconstruct FnL and FpR
       !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
       do k = kds,kde
         kp1 = k + 1
@@ -155,17 +191,20 @@ MODULE spatial_operators_mod
           ip2 = i + 2
           im2 = i - 2
           do iVar = 1,nVar
-            q_weno = F(iVar,im2:ip2,k)
+            ! F^-
+            q_weno = Fn(iVar,im2:ip2,k)
             dir = -1
-            call WENO_limiter(FL(iVar,i,k),q_weno,dir)
+            call WENO_limiter(FnL(iVar,i,k),q_weno,dir)
+            ! F^+
+            q_weno = Fp(iVar,im2:ip2,k)
             dir = 1
-            call WENO_limiter(FR(iVar,i,k),q_weno,dir)
+            call WENO_limiter(FpR(iVar,i,k),q_weno,dir)
           enddo
         enddo
       enddo
       !$OMP END PARALLEL DO
       
-      ! Reconstruct HB and HT
+      ! Reconstruct HnB and HpT
       !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
       do k = kds-1,kde+1
         kp1 = k + 1
@@ -178,57 +217,14 @@ MODULE spatial_operators_mod
           ip2 = i + 2
           im2 = i - 2
           do iVar = 1,nVar
-            q_weno = H(iVar,i,km2:kp2)
+            ! H^-
+            q_weno = Hn(iVar,i,km2:kp2)
             dir = -1
-            call WENO_limiter(HB(iVar,i,k),q_weno,dir)
+            call WENO_limiter(HnB(iVar,i,k),q_weno,dir)
+            ! H^+
+            q_weno = Hp(iVar,i,km2:kp2)
             dir = 1
-            call WENO_limiter(HT(iVar,i,k),q_weno,dir)
-          enddo
-        enddo
-      enddo
-      !$OMP END PARALLEL DO
-      
-      ! Reconstruct qL and qR
-      !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
-      do k = kds,kde
-        kp1 = k + 1
-        km1 = k - 1
-        kp2 = k + 2
-        km2 = k - 2
-        do i = ids-1,ide+1
-          ip1 = i + 1
-          im1 = i - 1
-          ip2 = i + 2
-          im2 = i - 2
-          do iVar = 1,nVar
-            q_weno = q_ext(iVar,im2:ip2,k)
-            dir = -1
-            call WENO_limiter(qL(iVar,i,k),q_weno,dir)
-            dir = 1
-            call WENO_limiter(qR(iVar,i,k),q_weno,dir)
-          enddo
-        enddo
-      enddo
-      !$OMP END PARALLEL DO
-      
-      ! Reconstruct HB and HT
-      !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
-      do k = kds-1,kde+1
-        kp1 = k + 1
-        km1 = k - 1
-        kp2 = k + 2
-        km2 = k - 2
-        do i = ids,ide
-          ip1 = i + 1
-          im1 = i - 1
-          ip2 = i + 2
-          im2 = i - 2
-          do iVar = 1,nVar
-            q_weno = q_ext(iVar,i,km2:kp2)
-            dir = -1
-            call WENO_limiter(qB(iVar,i,k),q_weno,dir)
-            dir = 1
-            call WENO_limiter(qT(iVar,i,k),q_weno,dir)
+            call WENO_limiter(HpT(iVar,i,k),q_weno,dir)
           enddo
         enddo
       enddo
@@ -242,42 +238,21 @@ MODULE spatial_operators_mod
       src(3,ids:ide,kds:kde) = src(3,ids:ide,kds:kde) - sqrtG(ids:ide,kds:kde) * rho_p(ids:ide,kds:kde) * gravity
       
       ! calc x flux
-      !$OMP PARALLEL DO PRIVATE(i,im1,maxeigen_x,iVar)
+      !$OMP PARALLEL DO PRIVATE(i,im1)
       do k = kds,kde
         do i = ids,ide+1
           im1 = i - 1
-          maxeigen_x = max(abs(eig_x(i,k)),abs(eig_x(im1,k)))
-          
-          !Fe(:,i,k) = 0.5 * ( FL(:,i,k) + FR(:,im1,k) - maxeigen_x * ( qL(:,i,k) - qR(:,im1,k) ) )
-          
-          do iVar = 1,nVar
-            if(abs(FL(iVar,i,k) + FR(iVar,im1,k))<=1.E-15)then
-              Fe(iVar,i,k) = 0
-            else
-              Fe(iVar,i,k) = 0.5 * ( FL(iVar,i,k) + FR(iVar,im1,k) - maxeigen_x * ( qL(iVar,i,k) - qR(iVar,im1,k) ) )
-            endif
-          enddo
+          Fe(:,i,k) = 0.5 * ( FnL(:,i,k) + FpR(:,im1,k) )
         enddo
       enddo
       !$OMP END PARALLEL DO
       
       ! calc z flux
-      !$OMP PARALLEL DO PRIVATE(k,km1,maxeigen_z,iVar)
+      !$OMP PARALLEL DO PRIVATE(k,km1)
       do i = ids,ide
         do k = kds,kde+1
           km1 = k - 1
-          
-          maxeigen_z = max(abs(eig_z(i,k)),abs(eig_z(i,km1)))
-          
-          !He(:,i,k) = 0.5 * ( HB(:,i,k) + HT(:,i,km1) - maxeigen_z * ( qB(:,i,k) - qT(:,i,km1) ) )
-          
-          do iVar = 1,nVar
-            if(abs(HB(iVar,i,k) + HT(iVar,i,km1))<=1.E-15)then
-              He(iVar,i,k) = 0
-            else
-              He(iVar,i,k) = 0.5 * ( HB(iVar,i,k) + HT(iVar,i,km1) - maxeigen_z * ( qB(iVar,i,k) - qT(iVar,i,km1) ) )
-            endif
-          enddo
+          He(:,i,k) = 0.5 * ( HnB(:,i,k) + HpT(:,i,km1) )
         enddo
       enddo
       !$OMP END PARALLEL DO
@@ -299,6 +274,7 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
+      !stop 'Check hydrostatic'
     end subroutine spatial_operator
     
     subroutine bdy_condition(q_ext,q,q_ref,src)
@@ -307,8 +283,8 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
       real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(inout) :: src
       
-      integer(i_kind), parameter :: vs = 1
-      integer(i_kind), parameter :: ve = 5
+      integer(i_kind), parameter :: vs = 2
+      integer(i_kind), parameter :: ve = 3
       integer(i_kind), parameter :: bdy_width = 30
       real   (r_kind), parameter :: exp_ceof  = 2
       
@@ -324,46 +300,32 @@ MODULE spatial_operators_mod
       real(r_kind) :: relax_coef(bdy_width)
       real(r_kind) :: max_exp
       
-      q_p(1,:,:) = ( q(1,:,:) - q_ref(1,:,:) ) /sqrtG  ! rho'
-      q_p(2,:,:) = q(2,:,:) / ( q(1,:,:) + q(5,:,:) )  ! u
-      q_p(3,:,:) = q(3,:,:) / ( q(1,:,:) + q(5,:,:) )  ! w
-      q_p(4,:,:) = ( q(4,:,:) - q_ref(4,:,:) ) / sqrtG ! theta'
-      q_p(5,:,:) = q(5,:,:) / q(1,:,:)                 ! gamma
-      
       if(case_num==1)then
         ! x-dir
         call fill_ghost(q_ext(1,:,:),q_p(1,:,:),dir=1,sign= 1)
-        call fill_ghost(q_ext(2,:,:),q_p(2,:,:),dir=1,sign=-1)
-        call fill_ghost(q_ext(3,:,:),q_p(3,:,:),dir=1,sign= 1)
+        call fill_ghost(q_ext(2,:,:),q  (2,:,:),dir=1,sign=-1)
+        call fill_ghost(q_ext(3,:,:),q  (3,:,:),dir=1,sign= 1)
         call fill_ghost(q_ext(4,:,:),q_p(4,:,:),dir=1,sign= 1)
-        call fill_ghost(q_ext(5,:,:),q_p(5,:,:),dir=1,sign= 1)
+        call fill_ghost(q_ext(5,:,:),q  (5,:,:),dir=1,sign= 1)
         ! z-dir
         call fill_ghost(q_ext(1,:,:),q_p(1,:,:),dir=2,sign= 1)
-        call fill_ghost(q_ext(2,:,:),q_p(2,:,:),dir=2,sign= 1)
-        call fill_ghost(q_ext(3,:,:),q_p(3,:,:),dir=2,sign=-1)
+        call fill_ghost(q_ext(2,:,:),q  (2,:,:),dir=2,sign= 1)
+        call fill_ghost(q_ext(3,:,:),q  (3,:,:),dir=2,sign=-1)
         call fill_ghost(q_ext(4,:,:),q_p(4,:,:),dir=2,sign= 1)
-        call fill_ghost(q_ext(5,:,:),q_p(5,:,:),dir=2,sign= 1)
+        call fill_ghost(q_ext(5,:,:),q  (5,:,:),dir=2,sign= 1)
         
-        q_ext(1,:,:) = q_ext(1,:,:) * sqrtG + q_ref(1,:,:)
-        q_ext(5,:,:) = q_ext(5,:,:) * sqrtG + q_ref(5,:,:)
-        
-        q_ext(2,:,:) = q_ext(2,:,:) * ( q_ext(1,:,:) + q_ext(5,:,:) )
-        q_ext(3,:,:) = q_ext(3,:,:) * ( q_ext(1,:,:) + q_ext(5,:,:) )
-        q_ext(4,:,:) = q_ext(4,:,:) * sqrtG + q_ref(4,:,:)
+        q_ext(1,:,:) = q_ext(1,:,:) + q_ref(1,:,:)
+        q_ext(4,:,:) = q_ext(4,:,:) + q_ref(4,:,:)
       elseif(case_num==2)then
         ! z-dir
         call fill_ghost(q_ext(1,:,:),q_p(1,:,:),dir=2,sign= 1)
-        call fill_ghost(q_ext(2,:,:),q_p(2,:,:),dir=2,sign= 1)
-        call fill_ghost(q_ext(3,:,:),q_p(3,:,:),dir=2,sign=-1)
+        call fill_ghost(q_ext(2,:,:),q  (2,:,:),dir=2,sign= 1)
+        call fill_ghost(q_ext(3,:,:),q  (3,:,:),dir=2,sign=-1)
         call fill_ghost(q_ext(4,:,:),q_p(4,:,:),dir=2,sign= 1)
-        call fill_ghost(q_ext(5,:,:),q_p(5,:,:),dir=2,sign= 1)
+        call fill_ghost(q_ext(5,:,:),q  (5,:,:),dir=2,sign= 1)
         
-        q_ext(1,:,:) = q_ext(1,:,:) * sqrtG + q_ref(1,:,:)
-        q_ext(5,:,:) = q_ext(5,:,:) * sqrtG + q_ref(5,:,:)
-        
-        q_ext(2,:,:) = q_ext(2,:,:) * ( q_ext(1,:,:) + q_ext(5,:,:) )
-        q_ext(3,:,:) = q_ext(3,:,:) * ( q_ext(1,:,:) + q_ext(5,:,:) )
-        q_ext(4,:,:) = q_ext(4,:,:) * sqrtG + q_ref(4,:,:)
+        q_ext(1,:,:) = q_ext(1,:,:) + q_ref(1,:,:)
+        q_ext(4,:,:) = q_ext(4,:,:) + q_ref(4,:,:)
         
         ! left
         q_ext(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
