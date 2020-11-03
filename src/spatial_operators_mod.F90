@@ -259,8 +259,10 @@ MODULE spatial_operators_mod
       elseif(case_num==2)then
         qL(2,ids,:) = ref%q(2,ids,kds:kde)
         qR(2,ide,:) = ref%q(2,ide,kds:kde)
-        qB(3,:,kds) = -sqrtGB(:,kds) * G13B(:,kds) * qB(2,:,kds)
-        qT(3,:,kde) = -sqrtGT(:,kde) * G13T(:,kde) * qT(2,:,kde)
+        !qL(2,ids,:) = ref%q(2,ids,kds:kde) / ref%q(1,ids,kds:kde) * q_ext(1,ids,kds:kde)
+        !qR(2,ide,:) = ref%q(2,ide,kds:kde) / ref%q(1,ide,kds:kde) * q_ext(1,ids,kds:kde)
+        !qB(3,:,kds) = -sqrtGB(:,kds) * G13B(:,kds) * qB(2,:,kds)
+        !qT(3,:,kde) = -sqrtGT(:,kde) * G13T(:,kde) * qT(2,:,kde)
       endif
       
       !$OMP PARALLEL DO PRIVATE(i)
@@ -279,12 +281,6 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
-      
-      !where( abs( qB(3,:,:) / ( qB(1,:,:) + qB(5,:,:) ) / sqrtGB + G13B * qB(2,:,:) / ( qB(1,:,:) + qB(5,:,:) ) ) < 1.e-13 )
-      !    HB(1,:,:)=0
-      !    HB(4,:,:)=0
-      !    HB(5,:,:)=0
-      !endwhere
       
       ! Fill boundary
       ! left boundary
@@ -369,6 +365,18 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
+      ! No flux boundary
+      He(1,ids:ide,kds) = 0
+      He(2,ids:ide,kds) = sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) *  PB(ids:ide,kds)
+      He(3,ids:ide,kds) = PB(ids:ide,kds) - PB_ref(ids:ide,kds)
+      He(4,ids:ide,kds) = 0
+      He(5,ids:ide,kds) = 0
+      
+      He(1,ids:ide,kde) = 0
+      He(2,ids:ide,kde) = sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) *  PT(ids:ide,kde)
+      He(3,ids:ide,kde) = PT(ids:ide,kde) - PT_ref(ids:ide,kde)
+      He(4,ids:ide,kde) = 0
+      He(5,ids:ide,kde) = 0
       
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1)
       do k = kds,kde
@@ -388,12 +396,9 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
       real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(inout) :: src
       
-      real(r_kind), dimension(nVar,kds:kde) :: dqx
-      real(r_kind), dimension(nVar,ids:ide) :: dqz
-      
       integer(i_kind), parameter :: vs = 1
       integer(i_kind), parameter :: ve = 5
-      integer(i_kind), parameter :: bdy_width = 10
+      integer(i_kind), parameter :: bdy_width = 40
       real   (r_kind), parameter :: exp_ceof  = 2
       
       integer(i_kind) dir
@@ -424,10 +429,16 @@ MODULE spatial_operators_mod
         
       elseif(case_num==2)then
         ! left
-        q_ext(:,ics:ids-1,:) = FillValue!q_ref(:,ics:ids-1,:)
+        q_ext(:,ics:ids-1,:) = FillValue
         
         ! right
-        q_ext(:,ide+1:ice,:) = FillValue!q_ref(:,ide+1:ice,:)
+        q_ext(:,ide+1:ice,:) = FillValue
+        
+        !! left
+        !q_ext(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
+        !
+        !! right
+        !q_ext(:,ide+1:ice,:) = q_ref(:,ide+1:ice,:)
         
         ! bottom
         q_ext(:,:,kcs:kds-1) = FillValue
@@ -441,10 +452,22 @@ MODULE spatial_operators_mod
         its = ids+bdy_width
         ite = ide-bdy_width
         ! calculate relax coefficients
-        !max_exp = exp( ( real( bdy_width - 1 ) / real(bdy_width) )**exp_ceof ) - 1.
+        max_exp = exp( ( real( bdy_width - 1 ) / real(bdy_width) )**exp_ceof ) - 1.
         do i = 1,bdy_width
-          relax_coef(i) = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
-          !relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
+          !relax_coef(i) = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
+          relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
+        enddo
+        
+        do i = 1,bdy_width
+          il = i
+          ir = ide-i+1
+          kt = kde-i+1
+          do iVar = vs,ve
+            !src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) / q_ref(1,its:ite,kt) * q(1,its:ite,kt) )
+            src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
+            src(iVar,il     ,kds:kde) = - relax_coef(i) * ( q(iVar,il,kds:kde) - q_ref(iVar,il,kds:kde) )
+            src(iVar,ir     ,kds:kde) = - relax_coef(i) * ( q(iVar,ir,kds:kde) - q_ref(iVar,ir,kds:kde) )
+          enddo
         enddo
         
         !! lateral only
@@ -458,31 +481,31 @@ MODULE spatial_operators_mod
         !  enddo
         !enddo
         
-        ! pure zone
-        do i = 1,bdy_width
-          il = i
-          ir = ide-i+1
-          kt = kde-i+1
-          do iVar = vs,ve
-            src(iVar,il     ,kds:kde) = - relax_coef(i) * ( q(iVar,il,kds:kde) - q_ref(iVar,il,kds:kde) )
-            src(iVar,ir     ,kds:kde) = - relax_coef(i) * ( q(iVar,ir,kds:kde) - q_ref(iVar,ir,kds:kde) )
-            src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
-          enddo
-          src(2,il,kds:kde) = 0
-        enddo
-        
-        !!overlap zone
-        !do k = 1,bdy_width
-        !  do i = 1,bdy_width
-        !    il = i
-        !    ir = ide-i+1
-        !    kt = kde-i+1
-        !    do iVar = vs,ve
-        !      !src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
-        !      src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
-        !    enddo
+        !! pure zone
+        !do i = 1,bdy_width
+        !  il = i
+        !  ir = ide-i+1
+        !  kt = kde-i+1
+        !  do iVar = vs,ve
+        !    !src(iVar,il     ,kds:kde) = - relax_coef(i) * ( q(iVar,il,kds:kde) - q_ref(iVar,il,kds:kde) )
+        !    src(iVar,ir     ,kds:kde) = - relax_coef(i) * ( q(iVar,ir,kds:kde) - q_ref(iVar,ir,kds:kde) )
+        !    src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
         !  enddo
+        !  !src(2,il,kds:kde) = 0
         !enddo
+        
+        !overlap zone
+        do k = 1,bdy_width
+          do i = 1,bdy_width
+            il = i
+            ir = ide-i+1
+            kt = kde-i+1
+            do iVar = vs,ve
+              src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
+              src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
+            enddo
+          enddo
+        enddo
       endif
       
     end subroutine bdy_condition
