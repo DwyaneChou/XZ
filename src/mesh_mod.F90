@@ -387,22 +387,6 @@ module mesh_mod
       !  enddo
       !enddo
       !!$OMP END PARALLEL DO
-      !!do k = kds,kde
-      !!  do i = ids,ide
-      !!    print*,k,i
-      !!    print*,sqrtGL(i,k),qL(1,i,k)
-      !!    print*,sqrtGR(i,k),qR(1,i,k)
-      !!    print*,sqrtGB(i,k),qB(1,i,k)
-      !!    print*,sqrtGT(i,k),qT(1,i,k)
-      !!    
-      !!    print*,G13L(i,k),qL(2,i,k)
-      !!    print*,G13R(i,k),qR(2,i,k)
-      !!    print*,G13B(i,k),qB(2,i,k)
-      !!    print*,G13T(i,k),qT(2,i,k)
-      !!    print*,''
-      !!  enddo
-      !!enddo
-      !
       !sqrtGL(ids:ide,kds:kde) = qL(1,:,:)
       !sqrtGR(ids:ide,kds:kde) = qR(1,:,:)
       !sqrtGB(ids:ide,kds:kde) = qB(1,:,:)

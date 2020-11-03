@@ -70,6 +70,9 @@ MODULE spatial_operators_mod
   real(r_kind), dimension(:,:  ), allocatable :: PB_ref! Reconstructed P_ref_(i,k-1/2)
   real(r_kind), dimension(:,:  ), allocatable :: PT_ref! Reconstructed P_ref_(i,k+1/2)
   
+  real(r_kind), dimension(:,:), allocatable :: eig_x
+  real(r_kind), dimension(:,:), allocatable :: eig_z
+  
     contains
     subroutine init_spatial_operator
       integer(i_kind) dir
@@ -141,6 +144,9 @@ MODULE spatial_operators_mod
       allocate(PR_ref(    ids:ide,kds:kde))
       allocate(PB_ref(    ids:ide,kds:kde))
       allocate(PT_ref(    ids:ide,kds:kde))
+      
+      allocate(eig_x(     ics:ice,kcs:kce))
+      allocate(eig_z(     ics:ice,kcs:kce))
       
       ! Set reference pressure
       q_ext = ref%q
@@ -253,8 +259,6 @@ MODULE spatial_operators_mod
       elseif(case_num==2)then
         qL(2,ids,:) = ref%q(2,ids,kds:kde)
         qR(2,ide,:) = ref%q(2,ide,kds:kde)
-        qL(3,ids,:) = 0
-        qR(3,ide,:) = 0
         qB(3,:,kds) = -sqrtGB(:,kds) * G13B(:,kds) * qB(2,:,kds)
         qT(3,:,kde) = -sqrtGT(:,kde) * G13T(:,kde) * qT(2,:,kde)
       endif
@@ -275,6 +279,12 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
+      
+      !where( abs( qB(3,:,:) / ( qB(1,:,:) + qB(5,:,:) ) / sqrtGB + G13B * qB(2,:,:) / ( qB(1,:,:) + qB(5,:,:) ) ) < 1.e-13 )
+      !    HB(1,:,:)=0
+      !    HB(4,:,:)=0
+      !    HB(5,:,:)=0
+      !endwhere
       
       ! Fill boundary
       ! left boundary
@@ -300,15 +310,31 @@ MODULE spatial_operators_mod
       
       src(3,ids:ide,kds:kde) = src(3,ids:ide,kds:kde) - sqrtG(ids:ide,kds:kde) * rho_p(ids:ide,kds:kde) * gravity
       
+      ! Calculate eigenvalues x-dir
+      !$OMP PARALLEL DO PRIVATE(i)
+      do k = kds,kde
+        do i = ids-1,ide+1
+          eig_x(i,k) = calc_eigenvalue_x(sqrtG(i,k),q_ext(:,i,k))
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
+      
+      ! Calculate eigenvalues z-dir
+      !$OMP PARALLEL DO PRIVATE(i)
+      do k = kds-1,kde+1
+        do i = ids,ide
+          eig_z(i,k) = calc_eigenvalue_z(sqrtG(i,k),G13(i,k),q_ext(:,i,k))
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
+      
       ! calc x flux
-      !$OMP PARALLEL DO PRIVATE(i,im1,eigenvalue_x,maxeigen_x,iVar)
+      !$OMP PARALLEL DO PRIVATE(i,im1,maxeigen_x,iVar)
       do k = kds,kde
         do i = ids,ide+1
           im1 = i - 1
-          eigenvalue_x(:,1) = calc_eigenvalue_x(sqrtG(im1,k),q_ext(:,im1,k))
-          eigenvalue_x(:,2) = calc_eigenvalue_x(sqrtG(i  ,k),q_ext(:,i  ,k))
           
-          maxeigen_x = maxval(abs(eigenvalue_x))
+          maxeigen_x = max(abs(eig_x(i,k)),abs(eig_x(im1,k)))
           
           !Fe(:,i,k) = 0.5 * ( FL(:,i,k) + FR(:,im1,k) - maxeigen_x * ( qL(:,i,k) - qR(:,im1,k) ) )
           
@@ -324,14 +350,12 @@ MODULE spatial_operators_mod
       !$OMP END PARALLEL DO
       
       ! calc z flux
-      !$OMP PARALLEL DO PRIVATE(k,km1,eigenvalue_z,maxeigen_z,iVar)
+      !$OMP PARALLEL DO PRIVATE(k,km1,maxeigen_z,iVar)
       do i = ids,ide
         do k = kds,kde+1
           km1 = k - 1
-          eigenvalue_z(:,1) = calc_eigenvalue_z(sqrtG(i,km1),G13(i,km1),q_ext(:,i,km1))
-          eigenvalue_z(:,2) = calc_eigenvalue_z(sqrtG(i  ,k),G13(i  ,k),q_ext(:,i  ,k))
           
-          maxeigen_z = maxval(abs(eigenvalue_z))
+          maxeigen_z = max(abs(eig_z(i,k)),abs(eig_z(i,km1)))
           
           !He(:,i,k) = 0.5 * ( HB(:,i,k) + HT(:,i,km1) - maxeigen_z * ( qB(:,i,k) - qT(:,i,km1) ) )
           
@@ -364,9 +388,12 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
       real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(inout) :: src
       
+      real(r_kind), dimension(nVar,kds:kde) :: dqx
+      real(r_kind), dimension(nVar,ids:ide) :: dqz
+      
       integer(i_kind), parameter :: vs = 1
       integer(i_kind), parameter :: ve = 5
-      integer(i_kind), parameter :: bdy_width = 5
+      integer(i_kind), parameter :: bdy_width = 10
       real   (r_kind), parameter :: exp_ceof  = 2
       
       integer(i_kind) dir
@@ -420,28 +447,6 @@ MODULE spatial_operators_mod
           !relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
         enddo
         
-        !! top only
-        !do i = 1,bdy_width
-        !  il = i
-        !  ir = ide-i+1
-        !  kt = kde-i+1
-        !  do iVar = vs,ve
-        !    src(iVar,ids:ide,kt) = - relax_coef(i) * ( q(iVar,ids:ide,kt) - q_ref(iVar,ids:ide,kt) )
-        !  enddo
-        !enddo
-        
-        ! outflow only
-        do i = 1,bdy_width
-          il = i
-          ir = ide-i+1
-          kt = kde-i+1
-          do iVar = vs,ve
-            !src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
-            src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
-            src(iVar,ids:ide,kt     ) = - relax_coef(i) * ( q(iVar,ids:ide,kt) - q_ref(iVar,ids:ide,kt) )
-          enddo
-        enddo
-        
         !! lateral only
         !do i = 1,bdy_width
         !  il = i
@@ -453,30 +458,31 @@ MODULE spatial_operators_mod
         !  enddo
         !enddo
         
-        !! pure zone
-        !do i = 1,bdy_width
-        !  il = i
-        !  ir = ide-i+1
-        !  kt = kde-i+1
-        !  do iVar = vs,ve
-        !    src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
-        !    src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
-        !    src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
+        ! pure zone
+        do i = 1,bdy_width
+          il = i
+          ir = ide-i+1
+          kt = kde-i+1
+          do iVar = vs,ve
+            src(iVar,il     ,kds:kde) = - relax_coef(i) * ( q(iVar,il,kds:kde) - q_ref(iVar,il,kds:kde) )
+            src(iVar,ir     ,kds:kde) = - relax_coef(i) * ( q(iVar,ir,kds:kde) - q_ref(iVar,ir,kds:kde) )
+            src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
+          enddo
+          src(2,il,kds:kde) = 0
+        enddo
+        
+        !!overlap zone
+        !do k = 1,bdy_width
+        !  do i = 1,bdy_width
+        !    il = i
+        !    ir = ide-i+1
+        !    kt = kde-i+1
+        !    do iVar = vs,ve
+        !      !src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
+        !      src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
+        !    enddo
         !  enddo
         !enddo
-        
-        !overlap zone
-        do k = 1,bdy_width
-          do i = 1,bdy_width
-            il = i
-            ir = ide-i+1
-            kt = kde-i+1
-            do iVar = vs,ve
-              !src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
-              src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
-            enddo
-          enddo
-        enddo
       endif
       
     end subroutine bdy_condition
@@ -617,9 +623,10 @@ MODULE spatial_operators_mod
     end function calc_H
     
     function calc_eigenvalue_x(sqrtG,q)
-      real(r_kind),dimension(5) :: calc_eigenvalue_x
-      real(r_kind)              :: sqrtG
-      real(r_kind),dimension(5) :: q(5)
+      real(r_kind) :: calc_eigenvalue_x
+      real(r_kind) :: sqrtG
+      real(r_kind) :: q(5)
+      real(r_kind) :: eig(5)
       
       real(r_kind) w1
       real(r_kind) w2
@@ -630,7 +637,7 @@ MODULE spatial_operators_mod
       real(r_kind) coef1,coef2,coef3
       
       if(any(q==FillValue).or.sqrtG==FillValue)then
-        calc_eigenvalue_x = 0
+        eig = 0
       else
         w1 = q(1)
         w2 = q(2)
@@ -649,19 +656,23 @@ MODULE spatial_operators_mod
         
         coef3 = w1*w4*(w1 + w5)**2*(cvd*w1 + cvv*w5)**2*(w1 + w5 + eq*w5)
         
-        calc_eigenvalue_x(1) = w2 / ( w1 + w5 )
-        calc_eigenvalue_x(2) = calc_eigenvalue_x(1)
-        calc_eigenvalue_x(3) = calc_eigenvalue_x(1)
-        calc_eigenvalue_x(4) = ( coef1 - coef2 ) / coef3
-        calc_eigenvalue_x(5) = ( coef1 + coef2 ) / coef3
+        eig(1) = w2 / ( w1 + w5 )
+        eig(2) = eig(1)
+        eig(3) = eig(1)
+        eig(4) = ( coef1 - coef2 ) / coef3
+        eig(5) = ( coef1 + coef2 ) / coef3
       endif
+      
+      calc_eigenvalue_x = maxval(eig)
+      
     end function calc_eigenvalue_x
     
     function calc_eigenvalue_z(sqrtG,G13,q)
-      real(r_kind),dimension(5) :: calc_eigenvalue_z
-      real(r_kind)              :: sqrtG
-      real(r_kind)              :: G13
-      real(r_kind),dimension(5) :: q(5)
+      real(r_kind) :: calc_eigenvalue_z
+      real(r_kind) :: sqrtG
+      real(r_kind) :: G13
+      real(r_kind) :: q(5)
+      real(r_kind) :: eig(5)
       
       real(r_kind) w1
       real(r_kind) w2
@@ -678,7 +689,7 @@ MODULE spatial_operators_mod
       real(r_kind) coef1,coef2,coef3
       
       if(any(q==FillValue))then
-        calc_eigenvalue_z = 0
+        eig = 0
       else
         w1 = q(1)
         w2 = q(2)
@@ -704,12 +715,15 @@ MODULE spatial_operators_mod
         
         drhoetadt = (G13*sqrtG*w2 + w3)/(sqrtG*w1 + sqrtG*w5)
         
-        calc_eigenvalue_z(1) = drhoetadt
-        calc_eigenvalue_z(2) = drhoetadt
-        calc_eigenvalue_z(3) = drhoetadt
-        calc_eigenvalue_z(4) = ( coef1 - coef2 ) / coef3
-        calc_eigenvalue_z(5) = ( coef1 + coef2 ) / coef3
+        eig(1) = drhoetadt
+        eig(2) = drhoetadt
+        eig(3) = drhoetadt
+        eig(4) = ( coef1 - coef2 ) / coef3
+        eig(5) = ( coef1 + coef2 ) / coef3
       endif
+      
+      calc_eigenvalue_z = maxval(eig)
+      
     end function calc_eigenvalue_z
     
 END MODULE spatial_operators_mod
