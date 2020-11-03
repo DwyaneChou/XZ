@@ -253,6 +253,8 @@ MODULE spatial_operators_mod
       elseif(case_num==2)then
         qL(2,ids,:) = ref%q(2,ids,kds:kde)
         qR(2,ide,:) = ref%q(2,ide,kds:kde)
+        qL(3,ids,:) = 0
+        qR(3,ide,:) = 0
         qB(3,:,kds) = -sqrtGB(:,kds) * G13B(:,kds) * qB(2,:,kds)
         qT(3,:,kde) = -sqrtGT(:,kde) * G13T(:,kde) * qT(2,:,kde)
       endif
@@ -395,10 +397,10 @@ MODULE spatial_operators_mod
         
       elseif(case_num==2)then
         ! left
-        q_ext(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
+        q_ext(:,ics:ids-1,:) = FillValue!q_ref(:,ics:ids-1,:)
         
         ! right
-        q_ext(:,ide+1:ice,:) = q_ref(:,ide+1:ice,:)
+        q_ext(:,ide+1:ice,:) = FillValue!q_ref(:,ide+1:ice,:)
         
         ! bottom
         q_ext(:,:,kcs:kds-1) = FillValue
@@ -434,7 +436,7 @@ MODULE spatial_operators_mod
           ir = ide-i+1
           kt = kde-i+1
           do iVar = vs,ve
-            src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
+            !src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
             src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
             src(iVar,ids:ide,kt     ) = - relax_coef(i) * ( q(iVar,ids:ide,kt) - q_ref(iVar,ids:ide,kt) )
           enddo
