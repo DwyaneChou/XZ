@@ -312,6 +312,8 @@ module mesh_mod
       !G13   = detadx
         
       ! Reconstruct mertric tensor by analytical value
+      !do k = kds,kde
+      !  do i = ids,ide
       do k = kcs,kce
         do i = ics,ice
           sqrtG (i,k) = dzdeta_ext(i*2  ,k*2  )

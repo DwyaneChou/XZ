@@ -29,7 +29,11 @@ MODULE spatial_operators_mod
   real(r_kind), dimension(:,:,:), allocatable :: HT    ! Reconstructed H_(i,k+1/2)
   
   real(r_kind), dimension(  :,:), allocatable :: P
+  real(r_kind), dimension(  :,:), allocatable :: PB    ! Reconstructed P_(i,k-1/2)
+  real(r_kind), dimension(  :,:), allocatable :: PT    ! Reconstructed P_(i,k+1/2)
   real(r_kind), dimension(  :,:), allocatable :: P_ref ! reference pressure
+  real(r_kind), dimension(  :,:), allocatable :: PB_ref! Reconstructed P_ref_(i,k-1/2)
+  real(r_kind), dimension(  :,:), allocatable :: PT_ref! Reconstructed P_ref_(i,k+1/2)
   
   real(r_kind), dimension(  :,:), allocatable :: w_eta ! deta/dt
   
@@ -77,8 +81,12 @@ MODULE spatial_operators_mod
       allocate(HB   (nVar,ics:ice,kcs:kce))
       allocate(HT   (nVar,ics:ice,kcs:kce))
       
-      allocate(P    (     ics:ice,kcs:kce))
-      allocate(P_ref(     ics:ice,kcs:kce))
+      allocate(P     (     ics:ice,kcs:kce))
+      allocate(PB    (     ics:ice,kcs:kce))
+      allocate(PT    (     ics:ice,kcs:kce))
+      allocate(P_ref (     ics:ice,kcs:kce))
+      allocate(PB_ref(     ics:ice,kcs:kce))
+      allocate(PT_ref(     ics:ice,kcs:kce))
       
       allocate(w_eta(     ics:ice,kcs:kce))
       
@@ -105,6 +113,28 @@ MODULE spatial_operators_mod
           P_ref(i,k) = calc_pressure(sqrtG(i,k),q_ext(:,i,k))
         enddo
       enddo
+      
+      !$OMP PARALLEL DO PRIVATE(i,iVar,ip1,im1,ip2,im2,q_weno,dir,kp1,km1,kp2,km2)
+      do k = kds,kde
+        kp1 = k + 1
+        km1 = k - 1
+        kp2 = k + 2
+        km2 = k - 2
+        do i = ids,ide
+          ip1 = i + 1
+          im1 = i - 1
+          ip2 = i + 2
+          im2 = i - 2
+          ! z-dir
+          q_weno = P_ref(i,km2:kp2)
+          
+          dir = -1
+          call WENO_limiter(PB_ref(i,k),q_weno,dir)
+          dir = 1
+          call WENO_limiter(PT_ref(i,k),q_weno,dir)
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
       
     end subroutine init_spatial_operator
     
@@ -203,10 +233,6 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      do i = ids,ide
-        print*,HB(1,i,kds),HT(1,i,kds-1)
-      enddo
-      
       ! Reconstruct qL and qR
       !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
       do k = kds,kde
@@ -301,6 +327,16 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
+      k = kds
+      do i = ids,ide
+        PB(  i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k))
+        He(:,i,k) = calc_H_w_eta(sqrtGB(i,k),G13B(i,k),qB(:,i,k),PB(i,k),PB_ref(i,k),0.)
+      enddo
+      k = kde
+      do i = ids,ide
+        PT(  i,k    ) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
+        He(:,i,kde+1) = calc_H_w_eta(sqrtGT(i,k),G13T(i,k),qT(:,i,k),PT(i,k),PT_ref(i,k),0.)
+      enddo
       
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1,iVar,dFe,dHe)
       do k = kds,kde
@@ -329,7 +365,7 @@ MODULE spatial_operators_mod
       
       integer(i_kind), parameter :: vs = 1
       integer(i_kind), parameter :: ve = 5
-      integer(i_kind), parameter :: bdy_width = 30
+      integer(i_kind), parameter :: bdy_width = 40
       real   (r_kind), parameter :: exp_ceof  = 2
       
       integer(i_kind) dir,sign
