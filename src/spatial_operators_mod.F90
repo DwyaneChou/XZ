@@ -398,7 +398,9 @@ MODULE spatial_operators_mod
       
       integer(i_kind), parameter :: vs = 1
       integer(i_kind), parameter :: ve = 5
-      integer(i_kind), parameter :: bdy_width = 40
+      integer(i_kind), parameter :: bdy_widthT = 40
+      integer(i_kind), parameter :: bdy_widthL = 60
+      integer(i_kind), parameter :: bdy_widthR = 60
       real   (r_kind), parameter :: exp_ceof  = 2
       
       integer(i_kind) dir
@@ -410,7 +412,9 @@ MODULE spatial_operators_mod
       integer(i_kind) kls,kle ! pure lateral boundary layer indices
       integer(i_kind) its,ite ! pure top boundary layer indices
       
-      real(r_kind) :: relax_coef(bdy_width)
+      real(r_kind) :: relax_coefT(bdy_widthT)
+      real(r_kind) :: relax_coefL(bdy_widthL)
+      real(r_kind) :: relax_coefR(bdy_widthR)
       real(r_kind) :: max_exp
       
       if(case_num==1)then
@@ -448,67 +452,182 @@ MODULE spatial_operators_mod
       
         ! Nonreflecting condition
         kls = kds
-        kle = kde-bdy_width
-        its = ids+bdy_width
-        ite = ide-bdy_width
+        kle = kde-bdy_widthL
+        its = ids+bdy_widthT
+        ite = ide-bdy_widthT
         ! calculate relax coefficients
-        max_exp = exp( ( real( bdy_width - 1 ) / real(bdy_width) )**exp_ceof ) - 1.
-        do i = 1,bdy_width
-          !relax_coef(i) = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
-          relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
+        max_exp = exp( ( real( bdy_widthT - 1 ) / real(bdy_widthT) )**exp_ceof ) - 1.
+        do i = 1,bdy_widthT
+          !relax_coefT(i) = ( real( bdy_widthT - i + 1 ) / real( bdy_widthT ) )**4 / dt
+          relax_coefT(i) = ( exp( ( real( bdy_widthT - i ) / real(bdy_widthT) )**exp_ceof ) - 1. ) / ( max_exp * dt )
         enddo
         
-        do i = 1,bdy_width
+        max_exp = exp( ( real( bdy_widthL - 1 ) / real(bdy_widthL) )**exp_ceof ) - 1.
+        do i = 1,bdy_widthL
+          !relax_coefL(i) = ( real( bdy_widthL - i + 1 ) / real( bdy_widthL ) )**4 / dt
+          relax_coefL(i) = ( exp( ( real( bdy_widthL - i ) / real(bdy_widthL) )**exp_ceof ) - 1. ) / ( max_exp * dt )
+        enddo
+        
+        max_exp = exp( ( real( bdy_widthR - 1 ) / real(bdy_widthR) )**exp_ceof ) - 1.
+        do i = 1,bdy_widthR
+          !relax_coefR(i) = ( real( bdy_widthR - i + 1 ) / real( bdy_widthR ) )**4 / dt
+          relax_coefR(i) = ( exp( ( real( bdy_widthR - i ) / real(bdy_widthR) )**exp_ceof ) - 1. ) / ( max_exp * dt )
+        enddo
+        
+        do i = 1,bdy_widthL
           il = i
           ir = ide-i+1
           kt = kde-i+1
           do iVar = vs,ve
-            !src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) / q_ref(1,its:ite,kt) * q(1,its:ite,kt) )
-            src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
-            src(iVar,il     ,kds:kde) = - relax_coef(i) * ( q(iVar,il,kds:kde) - q_ref(iVar,il,kds:kde) )
-            src(iVar,ir     ,kds:kde) = - relax_coef(i) * ( q(iVar,ir,kds:kde) - q_ref(iVar,ir,kds:kde) )
+            src(iVar,il     ,kds:kde) = - relax_coefL(i) * ( q(iVar,il,kds:kde) - q_ref(iVar,il,kds:kde) )
+            src(iVar,ir     ,kds:kde) = - relax_coefR(i) * ( q(iVar,ir,kds:kde) - q_ref(iVar,ir,kds:kde) )
           enddo
         enddo
         
-        !! lateral only
-        !do i = 1,bdy_width
-        !  il = i
-        !  ir = ide-i+1
-        !  kt = kde-i+1
-        !  do iVar = vs,ve
-        !    src(iVar,il,kds:kde) = - relax_coef(i) * ( q(iVar,il,kds:kde) - q_ref(iVar,il,kds:kde) )
-        !    src(iVar,ir,kds:kde) = - relax_coef(i) * ( q(iVar,ir,kds:kde) - q_ref(iVar,ir,kds:kde) )
-        !  enddo
-        !enddo
-        
-        !! pure zone
-        !do i = 1,bdy_width
-        !  il = i
-        !  ir = ide-i+1
-        !  kt = kde-i+1
-        !  do iVar = vs,ve
-        !    !src(iVar,il     ,kds:kde) = - relax_coef(i) * ( q(iVar,il,kds:kde) - q_ref(iVar,il,kds:kde) )
-        !    src(iVar,ir     ,kds:kde) = - relax_coef(i) * ( q(iVar,ir,kds:kde) - q_ref(iVar,ir,kds:kde) )
-        !    src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
-        !  enddo
-        !  !src(2,il,kds:kde) = 0
-        !enddo
+        do i = 1,bdy_widthT
+          il = i
+          ir = ide-i+1
+          kt = kde-i+1
+          do iVar = vs,ve
+            src(iVar,its:ite,kt     ) = - relax_coefT(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
+          enddo
+        enddo
         
         !overlap zone
-        do k = 1,bdy_width
-          do i = 1,bdy_width
+        do k = 1,bdy_widthT
+          do i = 1,bdy_widthL
             il = i
             ir = ide-i+1
             kt = kde-i+1
             do iVar = vs,ve
-              src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
-              src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
+              src(iVar,il,kt) = - max( relax_coefL(i), relax_coefT(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
+              src(iVar,ir,kt) = - max( relax_coefR(i), relax_coefT(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
             enddo
           enddo
         enddo
       endif
       
     end subroutine bdy_condition
+    
+    !subroutine bdy_condition(q_ext,q,q_ref,src)
+    !  real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(out  ) :: q_ext
+    !  real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q
+    !  real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
+    !  real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(inout) :: src
+    !  
+    !  integer(i_kind), parameter :: vs = 1
+    !  integer(i_kind), parameter :: ve = 5
+    !  integer(i_kind), parameter :: bdy_width = 40
+    !  real   (r_kind), parameter :: exp_ceof  = 2
+    !  
+    !  integer(i_kind) dir
+    !  integer(i_kind) i,k,iVar
+    !  
+    !  integer(i_kind) il,ir
+    !  integer(i_kind) kt
+    !  
+    !  integer(i_kind) kls,kle ! pure lateral boundary layer indices
+    !  integer(i_kind) its,ite ! pure top boundary layer indices
+    !  
+    !  real(r_kind) :: relax_coef(bdy_width)
+    !  real(r_kind) :: max_exp
+    !  
+    !  if(case_num==1)then
+    !    ! No-flux
+    !    ! left
+    !    q_ext(:,ics:ids-1,:) = FillValue
+    !    
+    !    ! right
+    !    q_ext(:,ide+1:ice,:) = FillValue
+    !    
+    !    ! bottom
+    !    q_ext(:,:,kcs:kds-1) = FillValue
+    !    
+    !    ! top
+    !    q_ext(:,:,kde+1:kce) = FillValue
+    !    
+    !  elseif(case_num==2)then
+    !    ! left
+    !    q_ext(:,ics:ids-1,:) = FillValue
+    !    
+    !    ! right
+    !    q_ext(:,ide+1:ice,:) = FillValue
+    !    
+    !    !! left
+    !    !q_ext(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
+    !    !
+    !    !! right
+    !    !q_ext(:,ide+1:ice,:) = q_ref(:,ide+1:ice,:)
+    !    
+    !    ! bottom
+    !    q_ext(:,:,kcs:kds-1) = FillValue
+    !    
+    !    ! top
+    !    q_ext(:,:,kde+1:kce) = FillValue
+    !  
+    !    ! Nonreflecting condition
+    !    kls = kds
+    !    kle = kde-bdy_width
+    !    its = ids+bdy_width
+    !    ite = ide-bdy_width
+    !    ! calculate relax coefficients
+    !    max_exp = exp( ( real( bdy_width - 1 ) / real(bdy_width) )**exp_ceof ) - 1.
+    !    do i = 1,bdy_width
+    !      !relax_coef(i) = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
+    !      relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
+    !    enddo
+    !    
+    !    do i = 1,bdy_width
+    !      il = i
+    !      ir = ide-i+1
+    !      kt = kde-i+1
+    !      do iVar = vs,ve
+    !        !src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) / q_ref(1,its:ite,kt) * q(1,its:ite,kt) )
+    !        src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
+    !        src(iVar,il     ,kds:kde) = - relax_coef(i) * ( q(iVar,il,kds:kde) - q_ref(iVar,il,kds:kde) )
+    !        src(iVar,ir     ,kds:kde) = - relax_coef(i) * ( q(iVar,ir,kds:kde) - q_ref(iVar,ir,kds:kde) )
+    !      enddo
+    !    enddo
+    !    
+    !    !! lateral only
+    !    !do i = 1,bdy_width
+    !    !  il = i
+    !    !  ir = ide-i+1
+    !    !  kt = kde-i+1
+    !    !  do iVar = vs,ve
+    !    !    src(iVar,il,kds:kde) = - relax_coef(i) * ( q(iVar,il,kds:kde) - q_ref(iVar,il,kds:kde) )
+    !    !    src(iVar,ir,kds:kde) = - relax_coef(i) * ( q(iVar,ir,kds:kde) - q_ref(iVar,ir,kds:kde) )
+    !    !  enddo
+    !    !enddo
+    !    
+    !    !! pure zone
+    !    !do i = 1,bdy_width
+    !    !  il = i
+    !    !  ir = ide-i+1
+    !    !  kt = kde-i+1
+    !    !  do iVar = vs,ve
+    !    !    !src(iVar,il     ,kds:kde) = - relax_coef(i) * ( q(iVar,il,kds:kde) - q_ref(iVar,il,kds:kde) )
+    !    !    src(iVar,ir     ,kds:kde) = - relax_coef(i) * ( q(iVar,ir,kds:kde) - q_ref(iVar,ir,kds:kde) )
+    !    !    src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
+    !    !  enddo
+    !    !  !src(2,il,kds:kde) = 0
+    !    !enddo
+    !    
+    !    !overlap zone
+    !    do k = 1,bdy_width
+    !      do i = 1,bdy_width
+    !        il = i
+    !        ir = ide-i+1
+    !        kt = kde-i+1
+    !        do iVar = vs,ve
+    !          src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
+    !          src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
+    !        enddo
+    !      enddo
+    !    enddo
+    !  endif
+    !  
+    !end subroutine bdy_condition
     
     subroutine fill_ghost(q_ext,q,dir,sign)
       real   (r_kind), dimension(ics:ice,kcs:kce), intent(out) :: q_ext
