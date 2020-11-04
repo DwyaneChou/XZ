@@ -159,9 +159,24 @@ MODULE spatial_operators_mod
       ! copy stat
       q_ext = stat%q
       
+      ! initialize source terms
+      src = 0.
+      
+      ! Set no flux and nonreflecting boundary condition
+      call bdy_condition(q_ext,stat%q,ref%q,src)
+      
+      !! Set w_eta
+      !do k = kds,kde
+      !  do i = ids,ide
+      !    w_eta(i,k) = q_ext(1,i,k) * calc_w_eta(sqrtG(i,k),G13(i,k),q_ext(:,i,k))
+      !  enddo
+      !enddo
+      !
+      !call fill_ghost(w_eta,w_eta,dir=2,sign=-1)
+      
       ! Calculate P, F, H and eigenvalues
-      do k = kds,kde
-        do i = ids,ide
+      do k = kcs,kce
+        do i = ics,ice
           P    (  i,k) = calc_pressure(sqrtG(i,k),q_ext(:,i,k))
           F    (:,i,k) = calc_F(sqrtG(i,k),q_ext(:,i,k),P(i,k))
           H    (:,i,k) = calc_H(sqrtG(i,k),G13(i,k),q_ext(:,i,k),P(i,k),P_ref(i,k))
@@ -172,14 +187,14 @@ MODULE spatial_operators_mod
         enddo
       enddo
       
-      ! Reconstruct FL, FR, HB and HT
+      ! Reconstruct FL and FR
       !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
       do k = kds,kde
         kp1 = k + 1
         km1 = k - 1
         kp2 = k + 2
         km2 = k - 2
-        do i = ids,ide
+        do i = ids-1,ide+1
           ip1 = i + 1
           im1 = i - 1
           ip2 = i + 2
@@ -190,7 +205,24 @@ MODULE spatial_operators_mod
             call WENO_limiter(FL(iVar,i,k),q_weno,dir)
             dir = 1
             call WENO_limiter(FR(iVar,i,k),q_weno,dir)
-            
+          enddo
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
+      
+      ! Reconstruct HB and HT
+      !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
+      do k = kds-1,kde+1
+        kp1 = k + 1
+        km1 = k - 1
+        kp2 = k + 2
+        km2 = k - 2
+        do i = ids,ide
+          ip1 = i + 1
+          im1 = i - 1
+          ip2 = i + 2
+          im2 = i - 2
+          do iVar = 1,nVar
             q_weno = H(iVar,i,km2:kp2)
             dir = -1
             call WENO_limiter(HB(iVar,i,k),q_weno,dir)
@@ -201,7 +233,7 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      ! Reconstruct qL, qR, qB and qT
+      ! Reconstruct qL and qR
       !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
       do k = kds,kde
         kp1 = k + 1
@@ -219,6 +251,24 @@ MODULE spatial_operators_mod
             call WENO_limiter(qL(iVar,i,k),q_weno,dir)
             dir = 1
             call WENO_limiter(qR(iVar,i,k),q_weno,dir)
+          enddo
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
+      
+      ! Reconstruct qB and qT
+      !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
+      do k = kds-1,kde+1
+        kp1 = k + 1
+        km1 = k - 1
+        kp2 = k + 2
+        km2 = k - 2
+        do i = ids,ide
+          ip1 = i + 1
+          im1 = i - 1
+          ip2 = i + 2
+          im2 = i - 2
+          do iVar = 1,nVar
             q_weno = q_ext(iVar,i,km2:kp2)
             dir = -1
             call WENO_limiter(qB(iVar,i,k),q_weno,dir)
@@ -277,12 +327,16 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
-      
-      ! initialize source terms
-      src = 0.
-      
-      ! Set no flux and nonreflecting boundary condition
-      call bdy_condition(Fe,He,qL,qR,qB,qT,stat%q,ref%q,src)
+      k = kds
+      do i = ids,ide
+        PB(  i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k))
+        He(:,i,k) = calc_H_w_eta(sqrtGB(i,k),G13B(i,k),qB(:,i,k),PB(i,k),PB_ref(i,k),0.)
+      enddo
+      k = kde
+      do i = ids,ide
+        PT(  i,k    ) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
+        He(:,i,kde+1) = calc_H_w_eta(sqrtGT(i,k),G13T(i,k),qT(:,i,k),PT(i,k),PT_ref(i,k),0.)
+      enddo
       
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1,iVar,dFe,dHe)
       do k = kds,kde
@@ -303,13 +357,8 @@ MODULE spatial_operators_mod
       !$OMP END PARALLEL DO
     end subroutine spatial_operator
     
-    subroutine bdy_condition(Fe,He,qL,qR,qB,qT,q,q_ref,src)
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: Fe
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: He
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: qL
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: qR
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: qB
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: qT
+    subroutine bdy_condition(q_ext,q,q_ref,src)
+      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(out  ) :: q_ext
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
       real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(inout) :: src
@@ -331,20 +380,56 @@ MODULE spatial_operators_mod
       real(r_kind) :: relax_coef(bdy_width)
       real(r_kind) :: max_exp
       
-      k = kds
-      do i = ids,ide
-        PB(  i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k))
-        He(:,i,k) = calc_H_w_eta(sqrtGB(i,k),G13B(i,k),qB(:,i,k),PB(i,k),PB_ref(i,k),0.)
-      enddo
-      k = kde
-      do i = ids,ide
-        PT(  i,k    ) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
-        He(:,i,kde+1) = calc_H_w_eta(sqrtGT(i,k),G13T(i,k),qT(:,i,k),PT(i,k),PT_ref(i,k),0.)
-      enddo
+      !q_p(1,:,:) = ( q(1,:,:) - q_ref(1,:,:) ) /sqrtG  ! rhod'
+      !q_p(2,:,:) = q(2,:,:) / ( q(1,:,:) + q(5,:,:) )  ! u
+      !q_p(3,:,:) = q(3,:,:) / ( q(1,:,:) + q(5,:,:) )  ! w
+      !q_p(4,:,:) = ( q(4,:,:) - q_ref(4,:,:) ) / sqrtG ! rho * theta'
+      !q_p(5,:,:) = q(5,:,:) / q(1,:,:)                 ! gamma
       
       if(case_num==1)then
-          
+        q_p(1,:,:) = q(1,:,:) - q_ref(1,:,:)
+        q_p(2,:,:) = q(2,:,:)
+        q_p(3,:,:) = q(3,:,:)
+        q_p(4,:,:) = q(4,:,:) - q_ref(4,:,:)
+        q_p(5,:,:) = q(5,:,:)
+        
+        ! x-dir
+        call fill_ghost(q_ext(1,:,:),q_p(1,:,:),dir=1,sign= 1)
+        call fill_ghost(q_ext(2,:,:),q_p(2,:,:),dir=1,sign=-1)
+        call fill_ghost(q_ext(3,:,:),q_p(3,:,:),dir=1,sign= 1)
+        call fill_ghost(q_ext(4,:,:),q_p(4,:,:),dir=1,sign= 1)
+        call fill_ghost(q_ext(5,:,:),q_p(5,:,:),dir=1,sign= 1)
+        ! z-dir
+        call fill_ghost(q_ext(1,:,:),q_p(1,:,:),dir=2,sign= 1)
+        call fill_ghost(q_ext(2,:,:),q_p(2,:,:),dir=2,sign= 1)
+        call fill_ghost(q_ext(3,:,:),q_p(3,:,:),dir=2,sign=-1)
+        call fill_ghost(q_ext(4,:,:),q_p(4,:,:),dir=2,sign= 1)
+        call fill_ghost(q_ext(5,:,:),q_p(5,:,:),dir=2,sign= 1)
+        
+        q_ext(1,:,:) = q_ext(1,:,:) + q_ref(1,:,:)
+        q_ext(4,:,:) = q_ext(4,:,:) + q_ref(4,:,:)
       elseif(case_num==2)then
+        q_p(1,:,:) = q(1,:,:) - q_ref(1,:,:)
+        q_p(2,:,:) = q(2,:,:)
+        q_p(3,:,:) = q(3,:,:)
+        q_p(4,:,:) = q(4,:,:) - q_ref(4,:,:)
+        q_p(5,:,:) = q(5,:,:)
+        
+        ! z-dir
+        call fill_ghost(q_ext(1,:,:),q_p(1,:,:),dir=2,sign= 1)
+        call fill_ghost(q_ext(2,:,:),q_p(2,:,:),dir=2,sign= 1)
+        call fill_ghost(q_ext(3,:,:),q_p(3,:,:),dir=2,sign=-1)
+        call fill_ghost(q_ext(4,:,:),q_p(4,:,:),dir=2,sign= 1)
+        call fill_ghost(q_ext(5,:,:),q_p(5,:,:),dir=2,sign= 1)
+        
+        q_ext(1,:,:) = q_ext(1,:,:) + q_ref(1,:,:)
+        q_ext(4,:,:) = q_ext(4,:,:) + q_ref(4,:,:)
+        
+        ! left
+        q_ext(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
+        
+        ! right
+        q_ext(:,ide+1:ice,:) = q_ref(:,ide+1:ice,:)
         
         ! Nonreflecting condition
         kls = kds
