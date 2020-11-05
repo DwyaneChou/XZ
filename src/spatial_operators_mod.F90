@@ -29,11 +29,17 @@ MODULE spatial_operators_mod
   real(r_kind), dimension(:,:,:), allocatable :: HT    ! Reconstructed H_(i,k+1/2)
   
   real(r_kind), dimension(  :,:), allocatable :: P
-  real(r_kind), dimension(  :,:), allocatable :: PB    ! Reconstructed P_(i,k-1/2)
-  real(r_kind), dimension(  :,:), allocatable :: PT    ! Reconstructed P_(i,k+1/2)
   real(r_kind), dimension(  :,:), allocatable :: P_ref ! reference pressure
-  real(r_kind), dimension(  :,:), allocatable :: PB_ref! Reconstructed P_ref_(i,k-1/2)
-  real(r_kind), dimension(  :,:), allocatable :: PT_ref! Reconstructed P_ref_(i,k+1/2)
+  
+  real(r_kind), dimension(:,:  ), allocatable :: PL    ! Reconstructed P_(i-1/2,k)
+  real(r_kind), dimension(:,:  ), allocatable :: PR    ! Reconstructed P_(i+1/2,k)
+  real(r_kind), dimension(:,:  ), allocatable :: PB    ! Reconstructed P_(i,k-1/2)
+  real(r_kind), dimension(:,:  ), allocatable :: PT    ! Reconstructed P_(i,k+1/2)
+  
+  real(r_kind), dimension(:,:  ), allocatable :: PL_ref! Reconstructed P_ref_(i-1/2,k)
+  real(r_kind), dimension(:,:  ), allocatable :: PR_ref! Reconstructed P_ref_(i+1/2,k)
+  real(r_kind), dimension(:,:  ), allocatable :: PB_ref! Reconstructed P_ref_(i,k-1/2)
+  real(r_kind), dimension(:,:  ), allocatable :: PT_ref! Reconstructed P_ref_(i,k+1/2)
   
   real(r_kind), dimension(  :,:), allocatable :: w_eta ! deta/dt
   
@@ -81,10 +87,15 @@ MODULE spatial_operators_mod
       allocate(HB   (nVar,ics:ice,kcs:kce))
       allocate(HT   (nVar,ics:ice,kcs:kce))
       
-      allocate(P     (     ics:ice,kcs:kce))
-      allocate(PB    (     ics:ice,kcs:kce))
-      allocate(PT    (     ics:ice,kcs:kce))
+      allocate(P    (     ics:ice,kcs:kce))
+      allocate(PL   (     ics:ice,kcs:kce))
+      allocate(PR   (     ics:ice,kcs:kce))
+      allocate(PB   (     ics:ice,kcs:kce))
+      allocate(PT   (     ics:ice,kcs:kce))
+      
       allocate(P_ref (     ics:ice,kcs:kce))
+      allocate(PL_ref(     ics:ice,kcs:kce))
+      allocate(PR_ref(     ics:ice,kcs:kce))
       allocate(PB_ref(     ics:ice,kcs:kce))
       allocate(PT_ref(     ics:ice,kcs:kce))
       
@@ -114,7 +125,7 @@ MODULE spatial_operators_mod
         enddo
       enddo
       
-      !$OMP PARALLEL DO PRIVATE(i,iVar,ip1,im1,ip2,im2,q_weno,dir,kp1,km1,kp2,km2)
+      !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
       do k = kds,kde
         kp1 = k + 1
         km1 = k - 1
@@ -125,13 +136,28 @@ MODULE spatial_operators_mod
           im1 = i - 1
           ip2 = i + 2
           im2 = i - 2
-          ! z-dir
-          q_weno = P_ref(i,km2:kp2)
+          do iVar = 1,nVar
+            ! x-dir
+            q_weno = q_ext(iVar,im2:ip2,k)
+            
+            dir = -1
+            call WENO_limiter(qL(iVar,i,k),q_weno,dir)
+            dir = 1
+            call WENO_limiter(qR(iVar,i,k),q_weno,dir)
+            
+            ! z-dir
+            q_weno = q_ext(iVar,i,km2:kp2)
+            
+            dir = -1
+            call WENO_limiter(qB(iVar,i,k),q_weno,dir)
+            dir = 1
+            call WENO_limiter(qT(iVar,i,k),q_weno,dir)
+          enddo
           
-          dir = -1
-          call WENO_limiter(PB_ref(i,k),q_weno,dir)
-          dir = 1
-          call WENO_limiter(PT_ref(i,k),q_weno,dir)
+          PL_ref(i,k) = calc_pressure(sqrtGL(i,k),qL(:,i,k))
+          PR_ref(i,k) = calc_pressure(sqrtGR(i,k),qR(:,i,k))
+          PB_ref(i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k))
+          PT_ref(i,k) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
         enddo
       enddo
       !$OMP END PARALLEL DO
@@ -239,7 +265,8 @@ MODULE spatial_operators_mod
       ! calc x flux
       !$OMP PARALLEL DO PRIVATE(i,im1,maxeigen_x,iVar)
       do k = kds,kde
-        do i = ids,ide+1
+        !do i = ids,ide+1
+        do i = ids+1,ide
           im1 = i - 1
           
           maxeigen_x = max(abs(eig_x(i,k)),abs(eig_x(im1,k)))
@@ -260,7 +287,8 @@ MODULE spatial_operators_mod
       ! calc z flux
       !$OMP PARALLEL DO PRIVATE(k,km1,maxeigen_z,iVar)
       do i = ids,ide
-        do k = kds,kde+1
+        !do k = kds,kde+1
+        do k = kds+1,kde
           km1 = k - 1
           
           maxeigen_z = max(abs(eig_z(i,k)),abs(eig_z(i,km1)))
@@ -282,7 +310,17 @@ MODULE spatial_operators_mod
       src = 0.
       
       ! Set no flux and nonreflecting boundary condition
-      call bdy_condition(Fe,He,qL,qR,qB,qT,stat%q,ref%q,src)
+      !$OMP PARALLEL DO PRIVATE(i)
+      do k = kds,kde
+        do i = ids,ide
+          PL(i,k) = calc_pressure(sqrtGL(i,k),qL(:,i,k))
+          PR(i,k) = calc_pressure(sqrtGR(i,k),qR(:,i,k))
+          PB(i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k))
+          PT(i,k) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
+      call bdy_condition(Fe,He,P,stat%q,ref%q,src)
       
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1,iVar,dFe,dHe)
       do k = kds,kde
@@ -303,16 +341,13 @@ MODULE spatial_operators_mod
       !$OMP END PARALLEL DO
     end subroutine spatial_operator
     
-    subroutine bdy_condition(Fe,He,qL,qR,qB,qT,q,q_ref,src)
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: Fe
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: He
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: qL
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: qR
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: qB
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: qT
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
-      real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(inout) :: src
+    subroutine bdy_condition(Fe,He,P,q,q_ref,src)
+      real(r_kind), dimension(nVar,ids:ide+1,kds:kde  ), intent(inout) :: Fe
+      real(r_kind), dimension(nVar,ids:ide  ,kds:kde+1), intent(inout) :: He
+      real(r_kind), dimension(nVar,ics:ice  ,kcs:kce  ), intent(in   ) :: P
+      real(r_kind), dimension(nVar,ics:ice  ,kcs:kce  ), intent(in   ) :: q
+      real(r_kind), dimension(nVar,ics:ice  ,kcs:kce  ), intent(in   ) :: q_ref
+      real(r_kind), dimension(nVar,ids:ide  ,kds:kde  ), intent(inout) :: src
       
       integer(i_kind), parameter :: vs = 1
       integer(i_kind), parameter :: ve = 5
@@ -331,20 +366,54 @@ MODULE spatial_operators_mod
       real(r_kind) :: relax_coef(bdy_width)
       real(r_kind) :: max_exp
       
-      k = kds
-      do i = ids,ide
-        PB(  i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k))
-        He(:,i,k) = calc_H_w_eta(sqrtGB(i,k),G13B(i,k),qB(:,i,k),PB(i,k),PB_ref(i,k),0.)
-      enddo
-      k = kde
-      do i = ids,ide
-        PT(  i,k    ) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
-        He(:,i,kde+1) = calc_H_w_eta(sqrtGT(i,k),G13T(i,k),qT(:,i,k),PT(i,k),PT_ref(i,k),0.)
-      enddo
-      
       if(case_num==1)then
-          
+        Fe(1,ids  ,kds:kde) = 0
+        Fe(2,ids  ,kds:kde) = sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
+        Fe(3,ids  ,kds:kde) = 0
+        Fe(4,ids  ,kds:kde) = 0
+        Fe(5,ids  ,kds:kde) = 0
+        
+        Fe(1,ide+1,kds:kde) = 0
+        Fe(2,ide+1,kds:kde) = sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
+        Fe(3,ide+1,kds:kde) = 0
+        Fe(4,ide+1,kds:kde) = 0
+        Fe(5,ide+1,kds:kde) = 0
+        
+        He(1,ids:ide,kds  ) = 0
+        He(2,ids:ide,kds  ) = sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) * PB(ids:ide,kds)
+        He(3,ids:ide,kds  ) = PB(ids:ide,kds) - PB_ref(ids:ide,kds)
+        He(4,ids:ide,kds  ) = 0
+        He(5,ids:ide,kds  ) = 0
+        
+        He(1,ids:ide,kde+1) = 0
+        He(2,ids:ide,kde+1) = sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) * PT(ids:ide,kde)
+        He(3,ids:ide,kde+1) = PT(ids:ide,kde) - PT_ref(ids:ide,kde)
+        He(4,ids:ide,kde+1) = 0
+        He(5,ids:ide,kde+1) = 0
       elseif(case_num==2)then
+        Fe(1,ids,kds:kde) = 0
+        Fe(2,ids,kds:kde) = q_ref(2,ids,kds:kde)**2 / q_ref(1,ids,kds:kde) + sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
+        Fe(3,ids,kds:kde) = 0
+        Fe(4,ids,kds:kde) = q_ref(4,ids,kds:kde) * q_ref(2,ids,kds:kde) /  q_ref(1,ids,kds:kde)
+        Fe(5,ids,kds:kde) = 0
+        
+        Fe(1,ide+1,kds:kde) = 0
+        Fe(2,ide+1,kds:kde) = q_ref(2,ide,kds:kde)**2 / q_ref(1,ide,kds:kde) + sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
+        Fe(3,ide+1,kds:kde) = 0
+        Fe(4,ide+1,kds:kde) = q_ref(4,ide,kds:kde) * q_ref(2,ide,kds:kde) /  q_ref(1,ide,kds:kde)
+        Fe(5,ide+1,kds:kde) = 0
+        
+        He(1,ids:ide,kds) = 0
+        He(2,ids:ide,kds) = sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) * PB(ids:ide,kds)
+        He(3,ids:ide,kds) = PB(ids:ide,kds) - PB_ref(ids:ide,kds)
+        He(4,ids:ide,kds) = 0
+        He(5,ids:ide,kds) = 0
+        
+        He(1,ids:ide,kde+1) = 0
+        He(2,ids:ide,kde+1) = sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) * PT(ids:ide,kde)
+        He(3,ids:ide,kde+1) = PT(ids:ide,kde) - PT_ref(ids:ide,kde)
+        He(4,ids:ide,kde+1) = 0
+        He(5,ids:ide,kde+1) = 0
         
         ! Nonreflecting condition
         kls = kds
