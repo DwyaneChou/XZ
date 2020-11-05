@@ -154,13 +154,13 @@ module test_case_mod
       stat%q(4,:,:) = sqrtG * rho * theta
       stat%q(5,:,:) = sqrtG * rho * q
       
-      print*,'max/min value of sqrtG           ',maxval(sqrtG        ),minval(sqrtG        )
-      print*,'max/min value of G13             ',maxval(G13          ),minval(G13          )
-      print*,'max/min value of sqrtG*rho       ',maxval(stat%q(1,:,:)),minval(stat%q(1,:,:))
-      print*,'max/min value of sqrtG*rho*u     ',maxval(stat%q(2,:,:)),minval(stat%q(2,:,:))
-      print*,'max/min value of sqrtG*rho*v     ',maxval(stat%q(3,:,:)),minval(stat%q(3,:,:))
-      print*,'max/min value of sqrtG*rho*theta ',maxval(stat%q(4,:,:)),minval(stat%q(4,:,:))
-      print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,:,:)),minval(stat%q(5,:,:))
+      print*,'max/min value of sqrtG           ',maxval(sqrtG(   ids:ide,kds:kde)),minval(sqrtG(   ids:ide,kds:kde))
+      print*,'max/min value of G13             ',maxval(G13  (   ids:ide,kds:kde)),minval(G13  (   ids:ide,kds:kde))
+      print*,'max/min value of sqrtG*rho       ',maxval(stat%q(1,ids:ide,kds:kde)),minval(stat%q(1,ids:ide,kds:kde))
+      print*,'max/min value of sqrtG*rho*u     ',maxval(stat%q(2,ids:ide,kds:kde)),minval(stat%q(2,ids:ide,kds:kde))
+      print*,'max/min value of sqrtG*rho*w     ',maxval(stat%q(3,ids:ide,kds:kde)),minval(stat%q(3,ids:ide,kds:kde))
+      print*,'max/min value of sqrtG*rho*theta ',maxval(stat%q(4,ids:ide,kds:kde)),minval(stat%q(4,ids:ide,kds:kde))
+      print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,ids:ide,kds:kde)),minval(stat%q(5,ids:ide,kds:kde))
       
     end subroutine thermal_bubble
     
@@ -305,13 +305,13 @@ module test_case_mod
       stat%q(4,:,:) = sqrtG * rho * theta
       stat%q(5,:,:) = sqrtG * rho * q
       
-      print*,'max/min value of sqrtG           ',maxval(sqrtG        ),minval(sqrtG        )
-      print*,'max/min value of G13             ',maxval(G13          ),minval(G13          )
-      print*,'max/min value of sqrtG*rho       ',maxval(stat%q(1,:,:)),minval(stat%q(1,:,:))
-      print*,'max/min value of sqrtG*rho*u     ',maxval(stat%q(2,:,:)),minval(stat%q(2,:,:))
-      print*,'max/min value of sqrtG*rho*w     ',maxval(stat%q(3,:,:)),minval(stat%q(3,:,:))
-      print*,'max/min value of sqrtG*rho*theta ',maxval(stat%q(4,:,:)),minval(stat%q(4,:,:))
-      print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,:,:)),minval(stat%q(5,:,:))
+      print*,'max/min value of sqrtG           ',maxval(sqrtG(   ids:ide,kds:kde)),minval(sqrtG(   ids:ide,kds:kde))
+      print*,'max/min value of G13             ',maxval(G13  (   ids:ide,kds:kde)),minval(G13  (   ids:ide,kds:kde))
+      print*,'max/min value of sqrtG*rho       ',maxval(stat%q(1,ids:ide,kds:kde)),minval(stat%q(1,ids:ide,kds:kde))
+      print*,'max/min value of sqrtG*rho*u     ',maxval(stat%q(2,ids:ide,kds:kde)),minval(stat%q(2,ids:ide,kds:kde))
+      print*,'max/min value of sqrtG*rho*w     ',maxval(stat%q(3,ids:ide,kds:kde)),minval(stat%q(3,ids:ide,kds:kde))
+      print*,'max/min value of sqrtG*rho*theta ',maxval(stat%q(4,ids:ide,kds:kde)),minval(stat%q(4,ids:ide,kds:kde))
+      print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,ids:ide,kds:kde)),minval(stat%q(5,ids:ide,kds:kde))
     end subroutine schar_mountain
     
 end module test_case_mod

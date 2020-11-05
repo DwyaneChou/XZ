@@ -89,5 +89,37 @@
       Qrec = dot_product( stencil, omega )
       
     end subroutine WENO_limiter
+    
+    ! Reconstruct on the left most boundary
+    function left_side_recon3(q)
+      real(r_kind) :: left_side_recon3
+      real(r_kind),dimension(3),intent(in) :: q
+      
+      real(r_kind) Qip(2)
+      real(r_kind) Qi
+      
+      Qi     = Q(1)
+      Qip(1) = Q(2)
+      Qip(2) = Q(3)
+      
+      left_side_recon3 = Qip(2)/3. - 7./6. * Qip(1) + 11./6. * Qi
+    
+    end function left_side_recon3
+    
+    ! Reconstruct on the right most boundary
+    function right_side_recon3(q)
+      real(r_kind) :: right_side_recon3
+      real(r_kind),dimension(3),intent(in) :: q
+      
+      real(r_kind) Qim(2)
+      real(r_kind) Qi
+      
+      Qim(2) = Q(1)
+      Qim(1) = Q(2)
+      Qi     = Q(3)
+      
+      right_side_recon3 = Qim(2)/3. - 7./6. * Qim(1) + 11./6. * Qi
+    
+    end function right_side_recon3
   end module reconstruction_mod
     
