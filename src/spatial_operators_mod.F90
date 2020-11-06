@@ -288,6 +288,17 @@ MODULE spatial_operators_mod
       
       call bdy_condition(Fe,He,P,stat%q,ref%q,src)
       
+      !k = kds
+      !do i = ids,ide
+      !  PB(  i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k))
+      !  He(:,i,k) = calc_H_w_eta(sqrtGB(i,k),G13B(i,k),qB(:,i,k),PB(i,k),PB_ref(i,k),0.)
+      !enddo
+      !k = kde
+      !do i = ids,ide
+      !  PT(  i,k    ) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
+      !  He(:,i,kde+1) = calc_H_w_eta(sqrtGT(i,k),G13T(i,k),qT(:,i,k),PT(i,k),PT_ref(i,k),0.)
+      !enddo
+      
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1,iVar,dFe,dHe)
       do k = kds,kde
         do i = ids,ide
@@ -305,6 +316,7 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
+      
     end subroutine spatial_operator
     
     subroutine bdy_condition(Fe,He,P,q,q_ref,src)
@@ -363,6 +375,7 @@ MODULE spatial_operators_mod
         qrec   = P(i,kds:kds+2) - P_ref(i,kds:kds+2)
         where(abs(qrec)/P_ref(i,kds:kds+2)<1.e-13)qrec=0
         PpB(i) = left_side_recon3(qrec)
+        
         qrec   = P(i,kde-2:kde) - P_ref(i,kde-2:kde)
         where(abs(qrec)/P_ref(i,kde-2:kde)<1.e-13)qrec=0
         PpT(i) = right_side_recon3(qrec)

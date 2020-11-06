@@ -336,10 +336,10 @@ MODULE spatial_operators_mod
       
       real(r_kind) :: qrec(3)
       
-      real(r_kind), dimension(kds:kde) :: PpL
-      real(r_kind), dimension(kds:kde) :: PpR
-      real(r_kind), dimension(ids:ide) :: PpB
-      real(r_kind), dimension(ids:ide) :: PpT
+      real(r_kind), dimension(kds:kde) :: PL
+      real(r_kind), dimension(kds:kde) :: PR
+      real(r_kind), dimension(ids:ide) :: PB
+      real(r_kind), dimension(ids:ide) :: PT
       
       real(r_kind), dimension(kds:kde) :: sqrtG_P_L
       real(r_kind), dimension(kds:kde) :: sqrtG_P_R
@@ -348,10 +348,10 @@ MODULE spatial_operators_mod
       
       !$OMP PARALLEL DO PRIVATE(qrec)
       do k = kds,kde
-        !qrec   = P(ids:ids+2,k)
-        !PpL(k) = left_side_recon3(qrec)
-        !qrec   = P(ide-2:ide,k)
-        !PpR(k) = right_side_recon3(qrec)
+        !qrec  = P(ids:ids+2,k)
+        !PL(k) = left_side_recon3(qrec)
+        !qrec  = P(ide-2:ide,k)
+        !PR(k) = right_side_recon3(qrec)
         
         qrec         = sqrtG(ids:ids+2,k) * P(ids:ids+2,k)
         sqrtG_P_L(k) = left_side_recon3(qrec)
@@ -619,7 +619,7 @@ MODULE spatial_operators_mod
       w        = w3 / sqrtGrho
       !p        = p0*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))**((cpd*w1 + cpv*w5)/(cvd*w1 + cvv*w5))
       p_pert   = p - p_ref
-      if(abs(p_pert)/p_ref<1.e-14)p_pert=0 !!!!!!!!!!!!!!!!!!!!! error ! tolerance must be set larger than 1.e-13
+      if(abs(p_pert)/p_ref<1.e-13)p_pert=0 !!!!!!!!!!!!!!!!!!!!! error ! tolerance must be set larger than 1.e-13
       
       ww = w / sqrtG + G13 * u
       
