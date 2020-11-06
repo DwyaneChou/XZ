@@ -48,7 +48,7 @@
       call history_write_stat(stat(old),output_idx)
       print*,'output index/total',output_idx-1,'/',total_output_num
       
-      total_mass0 = sum(stat(old)%q(1,:,:))
+      total_mass0 = sum(stat(old)%q(1,ids:ide,kds:kde))
       
       do it = 1,nsteps
         if(trim(adjustl(integral_scheme)) == 'RK3_TVD')then
@@ -64,7 +64,7 @@
         endif
         
         if( mod( it, output_interval )==0 .and. ( it >= output_interval ) )then
-          total_mass = sum(stat(new)%q(1,:,:))!calc_total_mass     (stat(new))
+          total_mass = sum(stat(new)%q(1,ids:ide,kds:kde))!calc_total_mass     (stat(new))
           
           MCR = ( total_mass - total_mass0 ) / total_mass0
           
