@@ -103,6 +103,8 @@
       Qip(2) = Q(3)
       
       left_side_recon3 = Qip(2)/3. - 7./6. * Qip(1) + 11./6. * Qi
+      !left_side_recon3 = 1.5 * Qi - 0.5 * Qip(1)
+      !left_side_recon3 = 3. / 8. * Qip(2) - 5./4. * Qip(1) + 15./8. * Qi
     
     end function left_side_recon3
     
@@ -119,6 +121,8 @@
       Qi     = Q(3)
       
       right_side_recon3 = Qim(2)/3. - 7./6. * Qim(1) + 11./6. * Qi
+      !right_side_recon3 = 1.5 * Qi - 0.5 * Qim(1)
+      !right_side_recon3 = 3. / 8. * Qim(2) - 5./4. * Qim(1) + 15./8. * Qi
     
     end function right_side_recon3
   end module reconstruction_mod

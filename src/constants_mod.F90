@@ -24,7 +24,7 @@ MODULE constants_mod
   real(r_kind),parameter :: pih       = 0.5_r16 *pi
   real(r_kind),parameter :: pi2       = 2._r16  *pi
   real(r_kind),parameter :: Inf       = huge(Inf)
-  real(r_kind),parameter :: tolerance = 10.**(-r_kind*2+1) ! Tolerant parameter, choose from tiny(1._r_kind), 10.**(-r_kind*2+1)
+  real(r_kind),parameter :: tolerance = 1.e-12 ! Tolerant parameter, choose from tiny(1._r_kind), 10.**(-r_kind*2+1)
   
   real(r_kind),parameter :: gravity   = 9.80616
   
