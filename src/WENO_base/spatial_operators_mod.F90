@@ -288,6 +288,15 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
+      ! Fix near boundary interfaces
+      do iVar = 1,nVar
+        He(iVar,ids:ide,kds+1) = 0.5 * ( H(iVar,ids:ide,kds  ) + H(iVar,ids:ide,kds+1) )
+        He(iVar,ids:ide,kds+2) = 0.5 * ( H(iVar,ids:ide,kds+1) + H(iVar,ids:ide,kds+2) )
+        
+        He(iVar,ids:ide,kde  ) = 0.5 * ( H(iVar,ids:ide,kde  ) + H(iVar,ids:ide,kde-1) )
+        He(iVar,ids:ide,kde-1) = 0.5 * ( H(iVar,ids:ide,kde-1) + H(iVar,ids:ide,kde-2) )
+      enddo
+      
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1,iVar,dFe,dHe)
       do k = kds,kde
         do i = ids,ide
