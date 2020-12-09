@@ -177,10 +177,14 @@ MODULE spatial_operators_mod
       q_ext = FillValue
       q_ext(:,ids:ide,kds:kde) = stat%q(:,ids:ide,kds:kde)
       
+      if(case_num==2)then
+        call fill_constant_inflow(q_ext,ref%q)
+      endif
+      
       ! Calculate P, F, H and eigenvalues
       !$OMP PARALLEL DO PRIVATE(i)
-      do k = kds,kde
-        do i = ids,ide
+      do k = kds,kce
+        do i = ics,ice
           P    (  i,k) = calc_pressure(sqrtG(i,k),q_ext(:,i,k))
           F    (:,i,k) = calc_F(sqrtG(i,k),q_ext(:,i,k),P(i,k))
           H    (:,i,k) = calc_H(sqrtG(i,k),G13(i,k),q_ext(:,i,k),P(i,k),P_ref(i,k))
@@ -191,14 +195,10 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      ! Reconstruction
-      !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
+      ! Reconstruction X
+      !$OMP PARALLEL DO PRIVATE(i,ip1,im1,ip2,im2,iVar,q_weno,dir)
       do k = kds,kde
-        kp1 = k + 1
-        km1 = k - 1
-        kp2 = k + 2
-        km2 = k - 2
-        do i = ids,ide
+        do i = ids-1,ide+1
           ip1 = i + 1
           im1 = i - 1
           ip2 = i + 2
@@ -210,17 +210,30 @@ MODULE spatial_operators_mod
             dir = 1
             call WENO_limiter(FR(iVar,i,k),q_weno,dir)
             
-            q_weno = H(iVar,i,km2:kp2)
-            dir = -1
-            call WENO_limiter(HB(iVar,i,k),q_weno,dir)
-            dir = 1
-            call WENO_limiter(HT(iVar,i,k),q_weno,dir)
-            
             q_weno = q_ext(iVar,im2:ip2,k)
             dir = -1
             call WENO_limiter(qL(iVar,i,k),q_weno,dir)
             dir = 1
             call WENO_limiter(qR(iVar,i,k),q_weno,dir)
+          enddo
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
+      
+      ! Reconstruction Z
+      !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,iVar,q_weno,dir)
+      do k = kds,kde+1
+        kp1 = k + 1
+        km1 = k - 1
+        kp2 = k + 2
+        km2 = k - 2
+        do i = ids,ide
+          do iVar = 1,nVar
+            q_weno = H(iVar,i,km2:kp2)
+            dir = -1
+            call WENO_limiter(HB(iVar,i,k),q_weno,dir)
+            dir = 1
+            call WENO_limiter(HT(iVar,i,k),q_weno,dir)
             
             q_weno = q_ext(iVar,i,km2:kp2)
             dir = -1
@@ -235,7 +248,7 @@ MODULE spatial_operators_mod
       ! initialize source terms
       src = 0.
       
-      call bdy_condition(Fe,He,P,stat%q,ref%q,src)
+      call bdy_condition(P,stat%q,ref%q,src)
       
       rho_p = ( stat%q(1,ids:ide,kds:kde) + stat%q(5,ids:ide,kds:kde) &
               - ref%q (1,ids:ide,kds:kde) - ref%q (5,ids:ide,kds:kde) ) / sqrtG(ids:ide,kds:kde)
@@ -308,9 +321,7 @@ MODULE spatial_operators_mod
       
     end subroutine spatial_operator
     
-    subroutine bdy_condition(Fe,He,P,q,q_ref,src)
-      real(r_kind), dimension(nVar,ids:ide+1,kds:kde  ), intent(inout) :: Fe
-      real(r_kind), dimension(nVar,ids:ide  ,kds:kde+1), intent(inout) :: He
+    subroutine bdy_condition(P,q,q_ref,src)
       real(r_kind), dimension(     ics:ice  ,kcs:kce  ), intent(in   ) :: P
       real(r_kind), dimension(nVar,ics:ice  ,kcs:kce  ), intent(in   ) :: q
       real(r_kind), dimension(nVar,ics:ice  ,kcs:kce  ), intent(in   ) :: q_ref
@@ -400,18 +411,28 @@ MODULE spatial_operators_mod
         HT(3,ids:ide,kde) = PpT!PT(ids:ide,kde) - PT_ref(ids:ide,kde)
         HT(4,ids:ide,kde) = 0
         HT(5,ids:ide,kde) = 0
-      elseif(case_num==2)then
-        FL(1,ids,kds:kde) = q_ref(2,ids,kds:kde)
-        FL(2,ids,kds:kde) = q_ref(2,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde) + sqrtG_P_L!sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
-        FL(3,ids,kds:kde) = q_ref(3,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde)
-        FL(4,ids,kds:kde) = q_ref(4,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde)
-        FL(5,ids,kds:kde) = 0
+      
+        FR(:,ids-1,kds:kde) = FL(:,ids,kds:kde)
+        FL(:,ide+1,kds:kde) = FR(:,ide,kds:kde)
+        HT(:,ids:ide,kds-1) = HB(:,ids:ide,kds)
+        HB(:,ids:ide,kde+1) = HT(:,ids:ide,kde)
         
-        FR(1,ide,kds:kde) = q_ref(2,ide,kds:kde)
-        FR(2,ide,kds:kde) = q_ref(2,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde) + sqrtG_P_R!sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
-        FR(3,ide,kds:kde) = q_ref(3,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde)
-        FR(4,ide,kds:kde) = q_ref(4,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde)
-        FR(5,ide,kds:kde) = 0
+        qR(:,ids-1,kds:kde) = qL(:,ids,kds:kde)
+        qL(:,ide+1,kds:kde) = qR(:,ide,kds:kde)
+        qT(:,ids:ide,kds-1) = qB(:,ids:ide,kds)
+        qB(:,ids:ide,kde+1) = qT(:,ids:ide,kde)
+      elseif(case_num==2)then
+        !FL(1,ids,kds:kde) = q_ref(2,ids,kds:kde)
+        !FL(2,ids,kds:kde) = q_ref(2,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde) + sqrtG_P_L!sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
+        !FL(3,ids,kds:kde) = q_ref(3,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde)
+        !FL(4,ids,kds:kde) = q_ref(4,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde)
+        !FL(5,ids,kds:kde) = 0
+        
+        !FR(1,ide,kds:kde) = q_ref(2,ide,kds:kde)
+        !FR(2,ide,kds:kde) = q_ref(2,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde) + sqrtG_P_R!sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
+        !FR(3,ide,kds:kde) = q_ref(3,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde)
+        !FR(4,ide,kds:kde) = q_ref(4,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde)
+        !FR(5,ide,kds:kde) = 0
         
         HB(1,ids:ide,kds) = 0
         HB(2,ids:ide,kds) = sqrtG_G13_P_B!sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) * PB(ids:ide,kds)
@@ -419,59 +440,63 @@ MODULE spatial_operators_mod
         HB(4,ids:ide,kds) = 0
         HB(5,ids:ide,kds) = 0
         
-        HT(1,ids:ide,kde) = 0
-        HT(2,ids:ide,kde) = sqrtG_G13_P_T!sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) * PT(ids:ide,kde)
-        HT(3,ids:ide,kde) = PpT!PT(ids:ide,kde) - PT_ref(ids:ide,kde)
-        HT(4,ids:ide,kde) = 0
-        HT(5,ids:ide,kde) = 0
+        !HT(1,ids:ide,kde) = 0
+        !HT(2,ids:ide,kde) = sqrtG_G13_P_T!sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) * PT(ids:ide,kde)
+        !HT(3,ids:ide,kde) = PpT!PT(ids:ide,kde) - PT_ref(ids:ide,kde)
+        !HT(4,ids:ide,kde) = 0
+        !HT(5,ids:ide,kde) = 0
         
-        ! Nonreflecting condition
-        kls = kds
-        kle = kde-bdy_width
-        its = ids+bdy_width
-        ite = ide-bdy_width
-        ! calculate relax coefficients
-        !max_exp = exp( ( real( bdy_width - 1 ) / real(bdy_width) )**exp_ceof ) - 1.
-        do i = 1,bdy_width
-          relax_coef(i) = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
-          !relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
-        enddo
+        !! Nonreflecting condition
+        !kls = kds
+        !kle = kde-bdy_width
+        !its = ids+bdy_width
+        !ite = ide-bdy_width
+        !! calculate relax coefficients
+        !!max_exp = exp( ( real( bdy_width - 1 ) / real(bdy_width) )**exp_ceof ) - 1.
+        !do i = 1,bdy_width
+        !  relax_coef(i) = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
+        !  !relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
+        !enddo
+        !
+        !! pure zone
+        !do i = 1,bdy_width
+        !  il = i
+        !  ir = ide-i+1
+        !  kt = kde-i+1
+        !  do iVar = vs,ve
+        !    !src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
+        !    !src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
+        !    !src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
+        !    
+        !    !src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
+        !    !src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
+        !    src(iVar,ids:ide,kt     ) = - relax_coef(i) * ( q(iVar,ids:ide,kt) - q_ref(iVar,ids:ide,kt) )
+        !  enddo
+        !enddo
+        !
+        !!!overlap zone
+        !!do k = 1,bdy_width
+        !!  do i = 1,bdy_width
+        !!    il = i
+        !!    ir = ide-i+1
+        !!    kt = kde-i+1
+        !!    do iVar = vs,ve
+        !!      !src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
+        !!      src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
+        !!    enddo
+        !!  enddo
+        !!enddo
         
-        ! pure zone
-        do i = 1,bdy_width
-          il = i
-          ir = ide-i+1
-          kt = kde-i+1
-          do iVar = vs,ve
-            src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
-            src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
-            src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
-          enddo
-        enddo
+        !FR(:,ids-1,kds:kde) = FL(:,ids,kds:kde)
+        !FL(:,ide+1,kds:kde) = FR(:,ide,kds:kde)
+        HT(:,ids:ide,kds-1) = HB(:,ids:ide,kds)
+        !HB(:,ids:ide,kde+1) = HT(:,ids:ide,kde)
         
-        !overlap zone
-        do k = 1,bdy_width
-          do i = 1,bdy_width
-            il = i
-            ir = ide-i+1
-            kt = kde-i+1
-            do iVar = vs,ve
-              src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
-              src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
-            enddo
-          enddo
-        enddo
+        !qR(:,ids-1,kds:kde) = qL(:,ids,kds:kde)
+        !qL(:,ide+1,kds:kde) = qR(:,ide,kds:kde)
+        qT(:,ids:ide,kds-1) = qB(:,ids:ide,kds)
+        !qB(:,ids:ide,kde+1) = qT(:,ids:ide,kde)
       endif
-      
-      FR(:,ids-1,kds:kde) = FL(:,ids,kds:kde)
-      FL(:,ide+1,kds:kde) = FR(:,ide,kds:kde)
-      HT(:,ids:ide,kds-1) = HB(:,ids:ide,kds)
-      HB(:,ids:ide,kde+1) = HT(:,ids:ide,kde)
-      
-      qR(:,ids-1,kds:kde) = qL(:,ids,kds:kde)
-      qL(:,ide+1,kds:kde) = qR(:,ide,kds:kde)
-      qT(:,ids:ide,kds-1) = qB(:,ids:ide,kds)
-      qB(:,ids:ide,kde+1) = qT(:,ids:ide,kde)
       
     end subroutine bdy_condition
     
@@ -500,6 +525,35 @@ MODULE spatial_operators_mod
       endif
       
     end subroutine fill_ghost
+    
+    subroutine fill_periodic_x(q)
+      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: q
+      
+      integer(i_kind) i,k
+      
+      do i = 1,extPts
+        ! left side
+        q(:,ids-i,kds:kde) = q(:,ide-i+1,kds:kde)
+        ! right side
+        q(:,ide+i,kds:kde) = q(:,ids+i-1,kds:kde)
+      enddo
+      
+    end subroutine fill_periodic_x
+    
+    subroutine fill_constant_inflow(q,q_ref)
+      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: q
+      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
+      
+      integer(i_kind) i,k
+      
+      ! left side
+      q(:,ics:ids-1,kds:kde) = q_ref(:,ics:ids-1,kds:kde)
+      ! right side
+      q(:,ide+1:ice,kds:kde) = q_ref(:,ide+1:ice,kds:kde)
+      ! top
+      q(:,ids:ide,kde+1:kce) = q_ref(:,ids:ide,kde+1:kce)
+      
+    end subroutine fill_constant_inflow
     
     function calc_pressure(sqrtG,q)
       real(r_kind) calc_pressure
