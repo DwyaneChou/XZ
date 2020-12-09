@@ -177,14 +177,10 @@ MODULE spatial_operators_mod
       q_ext = FillValue
       q_ext(:,ids:ide,kds:kde) = stat%q(:,ids:ide,kds:kde)
       
-      if(case_num==2)then
-        call fill_constant_inflow(q_ext,ref%q)
-      endif
-      
       ! Calculate P, F, H and eigenvalues
       !$OMP PARALLEL DO PRIVATE(i)
       do k = kds,kde
-        do i = ics,ice
+        do i = ids,ide
           P    (  i,k) = calc_pressure(sqrtG(i,k),q_ext(:,i,k))
           F    (:,i,k) = calc_F(sqrtG(i,k),q_ext(:,i,k),P(i,k))
           H    (:,i,k) = calc_H(sqrtG(i,k),G13(i,k),q_ext(:,i,k),P(i,k),P_ref(i,k))
@@ -195,10 +191,17 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
+      ! case 2 with periodic x boundary
+      if(case_num==2)then
+        call fill_periodic_x(q_ext)
+        call fill_periodic_x(F)
+        call fill_periodic_x(H)
+      endif
+      
       ! Reconstruction X
-      !$OMP PARALLEL DO PRIVATE(i,ip1,im1,ip2,im2,iVar,q_weno,dir)
+      !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
       do k = kds,kde
-        do i = ids-1,ide
+        do i = ids-1,ide+1
           ip1 = i + 1
           im1 = i - 1
           ip2 = i + 2
@@ -221,7 +224,7 @@ MODULE spatial_operators_mod
       !$OMP END PARALLEL DO
       
       ! Reconstruction Y
-      !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,iVar,q_weno,dir)
+      !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
       do k = kds,kde
         kp1 = k + 1
         km1 = k - 1
@@ -422,18 +425,6 @@ MODULE spatial_operators_mod
         qT(:,ids:ide,kds-1) = qB(:,ids:ide,kds)
         qB(:,ids:ide,kde+1) = qT(:,ids:ide,kde)
       elseif(case_num==2)then
-        !FL(1,ids,kds:kde) = q_ref(2,ids,kds:kde)
-        !FL(2,ids,kds:kde) = q_ref(2,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde) + sqrtG_P_L!sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
-        !FL(3,ids,kds:kde) = q_ref(3,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde)
-        !FL(4,ids,kds:kde) = q_ref(4,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde)
-        !FL(5,ids,kds:kde) = 0
-        
-        FR(1,ide,kds:kde) = q_ref(2,ide,kds:kde)
-        FR(2,ide,kds:kde) = q_ref(2,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde) + sqrtG_P_R!sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
-        FR(3,ide,kds:kde) = q_ref(3,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde)
-        FR(4,ide,kds:kde) = q_ref(4,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde)
-        FR(5,ide,kds:kde) = 0
-        
         HB(1,ids:ide,kds) = 0
         HB(2,ids:ide,kds) = sqrtG_G13_P_B!sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) * PB(ids:ide,kds)
         HB(3,ids:ide,kds) = PpB!PB(ids:ide,kds) - PB_ref(ids:ide,kds)
@@ -468,32 +459,26 @@ MODULE spatial_operators_mod
             !src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
             !src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
             
-            !src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
-            src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
-            src(iVar,ids:ite,kt     ) = - relax_coef(i) * ( q(iVar,ids:ite,kt) - q_ref(iVar,ids:ite,kt) )
+            src(iVar,ids:ide,kt     ) = - relax_coef(i) * ( q(iVar,ids:ide,kt) - q_ref(iVar,ids:ide,kt) )
           enddo
         enddo
         
-        !overlap zone
-        do k = 1,bdy_width
-          do i = 1,bdy_width
-            il = i
-            ir = ide-i+1
-            kt = kde-i+1
-            do iVar = vs,ve
-              !src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
-              src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
-            enddo
-          enddo
-        enddo
+        !!overlap zone
+        !do k = 1,bdy_width
+        !  do i = 1,bdy_width
+        !    il = i
+        !    ir = ide-i+1
+        !    kt = kde-i+1
+        !    do iVar = vs,ve
+        !      src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
+        !      src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
+        !    enddo
+        !  enddo
+        !enddo
         
-        !FR(:,ids-1,kds:kde) = FL(:,ids,kds:kde)
-        FL(:,ide+1,kds:kde) = FR(:,ide,kds:kde)
         HT(:,ids:ide,kds-1) = HB(:,ids:ide,kds)
         HB(:,ids:ide,kde+1) = HT(:,ids:ide,kde)
         
-        !qR(:,ids-1,kds:kde) = qL(:,ids,kds:kde)
-        qL(:,ide+1,kds:kde) = qR(:,ide,kds:kde)
         qT(:,ids:ide,kds-1) = qB(:,ids:ide,kds)
         qB(:,ids:ide,kde+1) = qT(:,ids:ide,kde)
       endif
@@ -539,17 +524,6 @@ MODULE spatial_operators_mod
       enddo
       
     end subroutine fill_periodic_x
-    
-    subroutine fill_constant_inflow(q,q_ref)
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: q
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
-      
-      integer(i_kind) i,k
-      
-      ! left side
-      q(:,ics:ids-1,kds:kde) = q_ref(:,ics:ids-1,kds:kde)
-      
-    end subroutine fill_constant_inflow
     
     function calc_pressure(sqrtG,q)
       real(r_kind) calc_pressure
