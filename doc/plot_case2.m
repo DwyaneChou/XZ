@@ -1,10 +1,10 @@
 clc
 clear
 
-ncfile    = '..\run\output_xz_2.nc';
+ncfile    = '..\run\output_xz_2_v2_WENO3.nc';
 % ncfile    = '..\run\output_xz_2_3pts.nc';
 pic_path  = '.\';
-varname   = 'w';
+varname   = 'u';
 
 time_start = 1;
 time_end   = 601;
