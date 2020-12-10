@@ -372,11 +372,11 @@ MODULE spatial_operators_mod
       He(4,ids:ide,kds) = 0
       He(5,ids:ide,kds) = 0
       
-      He(1,ids:ide,kde) = 0
-      He(2,ids:ide,kde) = sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) *  PT(ids:ide,kde)
-      He(3,ids:ide,kde) = PT(ids:ide,kde) - PT_ref(ids:ide,kde)
-      He(4,ids:ide,kde) = 0
-      He(5,ids:ide,kde) = 0
+      He(1,ids:ide,kde+1) = 0
+      He(2,ids:ide,kde+1) = sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) *  PT(ids:ide,kde)
+      He(3,ids:ide,kde+1) = PT(ids:ide,kde) - PT_ref(ids:ide,kde)
+      He(4,ids:ide,kde+1) = 0
+      He(5,ids:ide,kde+1) = 0
       
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1)
       do k = kds,kde
