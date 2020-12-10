@@ -345,57 +345,57 @@ module mesh_mod
       !  enddo
       !enddo
       
-      !! Reconstruct mertric tensor by WENO
-      !q_ext(1,:,:) = sqrtG
-      !q_ext(2,:,:) = G13
-      !!$OMP PARALLEL DO PRIVATE(i,ip1,im1,ip2,im2,iVar,q_weno,dir,kp1,km1,kp2,km2)
-      !do k = kds,kde
-      !  kp1 = k + 1
-      !  km1 = k - 1
-      !  kp2 = k + 2
-      !  km2 = k - 2
-      !  do i = ids,ide
-      !    ip1 = i + 1
-      !    im1 = i - 1
-      !    ip2 = i + 2
-      !    im2 = i - 2
-      !    do iVar = 1,nMertric
-      !      ! x-dir
-      !      q_weno = q_ext(iVar,im2:ip2,k)
-      !      if(im1<ids             )q_weno(1:2) = FillValue
-      !      if(im2<ids.and.im1>=ids)q_weno(1  ) = FillValue
-      !      if(ip1>ide             )q_weno(4:5) = FillValue
-      !      if(ip2>ide.and.ip1<=ide)q_weno(5  ) = FillValue
-      !      
-      !      dir = -1
-      !      call WENO_limiter(qL(iVar,i,k),q_weno,dir)
-      !      dir = 1
-      !      call WENO_limiter(qR(iVar,i,k),q_weno,dir)
-      !      
-      !      ! z-dir
-      !      q_weno = q_ext(iVar,i,km2:kp2)
-      !      if(km1<kds             )q_weno(1:2) = FillValue
-      !      if(km2<kds.and.km1>=kds)q_weno(1  ) = FillValue
-      !      if(kp1>kde             )q_weno(4:5) = FillValue
-      !      if(kp2>kde.and.kp1<=kde)q_weno(5  ) = FillValue
-      !      
-      !      dir = -1
-      !      call WENO_limiter(qB(iVar,i,k),q_weno,dir)
-      !      dir = 1
-      !      call WENO_limiter(qT(iVar,i,k),q_weno,dir)
-      !    enddo
-      !  enddo
-      !enddo
-      !!$OMP END PARALLEL DO
-      !sqrtGL(ids:ide,kds:kde) = qL(1,:,:)
-      !sqrtGR(ids:ide,kds:kde) = qR(1,:,:)
-      !sqrtGB(ids:ide,kds:kde) = qB(1,:,:)
-      !sqrtGT(ids:ide,kds:kde) = qT(1,:,:)
-      !
-      !G13L  (ids:ide,kds:kde) = qL(2,:,:)
-      !G13R  (ids:ide,kds:kde) = qR(2,:,:)
-      !G13B  (ids:ide,kds:kde) = qB(2,:,:)
-      !G13T  (ids:ide,kds:kde) = qT(2,:,:)
+      ! Reconstruct mertric tensor by WENO
+      q_ext(1,:,:) = sqrtG
+      q_ext(2,:,:) = G13
+      !$OMP PARALLEL DO PRIVATE(i,ip1,im1,ip2,im2,iVar,q_weno,dir,kp1,km1,kp2,km2)
+      do k = kds,kde
+        kp1 = k + 1
+        km1 = k - 1
+        kp2 = k + 2
+        km2 = k - 2
+        do i = ids,ide
+          ip1 = i + 1
+          im1 = i - 1
+          ip2 = i + 2
+          im2 = i - 2
+          do iVar = 1,nMertric
+            ! x-dir
+            q_weno = q_ext(iVar,im2:ip2,k)
+            if(im1<ids             )q_weno(1:2) = FillValue
+            if(im2<ids.and.im1>=ids)q_weno(1  ) = FillValue
+            if(ip1>ide             )q_weno(4:5) = FillValue
+            if(ip2>ide.and.ip1<=ide)q_weno(5  ) = FillValue
+            
+            dir = -1
+            call WENO_limiter(qL(iVar,i,k),q_weno,dir)
+            dir = 1
+            call WENO_limiter(qR(iVar,i,k),q_weno,dir)
+            
+            ! z-dir
+            q_weno = q_ext(iVar,i,km2:kp2)
+            if(km1<kds             )q_weno(1:2) = FillValue
+            if(km2<kds.and.km1>=kds)q_weno(1  ) = FillValue
+            if(kp1>kde             )q_weno(4:5) = FillValue
+            if(kp2>kde.and.kp1<=kde)q_weno(5  ) = FillValue
+            
+            dir = -1
+            call WENO_limiter(qB(iVar,i,k),q_weno,dir)
+            dir = 1
+            call WENO_limiter(qT(iVar,i,k),q_weno,dir)
+          enddo
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
+      sqrtGL(ids:ide,kds:kde) = qL(1,ids:ide,kds:kde)
+      sqrtGR(ids:ide,kds:kde) = qR(1,ids:ide,kds:kde)
+      sqrtGB(ids:ide,kds:kde) = qB(1,ids:ide,kds:kde)
+      sqrtGT(ids:ide,kds:kde) = qT(1,ids:ide,kds:kde)
+      
+      G13L  (ids:ide,kds:kde) = qL(2,ids:ide,kds:kde)
+      G13R  (ids:ide,kds:kde) = qR(2,ids:ide,kds:kde)
+      G13B  (ids:ide,kds:kde) = qB(2,ids:ide,kds:kde)
+      G13T  (ids:ide,kds:kde) = qT(2,ids:ide,kds:kde)
       
     end subroutine init_vertical_coordinate
 end module mesh_mod

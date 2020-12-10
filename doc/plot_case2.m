@@ -7,11 +7,9 @@ pic_path  = '.\';
 varname   = 'u';
 
 time_start = 1;
-time_end   = 539;
+time_end   = 601;
 
 it = time_end;
-
-history_interval = 5;
 
 R2D    = 180/pi;
 radius = 6371229;
@@ -58,4 +56,4 @@ colormap(jet)
 % 
 % % output picture
 % title([varname,' at ',num2str((it-1)*history_interval),' second(s)'])
-print(gcf,'-r600','-dpng',[pic_path,'\',varname,'_',num2str(it-1,'%.4d'),'.png']);
+% print(gcf,'-r600','-dpng',[pic_path,'\',varname,'_',num2str(it-1,'%.4d'),'.png']);
