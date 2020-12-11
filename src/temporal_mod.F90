@@ -45,7 +45,6 @@ module temporal_mod
       tend(new)%q = RK4_weight(1) * tend(k1)%q + RK4_weight(2) * tend(k2)%q + RK4_weight(3) * tend(k3)%q + RK4_weight(4) * tend(k4)%q
       
       call update_stat (stat_new, stat_old, tend(new), dt)
-
     end subroutine RK4
     
     subroutine RK3_TVD(stat_new,stat_old)
