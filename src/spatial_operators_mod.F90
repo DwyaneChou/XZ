@@ -51,6 +51,8 @@ MODULE spatial_operators_mod
       
   real(r_kind), dimension(  :,:), allocatable :: eig_x
   real(r_kind), dimension(  :,:), allocatable :: eig_z
+      
+  real(r_kind), dimension(:,:), allocatable :: relax_coef ! Relax coefficient of Rayleigh damping
   
   real(r_kind) maxeigen_x
   real(r_kind) maxeigen_z
@@ -106,6 +108,8 @@ MODULE spatial_operators_mod
       allocate(eig_x (ics:ice,kcs:kce))
       allocate(eig_z (ics:ice,kcs:kce))
       
+      allocate(relax_coef(ics:ice,kcs:kce))
+      
       P     = FillValue
       P_ref = FillValue
       F     = FillValue
@@ -153,10 +157,13 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
+      ! Calculate Rayleigh damping coef
+      call Rayleigh_coef(relax_coef)
+      
     end subroutine init_spatial_operator
     
     subroutine spatial_operator(stat,tend)
-      type(stat_field), target, intent(in   ) :: stat
+      type(stat_field), target, intent(inout) :: stat
       type(tend_field), target, intent(inout) :: tend
       
       real(r_kind), dimension(5) :: q_weno
@@ -172,6 +179,9 @@ MODULE spatial_operators_mod
       
       real(r_kind) dFe
       real(r_kind) dHe
+      
+      ! Attension stat is changed here!
+      call Rayleigh_damping(stat%q,ref%q)
       
       ! copy stat
       q_ext = FillValue
@@ -327,22 +337,8 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(nVar,ics:ice  ,kcs:kce  ), intent(in   ) :: q_ref
       real(r_kind), dimension(nVar,ids:ide  ,kds:kde  ), intent(inout) :: src
       
-      integer(i_kind), parameter :: vs = 3
-      integer(i_kind), parameter :: ve = 3
-      integer(i_kind), parameter :: bdy_width = 40
-      real   (r_kind), parameter :: exp_ceof  = 2
-      
       integer(i_kind) dir,sign
       integer(i_kind) i,k,iVar
-      
-      integer(i_kind) il,ir
-      integer(i_kind) kt
-      
-      integer(i_kind) kls,kle ! pure lateral boundary layer indices
-      integer(i_kind) its,ite ! pure top boundary layer indices
-      
-      real(r_kind) :: relax_coef(bdy_width)
-      real(r_kind) :: max_exp
       
       real(r_kind) :: qrec(3)
       
@@ -446,47 +442,6 @@ MODULE spatial_operators_mod
         HT(4,ids:ide,kde) = 0
         HT(5,ids:ide,kde) = 0
         
-        ! Nonreflecting condition
-        kls = kds
-        kle = kde-bdy_width
-        its = ids+bdy_width
-        ite = ide-bdy_width
-        ! calculate relax coefficients
-        !max_exp = exp( ( real( bdy_width - 1 ) / real(bdy_width) )**exp_ceof ) - 1.
-        do i = 1,bdy_width
-          relax_coef(i) = ( real( bdy_width - i + 1 ) / real( bdy_width ) )**4 / dt
-          !relax_coef(i) = ( exp( ( real( bdy_width - i ) / real(bdy_width) )**exp_ceof ) - 1. ) / ( max_exp * dt )
-        enddo
-        
-        ! pure zone
-        do i = 1,bdy_width
-          il = i
-          ir = ide-i+1
-          kt = kde-i+1
-          do iVar = vs,ve
-            !src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
-            !src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
-            !src(iVar,its:ite,kt     ) = - relax_coef(i) * ( q(iVar,its:ite,kt) - q_ref(iVar,its:ite,kt) )
-            
-            !src(iVar,il     ,kls:kle) = - relax_coef(i) * ( q(iVar,il,kls:kle) - q_ref(iVar,il,kls:kle) )
-            !src(iVar,ir     ,kls:kle) = - relax_coef(i) * ( q(iVar,ir,kls:kle) - q_ref(iVar,ir,kls:kle) )
-            src(iVar,ids:ide,kt     ) = - relax_coef(i) * ( q(iVar,ids:ide,kt) - q_ref(iVar,ids:ide,kt) )
-          enddo
-        enddo
-        
-        !!!overlap zone
-        !!do k = 1,bdy_width
-        !!  do i = 1,bdy_width
-        !!    il = i
-        !!    ir = ide-i+1
-        !!    kt = kde-i+1
-        !!    do iVar = vs,ve
-        !!      !src(iVar,il,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,il,kt) - q_ref(iVar,il,kt) )
-        !!      src(iVar,ir,kt) = - max( relax_coef(i), relax_coef(k) ) * ( q(iVar,ir,kt) - q_ref(iVar,ir,kt) )
-        !!    enddo
-        !!  enddo
-        !!enddo
-        
         !FR(:,ids-1,kds:kde) = FL(:,ids,kds:kde)
         !FL(:,ide+1,kds:kde) = FR(:,ide,kds:kde)
         HT(:,ids:ide,kds-1) = HB(:,ids:ide,kds)
@@ -554,6 +509,78 @@ MODULE spatial_operators_mod
       !q(:,ids:ide,kde+1:kce) = q_ref(:,ids:ide,kde+1:kce)
       
     end subroutine fill_constant_inflow
+    
+    subroutine Rayleigh_damping(q,q_ref)
+      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: q
+      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
+      
+      integer(i_kind), parameter :: vs = 3
+      integer(i_kind), parameter :: ve = 3
+      
+      integer i,k,iVar
+      
+      do iVar = vs,ve
+        q(iVar,ids:ide,kds:kde) = q(iVar,ids:ide,kds:kde) - relax_coef(ids:ide,kds:kde) * ( q(iVar,ids:ide,kds:kde) - q_ref(iVar,ids:ide,kds:kde) )
+      enddo
+    end subroutine Rayleigh_damping
+    
+    ! Rayleigh damping
+    subroutine Rayleigh_coef(mu)
+      real(r_kind), dimension(ics:ice,kcs:kce), intent(out) :: mu
+      
+      real(r_kind), dimension(ics:ice,kcs:kce) :: muT
+      real(r_kind), dimension(ics:ice,kcs:kce) :: muL
+      real(r_kind), dimension(ics:ice,kcs:kce) :: muR
+      
+      real(r_kind), parameter :: topSpongeThickness   = 9000
+      real(r_kind), parameter :: leftSpongeThickness  = 10000
+      real(r_kind), parameter :: rightSpongeThickness = 10000
+      
+      real(r_kind), parameter :: mu_max = 1
+      
+      real(r_kind) zd, zt
+      
+      integer i,k
+      
+      muT = 0
+      muL = 0
+      muR = 0
+      
+      ! Top
+      zt = z_max
+      zd = zt - topSpongeThickness
+      where( z > zd )
+        !muT = mu_max * sin( pi / 2. * ( z - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+        muT = mu_max * ( ( z - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
+      elsewhere
+        muT = 0.
+      endwhere
+      
+      !! Left
+      !zt = -x_min
+      !zd = zt - leftSpongeThickness
+      !where( abs(x) > zd )
+      !  muL = mu_max * sin( pi / 2. * ( abs(x) - zd ) / ( zt - zd ) )**2
+      !elsewhere
+      !  muL = 0.
+      !endwhere
+      !
+      !! Right
+      !zt = x_max
+      !zd = zt - rightSpongeThickness
+      !where( x > zd )
+      !  muR = mu_max * sin( pi / 2. * ( x - zd ) / ( zt - zd ) )**2
+      !elsewhere
+      !  muR = 0.
+      !endwhere
+      
+      do k = kds,kde
+        do i = ids,ide
+          mu(i,k) = max( muT(i,k), muL(i,k), muR(i,k) )
+        enddo
+      enddo
+    
+    end subroutine Rayleigh_coef
     
     function calc_pressure(sqrtG,q)
       real(r_kind) calc_pressure

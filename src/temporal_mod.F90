@@ -142,8 +142,6 @@ module temporal_mod
       type(stat_field), intent(inout) :: stat_new
       type(stat_field), intent(inout) :: stat_old
       
-      integer :: iPoint
-      
       !call copyStat(stat(k1),stat_old)
       
       call spatial_operator (stat_old, tend(k1))
