@@ -445,8 +445,8 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(ics:ice,kcs:kce) :: muR
       
       real(r_kind), parameter :: topSpongeThickness   = 9000
-      real(r_kind), parameter :: leftSpongeThickness  = 15000
-      real(r_kind), parameter :: rightSpongeThickness = 15000
+      real(r_kind), parameter :: leftSpongeThickness  = 10000
+      real(r_kind), parameter :: rightSpongeThickness = 10000
       
       real(r_kind), parameter :: mu_max = 1
       
@@ -462,28 +462,29 @@ MODULE spatial_operators_mod
       zt = z_max
       zd = zt - topSpongeThickness
       where( z > zd )
-        muT = mu_max * sin( pi / 2. * ( z - zd ) / ( zt - zd ) )**2
+        !muT = mu_max * sin( pi / 2. * ( z - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+        muT = mu_max * ( ( z - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
       elsewhere
         muT = 0.
       endwhere
       
-      ! Left
-      zt = -x_min
-      zd = zt - leftSpongeThickness
-      where( abs(x) > zd )
-        muL = mu_max * sin( pi / 2. * ( abs(x) - zd ) / ( zt - zd ) )**2
-      elsewhere
-        muL = 0.
-      endwhere
-      
-      ! Right
-      zt = x_max
-      zd = zt - rightSpongeThickness
-      where( x > zd )
-        muR = mu_max * sin( pi / 2. * ( x - zd ) / ( zt - zd ) )**2
-      elsewhere
-        muR = 0.
-      endwhere
+      !! Left
+      !zt = -x_min
+      !zd = zt - leftSpongeThickness
+      !where( abs(x) > zd )
+      !  muL = mu_max * sin( pi / 2. * ( abs(x) - zd ) / ( zt - zd ) )**2
+      !elsewhere
+      !  muL = 0.
+      !endwhere
+      !
+      !! Right
+      !zt = x_max
+      !zd = zt - rightSpongeThickness
+      !where( x > zd )
+      !  muR = mu_max * sin( pi / 2. * ( x - zd ) / ( zt - zd ) )**2
+      !elsewhere
+      !  muR = 0.
+      !endwhere
       
       do k = kds,kde
         do i = ids,ide
