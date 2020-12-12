@@ -426,8 +426,8 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: q
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
       
-      integer(i_kind), parameter :: vs = 1
-      integer(i_kind), parameter :: ve = 5
+      integer(i_kind), parameter :: vs = 3
+      integer(i_kind), parameter :: ve = 3
       
       integer i,k,iVar
       
@@ -444,9 +444,9 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(ics:ice,kcs:kce) :: muL
       real(r_kind), dimension(ics:ice,kcs:kce) :: muR
       
-      real(r_kind), parameter :: topSpongeThickness   = 9000
-      real(r_kind), parameter :: leftSpongeThickness  = 10000
-      real(r_kind), parameter :: rightSpongeThickness = 10000
+      real(r_kind), parameter :: topSpongeThickness   = 8000
+      real(r_kind), parameter :: leftSpongeThickness  = 0!10000
+      real(r_kind), parameter :: rightSpongeThickness = 0!10000
       
       real(r_kind), parameter :: mu_max = 1
       
@@ -468,23 +468,23 @@ MODULE spatial_operators_mod
         muT = 0.
       endwhere
       
-      !! Left
-      !zt = -x_min
-      !zd = zt - leftSpongeThickness
-      !where( abs(x) > zd )
-      !  muL = mu_max * sin( pi / 2. * ( abs(x) - zd ) / ( zt - zd ) )**2
-      !elsewhere
-      !  muL = 0.
-      !endwhere
-      !
-      !! Right
-      !zt = x_max
-      !zd = zt - rightSpongeThickness
-      !where( x > zd )
-      !  muR = mu_max * sin( pi / 2. * ( x - zd ) / ( zt - zd ) )**2
-      !elsewhere
-      !  muR = 0.
-      !endwhere
+      ! Left
+      zt = -x_min
+      zd = zt - leftSpongeThickness
+      where( abs(x) > zd )
+        muL = mu_max * sin( pi / 2. * ( abs(x) - zd ) / ( zt - zd ) )**2
+      elsewhere
+        muL = 0.
+      endwhere
+      
+      ! Right
+      zt = x_max
+      zd = zt - rightSpongeThickness
+      where( x > zd )
+        muR = mu_max * sin( pi / 2. * ( x - zd ) / ( zt - zd ) )**2
+      elsewhere
+        muR = 0.
+      endwhere
       
       do k = kds,kde
         do i = ids,ide

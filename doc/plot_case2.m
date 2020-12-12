@@ -4,10 +4,10 @@ clear
 ncfile    = '..\run\output_xz_2.nc';
 % ncfile    = '..\run\output_xz_2_3pts.nc';
 pic_path  = '.\';
-varname   = 'w';
+varname   = 'u';
 
 time_start = 1;
-time_end   = 601;
+time_end   = 101;
 
 it = time_end;
 
