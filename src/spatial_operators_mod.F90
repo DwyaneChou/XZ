@@ -560,7 +560,8 @@ MODULE spatial_operators_mod
       zt = -x_min
       zd = zt - leftSpongeThickness
       where( abs(x) > zd )
-        muL = mu_max * sin( pi / 2. * ( abs(x) - zd ) / ( zt - zd ) )**2
+        !muT = mu_max * sin( pi / 2. * ( abs(x) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+        muT = mu_max * ( ( abs(x) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
       elsewhere
         muL = 0.
       endwhere
@@ -569,7 +570,8 @@ MODULE spatial_operators_mod
       zt = x_max
       zd = zt - rightSpongeThickness
       where( x > zd )
-        muR = mu_max * sin( pi / 2. * ( x - zd ) / ( zt - zd ) )**2
+        !muT = mu_max * sin( pi / 2. * ( x - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+        muT = mu_max * ( ( x - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
       elsewhere
         muR = 0.
       endwhere
