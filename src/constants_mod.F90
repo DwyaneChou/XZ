@@ -28,16 +28,27 @@ MODULE constants_mod
   
   real(r_kind),parameter :: gravity   = 9.80616
   
+  !! thermal dynamic constants
+  !real(r_kind),parameter :: Rd        = 287.0583
+  !real(r_kind),parameter :: Rv        = 461.5233
+  !real(r_kind),parameter :: p0        = 100000. ! base pressure in Pa
+  !real(r_kind),parameter :: Md        = 0.0289644
+  !real(r_kind),parameter :: Mv        = 0.01801528
+  !real(r_kind),parameter :: eq        = Md / Mv - 1.
+  !real(r_kind),parameter :: Cpd       = 1005.
+  !real(r_kind),parameter :: Cpv       = 1846.
+  !real(r_kind),parameter :: Cvd       = 718.
+  !real(r_kind),parameter :: Cvv       = 1385.
+  
   ! thermal dynamic constants
-  real(r_kind),parameter :: Rd        = 287.0583
+  real(r_kind),parameter :: Rd        = 287.
   real(r_kind),parameter :: Rv        = 461.5233
   real(r_kind),parameter :: p0        = 100000. ! base pressure in Pa
   real(r_kind),parameter :: Md        = 0.0289644
   real(r_kind),parameter :: Mv        = 0.01801528
   real(r_kind),parameter :: eq        = Md / Mv - 1.
-  real(r_kind),parameter :: Cpd       = 1005.
+  real(r_kind),parameter :: Cpd       = 1004.5
   real(r_kind),parameter :: Cpv       = 1846.
-  real(r_kind),parameter :: Cvd       = 718.
+  real(r_kind),parameter :: Cvd       = 717.5
   real(r_kind),parameter :: Cvv       = 1385.
-  
 END MODULE constants_mod
