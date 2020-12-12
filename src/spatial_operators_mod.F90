@@ -108,7 +108,7 @@ MODULE spatial_operators_mod
       
       ! Set reference pressure
       q_ext = ref%q
-      call bdy_condition(q_ext,q_ext,ref%q,src)
+      call fill_ghost(q_ext,ref%q)
       !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
       do k = kds,kde
         kp1 = k + 1
@@ -172,21 +172,19 @@ MODULE spatial_operators_mod
       integer(i_kind) kp2,km2
       
       ! Attension stat is changed here!
-      call Rayleigh_damping(stat%q,ref%q)
+      if(case_num==2)call Rayleigh_damping(stat%q,ref%q)
       
       ! copy stat
       q_ext = stat%q
       
-      ! initialize source terms
-      src = 0.
-      
-      ! Set no flux and nonreflecting boundary condition
-      call bdy_condition(q_ext,stat%q,ref%q,src)
+      ! Fill ghost cells
+      call fill_ghost(q_ext,ref%q)
       
       ! Reconstruct X
       !$OMP PARALLEL DO PRIVATE(i,iVar,ip1,im1,ip2,im2,q_weno,dir)
       do k = kds,kde
-        do i = ids-1,ide+1
+        !do i = ids-1,ide+1
+        do i = ids,ide
           ip1 = i + 1
           im1 = i - 1
           ip2 = i + 2
@@ -225,6 +223,7 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
+      ! Boundary Condition
       ! Fill boundary
       if(case_num==1)then
         qL(2,ids,:) = 0
@@ -232,34 +231,31 @@ MODULE spatial_operators_mod
         qB(3,:,kds) = 0
         qT(3,:,kde) = 0
       elseif(case_num==2)then
-        !qL(2,ids,:) = ref%q(2,ids,kds:kde)
-        !qR(2,ide,:) = ref%q(2,ide,kds:kde)
-        !qL(2,ids,:) = ref%q(2,ids,kds:kde) / ref%q(1,ids,kds:kde) * q_ext(1,ids,kds:kde)
-        !qR(2,ide,:) = ref%q(2,ide,kds:kde) / ref%q(1,ide,kds:kde) * q_ext(1,ids,kds:kde)
-        !qB(3,:,kds) = -sqrtGB(:,kds) * G13B(:,kds) * qB(2,:,kds)
-        !qT(3,:,kde) = -sqrtGT(:,kde) * G13T(:,kde) * qT(2,:,kde)
+        qL(2,ids,kds:kde) = ref%q(2,ids,kds:kde)
+        qR(2,ide,kds:kde) = ref%q(2,ide,kds:kde)
+        !qL(2,ids,kds:kde) = ref%q(2,ids,kds:kde) / ref%q(1,ids,kds:kde) * q_ext(1,ids,kds:kde)
+        !qR(2,ide,kds:kde) = ref%q(2,ide,kds:kde) / ref%q(1,ide,kds:kde) * q_ext(1,ids,kds:kde)
+        qB(3,:,kds) = -sqrtGB(:,kds) * G13B(:,kds) * qB(2,:,kds)
+        qT(3,:,kde) = -sqrtGT(:,kde) * G13T(:,kde) * qT(2,:,kde)
       endif
       
-      !! left boundary
-      !qR(:,irs,:) = qL(:,ids,:)
-      !FR(:,irs,:) = FL(:,ids,:)
-      !
-      !! right boundary
-      !qL(:,ile,:) = qR(:,ide,:)
-      !FL(:,ile,:) = FR(:,ide,:)
+      ! left boundary
+      qR(:,ids-1,:) = qL(:,ids,:)
+      
+      ! right boundary
+      qL(:,ide+1,:) = qR(:,ide,:)
       
       ! bottom boundary
       qT(:,:,kds-1) = qB(:,:,kds)
-      HT(:,:,kds-1) = HB(:,:,kds)
       
       ! top boundary
       qB(:,:,kde+1) = qT(:,:,kde)
-      HB(:,:,kde+1) = HT(:,:,kde)
       
       ! Calculate functions X
       !$OMP PARALLEL DO PRIVATE(i)
       do k = kds,kde
-        do i = ids-1,ide+1
+        !do i = ids-1,ide+1
+        do i = ids,ide
           PL(i,k) = calc_pressure(sqrtGL(i,k),qL(:,i,k))
           PR(i,k) = calc_pressure(sqrtGR(i,k),qR(:,i,k))
           
@@ -268,6 +264,8 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
+      FR(:,ids-1,:) = FL(:,ids,:)
+      FL(:,ide+1,:) = FR(:,ide,:)
       
       ! Calculate functions Z
       !$OMP PARALLEL DO PRIVATE(i)
@@ -281,6 +279,11 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
+      HT(:,:,kds-1) = HB(:,:,kds)
+      HB(:,:,kde+1) = HT(:,:,kde)
+      
+      ! initialize source terms
+      src = 0.
       
       rho_p = ( stat%q(1,ids:ide,kds:kde) + stat%q(5,ids:ide,kds:kde) &
               - ref%q (1,ids:ide,kds:kde) - ref%q (5,ids:ide,kds:kde) ) / sqrtG(ids:ide,kds:kde)
@@ -292,18 +295,26 @@ MODULE spatial_operators_mod
       ! Calculate eigenvalues x-dir
       !$OMP PARALLEL DO PRIVATE(i)
       do k = kds,kde
-        do i = ids-1,ide+1
+        do i = ids,ide
           eig_x(i,k) = calc_eigenvalue_x(sqrtG(i,k),q_ext(:,i,k))
         enddo
+        i = ids - 1
+        eig_x(i,k) = 0
+        i = ide + 1
+        eig_x(i,k) = 0
       enddo
       !$OMP END PARALLEL DO
       
       ! Calculate eigenvalues z-dir
-      !$OMP PARALLEL DO PRIVATE(i)
-      do k = kds-1,kde+1
-        do i = ids,ide
+      !$OMP PARALLEL DO PRIVATE(k)
+      do i = ids,ide
+        do k = kds,kde
           eig_z(i,k) = calc_eigenvalue_z(sqrtG(i,k),G13(i,k),q_ext(:,i,k))
         enddo
+        k = kds - 1
+        eig_z(i,k) = 0
+        k = kde + 1
+        eig_z(i,k) = 0
       enddo
       !$OMP END PARALLEL DO
       
@@ -349,19 +360,6 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      ! No flux boundary
-      He(1,ids:ide,kds) = 0
-      He(2,ids:ide,kds) = sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) *  PB(ids:ide,kds)
-      He(3,ids:ide,kds) = PB(ids:ide,kds) - PB_ref(ids:ide,kds)
-      He(4,ids:ide,kds) = 0
-      He(5,ids:ide,kds) = 0
-      
-      He(1,ids:ide,kde+1) = 0
-      He(2,ids:ide,kde+1) = sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) *  PT(ids:ide,kde)
-      He(3,ids:ide,kde+1) = PT(ids:ide,kde) - PT_ref(ids:ide,kde)
-      He(4,ids:ide,kde+1) = 0
-      He(5,ids:ide,kde+1) = 0
-      
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1)
       do k = kds,kde
         do i = ids,ide
@@ -374,11 +372,9 @@ MODULE spatial_operators_mod
       
     end subroutine spatial_operator
     
-    subroutine bdy_condition(q_ext,q,q_ref,src)
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: q_ext
-      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q
+    subroutine fill_ghost(q,q_ref)
+      real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: q
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
-      real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(inout) :: src
       
       integer(i_kind) dir
       integer(i_kind) i,k,iVar
@@ -386,48 +382,48 @@ MODULE spatial_operators_mod
       if(case_num==1)then
         ! No-flux
         ! left
-        q_ext(:,ics:ids-1,:) = FillValue
+        q(:,ics:ids-1,:) = FillValue
         
         ! right
-        q_ext(:,ide+1:ice,:) = FillValue
+        q(:,ide+1:ice,:) = FillValue
         
         ! bottom
-        q_ext(:,:,kcs:kds-1) = FillValue
+        q(:,:,kcs:kds-1) = FillValue
         
         ! top
-        q_ext(:,:,kde+1:kce) = FillValue
+        q(:,:,kde+1:kce) = FillValue
         
       elseif(case_num==2)then
-        !! left
-        !q_ext(:,ics:ids-1,:) = FillValue
-        !!q_ext(:,ids:ids+2,:) = q_ref(:,ids:ids+2,:)
-        !
-        !! right
-        !q_ext(:,ide+1:ice,:) = FillValue
-        !!q_ext(:,ide-2:ide,:) = q_ref(:,ide-2:ide,:)
-        
         ! left
-        q_ext(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
+        q(:,ics:ids-1,:) = FillValue
+        !q(:,ids:ids+2,:) = q_ref(:,ids:ids+2,:)
         
         ! right
-        q_ext(:,ide+1:ice,:) = q_ref(:,ide+1:ice,:)
+        q(:,ide+1:ice,:) = FillValue
+        !q(:,ide-2:ide,:) = q_ref(:,ide-2:ide,:)
+        
+        !! left
+        !q(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
+        !
+        !! right
+        !q(:,ide+1:ice,:) = q_ref(:,ide+1:ice,:)
         
         ! bottom
-        q_ext(:,:,kcs:kds-1) = FillValue
+        q(:,:,kcs:kds-1) = FillValue
         
         ! top
-        q_ext(:,:,kde+1:kce) = FillValue
+        q(:,:,kde+1:kce) = FillValue
         
       endif
       
-    end subroutine bdy_condition
+    end subroutine fill_ghost
     
     subroutine Rayleigh_damping(q,q_ref)
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: q
       real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
       
-      integer(i_kind), parameter :: vs = 3
-      integer(i_kind), parameter :: ve = 3
+      integer(i_kind), parameter :: vs = 1
+      integer(i_kind), parameter :: ve = 5
       
       integer i,k,iVar
       
@@ -444,11 +440,11 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(ics:ice,kcs:kce) :: muL
       real(r_kind), dimension(ics:ice,kcs:kce) :: muR
       
-      real(r_kind), parameter :: topSpongeThickness   = 8000
-      real(r_kind), parameter :: leftSpongeThickness  = 0!10000
-      real(r_kind), parameter :: rightSpongeThickness = 0!10000
+      real(r_kind), parameter :: topSpongeThickness   = 9000
+      real(r_kind), parameter :: leftSpongeThickness  = 10000
+      real(r_kind), parameter :: rightSpongeThickness = 10000
       
-      real(r_kind), parameter :: mu_max = 1
+      real(r_kind), parameter :: mu_max = 0.02!0.15
       
       real(r_kind) zd, zt
       
@@ -495,32 +491,6 @@ MODULE spatial_operators_mod
       enddo
     
     end subroutine Rayleigh_coef
-    
-    subroutine fill_ghost(q_ext,q,dir,sign)
-      real   (r_kind), dimension(ics:ice,kcs:kce), intent(out) :: q_ext
-      real   (r_kind), dimension(ids:ide,kds:kde), intent(in ) :: q
-      integer(i_kind)                            , intent(in ) :: dir
-      integer(i_kind)                            , intent(in ) :: sign
-      
-      integer(i_kind) i,k
-      
-      q_ext(ids:ide,kds:kde) = q
-      
-      if(dir == 1)then
-        ! x-dir
-        do i = 1,extPts
-          q_ext(ids-i,kds:kde) = sign * q(ids+i-1,kds:kde)
-          q_ext(ide+i,kds:kde) = sign * q(ide-i+1,kds:kde)
-        enddo
-      elseif(dir == 2)then
-        ! z-dir
-        do k = 1,extPts
-          q_ext(ids:ide,kds-k) = sign * q(ids:ide,kds+k-1)
-          q_ext(ids:ide,kde+k) = sign * q(ids:ide,kde-k+1)
-        enddo
-      endif
-      
-    end subroutine fill_ghost
     
     function calc_pressure(sqrtG,q)
       real(r_kind) calc_pressure
