@@ -440,12 +440,12 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(ics:ice,kcs:kce) :: muL
       real(r_kind), dimension(ics:ice,kcs:kce) :: muR
       
-      real(r_kind), parameter :: topSpongeThickness   = 11000
+      real(r_kind), parameter :: topSpongeThickness   = 12000
       real(r_kind), parameter :: leftSpongeThickness  = 10000
       real(r_kind), parameter :: rightSpongeThickness = 10000
       
-      real(r_kind), parameter :: mu_max_top = 0.1
-      real(r_kind), parameter :: mu_max_lat = 0.1
+      real(r_kind), parameter :: mu_max_top = 0.5
+      real(r_kind), parameter :: mu_max_lat = 0.5
       
       real(r_kind) zd, zt
       

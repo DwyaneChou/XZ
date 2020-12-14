@@ -7,7 +7,7 @@ pic_path  = '.\';
 varname   = 'w';
 
 time_start = 1;
-time_end   = 76;
+time_end   = 71;
 
 it = time_end;
 
