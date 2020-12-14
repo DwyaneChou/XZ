@@ -255,6 +255,13 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
+      if(case_num==2)then
+        qL(2,ids,kds:kde) = ref%q(2,ids,kds:kde)
+        qR(2,ide,kds:kde) = ref%q(2,ide,kds:kde)
+        qB(3,ids:ide,kds) = -sqrtGB(:,kds) * G13B(:,kds) * qB(2,:,kds)
+        qT(3,ids:ide,kde) = -sqrtGT(:,kde) * G13T(:,kde) * qT(2,:,kde)
+      endif
+      
       ! initialize source terms
       src = 0.
       
@@ -524,7 +531,7 @@ MODULE spatial_operators_mod
       enddo
     end subroutine Rayleigh_damping
     
-    ! Rayleigh damping
+    ! Rayleigh damping ( Wong and Stull, MWR, 2015 )
     subroutine Rayleigh_coef(mu)
       real(r_kind), dimension(ics:ice,kcs:kce), intent(out) :: mu
       
@@ -532,11 +539,12 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(ics:ice,kcs:kce) :: muL
       real(r_kind), dimension(ics:ice,kcs:kce) :: muR
       
-      real(r_kind), parameter :: topSpongeThickness   = 8000
-      real(r_kind), parameter :: leftSpongeThickness  = 0!10000
-      real(r_kind), parameter :: rightSpongeThickness = 0!10000
+      real(r_kind), parameter :: topSpongeThickness   = 10000
+      real(r_kind), parameter :: leftSpongeThickness  = 10000
+      real(r_kind), parameter :: rightSpongeThickness = 10000
       
-      real(r_kind), parameter :: mu_max = 1
+      real(r_kind), parameter :: mu_max_top = 0.02
+      real(r_kind), parameter :: mu_max_lat = 0.02
       
       real(r_kind) zd, zt
       
@@ -544,14 +552,14 @@ MODULE spatial_operators_mod
       
       muT = 0
       muL = 0
-      muR = 0
+      MuR = 0
       
       ! Top
       zt = z_max
       zd = zt - topSpongeThickness
       where( z > zd )
-        !muT = mu_max * sin( pi / 2. * ( z - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
-        muT = mu_max * ( ( z - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
+        !muT = mu_max_top * sin( pi / 2. * ( z - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+        muT = mu_max_top * ( ( z - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
       elsewhere
         muT = 0.
       endwhere
@@ -560,8 +568,8 @@ MODULE spatial_operators_mod
       zt = -x_min
       zd = zt - leftSpongeThickness
       where( abs(x) > zd )
-        !muT = mu_max * sin( pi / 2. * ( abs(x) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
-        muT = mu_max * ( ( abs(x) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
+        !muT = mu_max_lat * sin( pi / 2. * ( abs(x) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+        muT = mu_max_lat * ( ( abs(x) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
       elsewhere
         muL = 0.
       endwhere
@@ -570,8 +578,8 @@ MODULE spatial_operators_mod
       zt = x_max
       zd = zt - rightSpongeThickness
       where( x > zd )
-        !muT = mu_max * sin( pi / 2. * ( x - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
-        muT = mu_max * ( ( x - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
+        !muT = mu_max_lat * sin( pi / 2. * ( abs(x) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+        muT = mu_max_lat * ( ( abs(x) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
       elsewhere
         muR = 0.
       endwhere
