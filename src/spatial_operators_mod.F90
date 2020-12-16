@@ -225,7 +225,7 @@ MODULE spatial_operators_mod
       
       ! Boundary Condition
       ! Fill boundary
-      if(case_num==1)then
+      if(case_num==1.or.case_num==3)then
         qL(2,ids,:) = 0
         qR(2,ide,:) = 0
         qB(3,:,kds) = 0
@@ -379,43 +379,55 @@ MODULE spatial_operators_mod
       integer(i_kind) dir
       integer(i_kind) i,k,iVar
       
-      if(case_num==1)then
-        ! No-flux
-        ! left
-        q(:,ics:ids-1,:) = FillValue
-        
-        ! right
-        q(:,ide+1:ice,:) = FillValue
-        
-        ! bottom
-        q(:,:,kcs:kds-1) = FillValue
-        
-        ! top
-        q(:,:,kde+1:kce) = FillValue
-        
-      elseif(case_num==2)then
-        ! left
-        q(:,ics:ids-1,:) = FillValue
-        !q(:,ids:ids+2,:) = q_ref(:,ids:ids+2,:)
-        
-        ! right
-        q(:,ide+1:ice,:) = FillValue
-        !q(:,ide-2:ide,:) = q_ref(:,ide-2:ide,:)
-        
-        !! left
-        !q(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
-        !
-        !! right
-        !q(:,ide+1:ice,:) = q_ref(:,ide+1:ice,:)
-        
-        ! bottom
-        q(:,:,kcs:kds-1) = FillValue
-        
-        ! top
-        q(:,:,kde+1:kce) = FillValue
-        
-      endif
+      !if(case_num==1)then
+      !  ! No-flux
+      !  ! left
+      !  q(:,ics:ids-1,:) = FillValue
+      !  
+      !  ! right
+      !  q(:,ide+1:ice,:) = FillValue
+      !  
+      !  ! bottom
+      !  q(:,:,kcs:kds-1) = FillValue
+      !  
+      !  ! top
+      !  q(:,:,kde+1:kce) = FillValue
+      !  
+      !elseif(case_num==2)then
+      !  ! left
+      !  q(:,ics:ids-1,:) = FillValue
+      !  !q(:,ids:ids+2,:) = q_ref(:,ids:ids+2,:)
+      !  
+      !  ! right
+      !  q(:,ide+1:ice,:) = FillValue
+      !  !q(:,ide-2:ide,:) = q_ref(:,ide-2:ide,:)
+      !  
+      !  !! left
+      !  !q(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
+      !  !
+      !  !! right
+      !  !q(:,ide+1:ice,:) = q_ref(:,ide+1:ice,:)
+      !  
+      !  ! bottom
+      !  q(:,:,kcs:kds-1) = FillValue
+      !  
+      !  ! top
+      !  q(:,:,kde+1:kce) = FillValue
+      !  
+      !endif
       
+      ! No-flux
+      ! left
+      q(:,ics:ids-1,:) = FillValue
+      
+      ! right
+      q(:,ide+1:ice,:) = FillValue
+      
+      ! bottom
+      q(:,:,kcs:kds-1) = FillValue
+      
+      ! top
+      q(:,:,kde+1:kce) = FillValue
     end subroutine fill_ghost
     
     subroutine Rayleigh_damping(q,q_ref)
@@ -440,9 +452,9 @@ MODULE spatial_operators_mod
       real(r_kind), dimension(ics:ice,kcs:kce) :: muL
       real(r_kind), dimension(ics:ice,kcs:kce) :: muR
       
-      real(r_kind), parameter :: topSpongeThickness   = 12000
-      real(r_kind), parameter :: leftSpongeThickness  = 10000
-      real(r_kind), parameter :: rightSpongeThickness = 10000
+      real(r_kind), parameter :: topSpongeThickness   = 12000  ! 12000 for "best" result
+      real(r_kind), parameter :: leftSpongeThickness  = 10000  ! 10000 for "best" result
+      real(r_kind), parameter :: rightSpongeThickness = 10000  ! 10000 for "best" result
       
       real(r_kind), parameter :: mu_max_top = 0.15
       real(r_kind), parameter :: mu_max_lat = 0.15

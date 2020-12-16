@@ -148,6 +148,16 @@ module parameters_mod
       x_max = 25000.
       z_min = 0.
       z_max = 21000.
+    elseif(case_num==3)then
+      print*,'Density Current case is selected'
+      print*,'Reset x_min to -26.5 km'
+      print*,'Reset x_max to  26.5 km'
+      print*,'Reset z_min to  0  km'
+      print*,'Reset z_max to  6.4 km'
+      x_min = -26500.
+      x_max = 26500.
+      z_min = 0.
+      z_max = 6400.
     else
       stop 'Unknow case_num'
     endif
