@@ -407,7 +407,9 @@ module test_case_mod
       ref%q = q_ref
       
       ! Set theta perturbation
-      where(r<=1.)theta = theta_bar + dtheta * ( cos(pi*r) + 1. )
+      where(r<=1.)theta = theta_bar + dtheta * ( cos(pi*r) + 1. )/2.
+      
+      viscosity_coef = 75
       
       stat%q(1,:,:) = sqrtG * rho
       stat%q(2,:,:) = sqrtG * rho * u

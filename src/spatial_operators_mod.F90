@@ -4,7 +4,7 @@ MODULE spatial_operators_mod
   use parameters_mod
   use stat_mod
   use tend_mod
-  use reconstruction_mod, only: weno_limiter
+  use reconstruction_mod
   implicit none
   
   private
@@ -54,6 +54,8 @@ MODULE spatial_operators_mod
   real(r_kind), dimension(:,:), allocatable :: eig_z
       
   real(r_kind), dimension(:,:), allocatable :: relax_coef ! Relax coefficient of Rayleigh damping
+  
+  real(r_kind), dimension(:,:,:), allocatable :: q_diff ! u wind, for viscosity terms only
   
     contains
     subroutine init_spatial_operator
@@ -105,6 +107,8 @@ MODULE spatial_operators_mod
       allocate(eig_z(     ics:ice,kcs:kce))
       
       allocate(relax_coef(ics:ice,kcs:kce))
+      
+      allocate(q_diff(nVar,ics:ice,kcs:kce))
       
       ! Set reference pressure
       q_ext = ref%q
@@ -359,6 +363,74 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
+      
+      ! Viscosity terms for Density Current case only
+      if(case_num==3)then
+        do iVar = 2,4
+          q_diff(iVar,ids:ide,kds:kde) = q_ext(iVar,ids:ide,kds:kde) / q_ext(1,ids:ide,kds:kde)
+        enddo
+        
+        !do k = kde,kde
+        !  ! Left bdy
+        !  i = ids
+        !  do iVar = 2,4
+        !    Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef *  qL(1,i,k) * dqdxL(q_diff(iVar,i:i+2,k),dx)
+        !  enddo
+        !  i = ids + 1
+        !  do iVar = 2,4
+        !    Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qL(1,i,k) + qR(1,i-1,k) ) / 2. * dqdxC(q_diff(iVar,i-1:i,k),dx)
+        !  enddo
+        !  
+        !  ! Right bdy
+        !  i = ide
+        !  do iVar = 2,4
+        !    Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * qR(1,i,k) * dqdxR(q_diff(iVar,i-2:i,k),dx)
+        !  enddo
+        !  i = ide - 1
+        !  do iVar = 2,4
+        !    Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qR(1,i,k) + qL(1,i+1,k) ) / 2. * dqdxC(q_diff(iVar,i-1:i,k),dx)
+        !  enddo
+        !enddo
+        
+        do i = ids,ide
+          ! Bottom bdy
+          k = kds
+          do iVar = 2,4
+            He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * qB(1,i,k) * dqdxL(q_diff(iVar,i,k:k+2),deta)
+          enddo
+          !k = kds + 1
+          !do iVar = 2,4
+          !  He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * ( qB(1,i,k) + qT(1,i,k-1) ) / 2. * dqdxC(q_diff(iVar,i,k-1:k),deta)
+          !enddo
+          
+          !! Top bdy
+          !k = kde
+          !do iVar = 2,4
+          !  He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * qT(1,i,k) * dqdxR(q_diff(iVar,i,k-2:k),deta)
+          !enddo
+          !k = kde - 1
+          !do iVar = 2,4
+          !  He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * ( qB(1,i,k+1) + qT(1,i,k) ) / 2. * dqdxC(q_diff(iVar,i,k:k+1),deta)
+          !enddo
+        enddo
+        
+        !! Center domain
+        !do k = kds,kde
+        !  do i = ids+2,ide-2
+        !    do iVar = 2,4
+        !      Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qR(1,i,k) + qL(1,i+1,k) ) / 2. * dqdx(q_diff(iVar,i-2:i+1,k),dx)
+        !    enddo
+        !  enddo
+        !enddo
+        !
+        !do k = kds+2,kde-2
+        !  do i = ids,ide
+        !    do iVar = 2,4
+        !      He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * ( qT(1,i,k) + qB(1,i,k+1) ) / 2. * dqdx(q_diff(iVar,i,k-2:k+1),deta)
+        !    enddo
+        !  enddo
+        !enddo
+      endif
       
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1)
       do k = kds,kde

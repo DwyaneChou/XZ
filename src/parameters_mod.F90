@@ -39,6 +39,8 @@ module parameters_mod
   
   integer(i_kind), parameter :: extPts = 3
   
+  real   (r_kind) :: viscosity_coef ! For viscosity term in Density Current case
+  
   integer(i_kind) :: ids, ide
   integer(i_kind) :: kds, kde
   integer(i_kind) :: ics, ice
@@ -150,12 +152,12 @@ module parameters_mod
       z_max = 21000.
     elseif(case_num==3)then
       print*,'Density Current case is selected'
-      print*,'Reset x_min to -26.5 km'
-      print*,'Reset x_max to  26.5 km'
+      print*,'Reset x_min to -25.6 km'
+      print*,'Reset x_max to  25.6 km'
       print*,'Reset z_min to  0  km'
       print*,'Reset z_max to  6.4 km'
-      x_min = -26500.
-      x_max = 26500.
+      x_min = -25600.
+      x_max = 25600.
       z_min = 0.
       z_max = 6400.
     else
