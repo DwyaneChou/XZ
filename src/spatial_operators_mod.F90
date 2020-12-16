@@ -444,8 +444,8 @@ MODULE spatial_operators_mod
       real(r_kind), parameter :: leftSpongeThickness  = 10000
       real(r_kind), parameter :: rightSpongeThickness = 10000
       
-      real(r_kind), parameter :: mu_max_top = 0.5
-      real(r_kind), parameter :: mu_max_lat = 0.5
+      real(r_kind), parameter :: mu_max_top = 0.15
+      real(r_kind), parameter :: mu_max_lat = 0.15
       
       real(r_kind) zd, zt
       
