@@ -181,7 +181,7 @@ MODULE spatial_operators_mod
       real(r_kind) dHe
       
       ! Attension stat is changed here!
-      call Rayleigh_damping(stat%q,ref%q)
+      if(case_num==2)call Rayleigh_damping(stat%q,ref%q)
       
       ! copy stat
       q_ext = FillValue
@@ -208,7 +208,8 @@ MODULE spatial_operators_mod
       ! Reconstruction X
       !$OMP PARALLEL DO PRIVATE(i,ip1,im1,ip2,im2,iVar,q_weno,dir)
       do k = kds,kde
-        do i = ids-1,ide+1
+        !do i = ids-1,ide+1
+        do i = ids,ide
           ip1 = i + 1
           im1 = i - 1
           ip2 = i + 2
@@ -390,7 +391,7 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      if(case_num==1)then
+      if(case_num==1.or.case_num==3)then
         FL(1,ids,kds:kde) = 0
         FL(2,ids,kds:kde) = sqrtG_P_L!sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
         FL(3,ids,kds:kde) = 0
