@@ -367,69 +367,38 @@ MODULE spatial_operators_mod
       ! Viscosity terms for Density Current case only
       if(case_num==3)then
         do iVar = 2,4
+          ! Scheme 1
           q_diff(iVar,ids:ide,kds:kde) = q_ext(iVar,ids:ide,kds:kde) / q_ext(1,ids:ide,kds:kde)
-        enddo
-        
-        do k = kde,kde
-          ! Left bdy
-          i = ids
-          do iVar = 2,4
-            Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef *  qL(1,i,k) * dqdxL(q_diff(iVar,i:i+2,k),dx)
-          enddo
-          i = ids + 1
-          do iVar = 2,4
-            Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qL(1,i,k) + qR(1,i-1,k) ) / 2. * dqdxC(q_diff(iVar,i-1:i,k),dx)
-          enddo
           
-          ! Right bdy
-          i = ide
-          do iVar = 2,4
-            Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * qR(1,i,k) * dqdxR(q_diff(iVar,i-2:i,k),dx)
-          enddo
-          i = ide - 1
-          do iVar = 2,4
-            Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qR(1,i,k) + qL(1,i+1,k) ) / 2. * dqdxC(q_diff(iVar,i-1:i,k),dx)
-          enddo
-        enddo
-        
-        do i = ids,ide
-          ! Bottom bdy
-          k = kds
-          do iVar = 2,4
-            He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * qB(1,i,k) * dqdxL(q_diff(iVar,i,k:k+2),deta) / sqrtGB(i,k)**2
-          enddo
-          k = kds + 1
-          do iVar = 2,4
-            He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * ( qB(1,i,k) + qT(1,i,k-1) ) / 2. * dqdxC(q_diff(iVar,i,k-1:k),deta) / ( ( sqrtGB(i,k) + sqrtGT(i,k-1) ) / 2. )**2
-          enddo
+          q_diff(iVar,ids:ide,kds-1) = ref%q(iVar,ids:ide,kds-1) / ref%q(1,ids:ide,kds-1) ! bottom
+          q_diff(iVar,ids:ide,kde+1) = ref%q(iVar,ids:ide,kde+1) / ref%q(1,ids:ide,kde+1) ! top
+          q_diff(iVar,ids-1,kds:kde) = ref%q(iVar,ids-1,kds:kde) / ref%q(1,ids-1,kds:kde) ! left
+          q_diff(iVar,ide+1,kds:kde) = ref%q(iVar,ide+1,kds:kde) / ref%q(1,ide+1,kds:kde) ! right
           
-          ! Top bdy
-          k = kde
-          do iVar = 2,4
-            He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * qT(1,i,k) * dqdxR(q_diff(iVar,i,k-2:k),deta) / sqrtGT(i,k)**2
-          enddo
-          k = kde - 1
-          do iVar = 2,4
-            He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * ( qB(1,i,k+1) + qT(1,i,k) ) / 2. * dqdxC(q_diff(iVar,i,k:k+1),deta) / ( ( sqrtGB(i,k+1) + sqrtGT(i,k) ) / 2. )**2
-          enddo
+          ! Scheme 2
+          !q_diff(iVar,ids:ide,kds:kde) = q_ext(iVar,ids:ide,kds:kde)
+          
+          !q_diff(iVar,ids:ide,kds-1) = ref%q(iVar,ids:ide,kds-1) ! bottom
+          !q_diff(iVar,ids:ide,kde+1) = ref%q(iVar,ids:ide,kde+1) ! top
+          !q_diff(iVar,ids-1,kds:kde) = ref%q(iVar,ids-1,kds:kde) ! left
+          !q_diff(iVar,ide+1,kds:kde) = ref%q(iVar,ide+1,kds:kde) ! right
         enddo
         
-        ! Center domain
-        do k = kds,kde
-          do i = ids+2,ide-2
+        !$OMP PARALLEL DO PRIVATE(i,iVar)
+        do k = kds+1,kde-1
+          do i = ids+1,ide-1
             do iVar = 2,4
-              Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qR(1,i,k) + qL(1,i+1,k) ) / 2. * dqdx(q_diff(iVar,i-2:i+1,k),dx)
+              ! Scheme 1
+              src(iVar,i,k) = src(iVar,i,k) + viscosity_coef * q_ext(1,i,k) * ( ( q_diff(iVar,i+1,k) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i-1,k) ) / dx  **2 &
+                                                                              + ( q_diff(iVar,i,k+1) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i,k-1) ) / deta**2 / sqrtG(i,k)**2 )
+              
+              ! Scheme 2
+              !src(iVar,i,k) = src(iVar,i,k) + ( ( q_diff(iVar,i+1,k) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i-1,k) )&
+              !                                + ( q_diff(iVar,i,k+1) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i,k-1) )) / 1024 / dt
             enddo
           enddo
         enddo
-        
-        do k = kds+2,kde-2
-          do i = ids,ide
-            do iVar = 2,4
-              He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * ( qT(1,i,k) + qB(1,i,k+1) ) / 2. * dqdx(q_diff(iVar,i,k-2:k+1),deta) / ( ( sqrtGB(i,k+1) + sqrtGT(i,k) ) / 2. )**2
-            enddo
-          enddo
-        enddo
+        !$OMP END PARALLEL DO
       endif
       
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1)

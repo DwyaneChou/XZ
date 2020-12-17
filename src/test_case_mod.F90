@@ -408,6 +408,7 @@ module test_case_mod
       
       ! Set theta perturbation
       where(r<=1.)theta = theta_bar + dtheta * ( cos(pi*r) + 1. )/2.
+      !where(r<=1.)theta = theta_bar + dtheta * cos(pi*r/2)**2
       
       viscosity_coef = 75
       
