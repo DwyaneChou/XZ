@@ -250,7 +250,6 @@ MODULE spatial_operators_mod
       ! Calculate functions X
       !$OMP PARALLEL DO PRIVATE(i)
       do k = kds,kde
-        !do i = ids-1,ide+1
         do i = ids,ide
           PL(i,k) = calc_pressure(sqrtGL(i,k),qL(:,i,k))
           PR(i,k) = calc_pressure(sqrtGR(i,k),qR(:,i,k))
@@ -433,18 +432,6 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
-      !iVar = 2
-      !do i = ids,ide/2
-      !  print*,i,maxloc( ( Fe(iVar,nx/2+i+1,kds:kde) - Fe(iVar,nx/2+i,kds:kde) ) + ( Fe(iVar,nx/2+2-i,kds:kde) - Fe(iVar,nx/2-i+1,kds:kde) ) ),&
-      !           maxval( ( Fe(iVar,nx/2+i+1,kds:kde) - Fe(iVar,nx/2+i,kds:kde) ) + ( Fe(iVar,nx/2+2-i,kds:kde) - Fe(iVar,nx/2-i+1,kds:kde) ) ),&
-      !           nx/2+i+1
-      !enddo
-      !!i = 1
-      !!k = 45
-      !!print*,( Fe(iVar,nx/2+i+1,k) - Fe(iVar,nx/2+i,k) ), ( Fe(iVar,nx/2+2-i,k) - Fe(iVar,nx/2-i+1,k) )
-      !stop
-      !print*,sum( abs(stat%q(4,1:nx/2,kds:kde) - stat%q(4,nx:nx/2+1:-1,kds:kde)) ) / maxval(abs(stat%q(4,ids:ide,kds:kde)))
-      !print*,maxval( abs(tend%q(iVar,1:nx/2,kds:kde) + tend%q(iVar,nx:nx/2+1:-1,kds:kde)) )
       
     end subroutine spatial_operator
     
