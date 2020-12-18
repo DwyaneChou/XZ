@@ -194,7 +194,7 @@ MODULE spatial_operators_mod
       ! Calculate P, F, H and eigenvalues
       !$OMP PARALLEL DO PRIVATE(i)
       do k = kds,kce
-        do i = ics,ice
+        do i = ids,ide
           P    (  i,k) = calc_pressure(sqrtG(i,k),q_ext(:,i,k))
           F    (:,i,k) = calc_F(sqrtG(i,k),q_ext(:,i,k),P(i,k))
           H    (:,i,k) = calc_H(sqrtG(i,k),G13(i,k),q_ext(:,i,k),P(i,k),P_ref(i,k))
@@ -362,10 +362,10 @@ MODULE spatial_operators_mod
       
       !$OMP PARALLEL DO PRIVATE(qrec)
       do k = kds,kde
-        !qrec   = P(ids:ids+2,k) - P_ref(ids:ids+2,k)
-        !PpL(k) = left_side_recon3(qrec)
-        !qrec   = P(ide-2:ide,k) - P_ref(ide-2:ide,k)
-        !PpR(k) = right_side_recon3(qrec)
+        qrec   = P(ids:ids+2,k) - P_ref(ids:ids+2,k)
+        PpL(k) = left_side_recon3(qrec)
+        qrec   = P(ide-2:ide,k) - P_ref(ide-2:ide,k)
+        PpR(k) = right_side_recon3(qrec)
         
         qrec         = sqrtG(ids:ids+2,k) * P(ids:ids+2,k)
         sqrtG_P_L(k) = left_side_recon3(qrec)
@@ -426,17 +426,17 @@ MODULE spatial_operators_mod
         qT(:,ids:ide,kds-1) = qB(:,ids:ide,kds)
         qB(:,ids:ide,kde+1) = qT(:,ids:ide,kde)
       elseif(case_num==2)then
-        !FL(1,ids,kds:kde) = q_ref(2,ids,kds:kde)
-        !FL(2,ids,kds:kde) = q_ref(2,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde) + sqrtG_P_L!sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
-        !FL(3,ids,kds:kde) = q_ref(3,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde)
-        !FL(4,ids,kds:kde) = q_ref(4,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde)
-        !FL(5,ids,kds:kde) = 0
+        FL(1,ids,kds:kde) = q_ref(2,ids,kds:kde)
+        FL(2,ids,kds:kde) = q_ref(2,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde) + sqrtG_P_L!sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
+        FL(3,ids,kds:kde) = q_ref(3,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde)
+        FL(4,ids,kds:kde) = q_ref(4,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde)
+        FL(5,ids,kds:kde) = 0
         
-        !FR(1,ide,kds:kde) = q_ref(2,ide,kds:kde)
-        !FR(2,ide,kds:kde) = q_ref(2,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde) + sqrtG_P_R!sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
-        !FR(3,ide,kds:kde) = q_ref(3,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde)
-        !FR(4,ide,kds:kde) = q_ref(4,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde)
-        !FR(5,ide,kds:kde) = 0
+        FR(1,ide,kds:kde) = q_ref(2,ide,kds:kde)
+        FR(2,ide,kds:kde) = q_ref(2,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde) + sqrtG_P_R!sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
+        FR(3,ide,kds:kde) = q_ref(3,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde)
+        FR(4,ide,kds:kde) = q_ref(4,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde)
+        FR(5,ide,kds:kde) = 0
         
         HB(1,ids:ide,kds) = 0
         HB(2,ids:ide,kds) = sqrtG_G13_P_B!sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) * PB(ids:ide,kds)
@@ -450,13 +450,13 @@ MODULE spatial_operators_mod
         HT(4,ids:ide,kde) = 0
         HT(5,ids:ide,kde) = 0
         
-        !FR(:,ids-1,kds:kde) = FL(:,ids,kds:kde)
-        !FL(:,ide+1,kds:kde) = FR(:,ide,kds:kde)
+        FR(:,ids-1,kds:kde) = FL(:,ids,kds:kde)
+        FL(:,ide+1,kds:kde) = FR(:,ide,kds:kde)
         HT(:,ids:ide,kds-1) = HB(:,ids:ide,kds)
         HB(:,ids:ide,kde+1) = HT(:,ids:ide,kde)
         
-        !qR(:,ids-1,kds:kde) = qL(:,ids,kds:kde)
-        !qL(:,ide+1,kds:kde) = qR(:,ide,kds:kde)
+        qR(:,ids-1,kds:kde) = qL(:,ids,kds:kde)
+        qL(:,ide+1,kds:kde) = qR(:,ide,kds:kde)
         qT(:,ids:ide,kds-1) = qB(:,ids:ide,kds)
         qB(:,ids:ide,kde+1) = qT(:,ids:ide,kde)
       endif
