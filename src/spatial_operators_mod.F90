@@ -274,8 +274,6 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      !print*,sum( abs(qT(:,1:nx/2,kds:kde) - qT(:,nx:nx/2+1:-1,kds:kde)) ) / maxval(abs(qT(:,ids:ide,kds:kde)))
-      
       ! Fill outside boundary
       ! left boundary
       qR(:,ids-1,kds:kde) = qL(:,ids,kds:kde)
@@ -298,7 +296,8 @@ MODULE spatial_operators_mod
       
       where(abs(rho_p)<=1.E-13)rho_p=0.
       
-      src(3,ids:ide,kds:kde) = - sqrtG(ids:ide,kds:kde) * rho_p(ids:ide,kds:kde) * gravity
+      src = 0
+      src(3,ids:ide,kds:kde) = src(3,ids:ide,kds:kde) - sqrtG(ids:ide,kds:kde) * rho_p(ids:ide,kds:kde) * gravity
       
       ! Calculate eigenvalues x-dir
       !$OMP PARALLEL DO PRIVATE(i)
@@ -324,7 +323,7 @@ MODULE spatial_operators_mod
         do i = ids,ide+1
           im1 = i - 1
           
-          maxeigen_x = max(abs(eig_x(i,k)),abs(eig_x(im1,k)))
+          maxeigen_x = max(eig_x(i,k),eig_x(im1,k))
           
           !Fe(:,i,k) = 0.5 * ( FL(:,i,k) + FR(:,im1,k) - maxeigen_x * ( qL(:,i,k) - qR(:,im1,k) ) )
           
@@ -345,7 +344,7 @@ MODULE spatial_operators_mod
         do k = kds,kde+1
           km1 = k - 1
           
-          maxeigen_z = max(abs(eig_z(i,k)),abs(eig_z(i,km1)))
+          maxeigen_z = max(eig_z(i,k),eig_z(i,km1))
           
           !He(:,i,k) = 0.5 * ( HB(:,i,k) + HT(:,i,km1) - maxeigen_z * ( qB(:,i,k) - qT(:,i,km1) ) )
           
@@ -360,69 +359,69 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      !! Viscosity terms for Density Current case only
-      !if(case_num==3)then
-      !  do iVar = 2,4
-      !    q_diff(iVar,ids:ide,kds:kde) = qC(iVar,ids:ide,kds:kde) / qC(1,ids:ide,kds:kde)
-      !  enddo
-      !  
-      !  !! Scheme 1, 1st derivative flux
-      !  !do iVar = 2,4
-      !  !  do k = kde,kde
-      !  !    ! Left bdy
-      !  !    i = ids
-      !  !    Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef *  qL(1,i,k) * dqdxL(q_diff(iVar,i:i+2,k),dx)
-      !  !    i = ids + 1
-      !  !    Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qL(1,i,k) + qR(1,i-1,k) ) / 2. * dqdxC(q_diff(iVar,i-1:i,k),dx)
-      !  !    
-      !  !    ! Right bdy
-      !  !    i = ide
-      !  !    Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * qR(1,i,k) * dqdxR(q_diff(iVar,i-2:i,k),dx)
-      !  !    i = ide - 1
-      !  !    Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qR(1,i,k) + qL(1,i+1,k) ) / 2. * dqdxC(q_diff(iVar,i-1:i,k),dx)
-      !  !  enddo
-      !  !
-      !  !  do i = ids,ide
-      !  !    ! Bottom bdy
-      !  !    k = kds
-      !  !    He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * qB(1,i,k) * dqdxL(q_diff(iVar,i,k:k+2),deta) / sqrtGB(i,k)**2
-      !  !    k = kds + 1
-      !  !    He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * ( qB(1,i,k) + qT(1,i,k-1) ) / 2. * dqdxC(q_diff(iVar,i,k-1:k),deta) / ( ( sqrtGB(i,k) + sqrtGT(i,k-1) ) / 2. )**2
-      !  !    
-      !  !    ! Top bdy
-      !  !    k = kde
-      !  !    He(iVar,i,k+1) = He(iVar,i,k+1) - viscosity_coef * qT(1,i,k) * dqdxR(q_diff(iVar,i,k-2:k),deta) / sqrtGT(i,k)**2
-      !  !    k = kde - 1
-      !  !    He(iVar,i,k+1) = He(iVar,i,k+1) - viscosity_coef * ( qB(1,i,k+1) + qT(1,i,k) ) / 2. * dqdxC(q_diff(iVar,i,k:k+1),deta) / ( ( sqrtGB(i,k+1) + sqrtGT(i,k) ) / 2. )**2
-      !  !  enddo
-      !  !  
-      !  !  ! Center domain
-      !  !  do k = kds,kde
-      !  !    do i = ids+2,ide-2
-      !  !      Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qR(1,i,k) + qL(1,i+1,k) ) / 2. * dqdx(q_diff(iVar,i-2:i+1,k),dx)
-      !  !    enddo
-      !  !  enddo
-      !  !  
-      !  !  do k = kds+1,kde-2
-      !  !    do i = ids,ide
-      !  !      He(iVar,i,k+1) = He(iVar,i,k+1) - viscosity_coef * ( qT(1,i,k) + qB(1,i,k+1) ) / 2. * dqdx(q_diff(iVar,i,k-1:k+2),deta) / ( ( sqrtGB(i,k+1) + sqrtGT(i,k) ) / 2. )**2
-      !  !    enddo
-      !  !  enddo
-      !  !enddo
-      !  
-      !  ! Scheme 2, directionly calculate 2nd derivative
-      !  !$OMP PARALLEL DO PRIVATE(i,iVar)
-      !  do k = kds+1,kde-1
-      !    do i = ids+1,ide-1
-      !      do iVar = 2,4
-      !        ! Scheme 1
-      !        src(iVar,i,k) = src(iVar,i,k) + viscosity_coef * qC(1,i,k) * ( ( q_diff(iVar,i+1,k) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i-1,k) ) / dx  **2 &
-      !                                                                        + ( q_diff(iVar,i,k+1) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i,k-1) ) / deta**2 / sqrtG(i,k)**2 )
-      !      enddo
-      !    enddo
-      !  enddo
-      !  !$OMP END PARALLEL DO
-      !endif
+      ! Viscosity terms for Density Current case only
+      if(case_num==3)then
+        do iVar = 2,4
+          q_diff(iVar,ids:ide,kds:kde) = qC(iVar,ids:ide,kds:kde) / qC(1,ids:ide,kds:kde)
+        enddo
+        
+        ! Scheme 1, 1st derivative flux
+        do iVar = 2,4
+          do k = kde,kde
+            ! Left bdy
+            i = ids
+            Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef *  qL(1,i,k) * dqdxL(q_diff(iVar,i:i+2,k),dx)
+            i = ids + 1
+            Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qL(1,i,k) + qR(1,i-1,k) ) / 2. * dqdxC(q_diff(iVar,i-1:i,k),dx)
+            
+            ! Right bdy
+            i = ide
+            Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * qR(1,i,k) * dqdxR(q_diff(iVar,i-2:i,k),dx)
+            i = ide - 1
+            Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qR(1,i,k) + qL(1,i+1,k) ) / 2. * dqdxC(q_diff(iVar,i-1:i,k),dx)
+          enddo
+        
+          do i = ids,ide
+            ! Bottom bdy
+            k = kds
+            He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * qB(1,i,k) * dqdxL(q_diff(iVar,i,k:k+2),deta) / sqrtGB(i,k)**2
+            k = kds + 1
+            He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * ( qB(1,i,k) + qT(1,i,k-1) ) / 2. * dqdxC(q_diff(iVar,i,k-1:k),deta) / ( ( sqrtGB(i,k) + sqrtGT(i,k-1) ) / 2. )**2
+            
+            ! Top bdy
+            k = kde
+            He(iVar,i,k+1) = He(iVar,i,k+1) - viscosity_coef * qT(1,i,k) * dqdxR(q_diff(iVar,i,k-2:k),deta) / sqrtGT(i,k)**2
+            k = kde - 1
+            He(iVar,i,k+1) = He(iVar,i,k+1) - viscosity_coef * ( qB(1,i,k+1) + qT(1,i,k) ) / 2. * dqdxC(q_diff(iVar,i,k:k+1),deta) / ( ( sqrtGB(i,k+1) + sqrtGT(i,k) ) / 2. )**2
+          enddo
+          
+          ! Center domain
+          do k = kds,kde
+            do i = ids+2,ide-2
+              Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qR(1,i,k) + qL(1,i+1,k) ) / 2. * dqdx(q_diff(iVar,i-2:i+1,k),dx)
+            enddo
+          enddo
+          
+          do k = kds+1,kde-2
+            do i = ids,ide
+              He(iVar,i,k+1) = He(iVar,i,k+1) - viscosity_coef * ( qT(1,i,k) + qB(1,i,k+1) ) / 2. * dqdx(q_diff(iVar,i,k-1:k+2),deta) / ( ( sqrtGB(i,k+1) + sqrtGT(i,k) ) / 2. )**2
+            enddo
+          enddo
+        enddo
+        
+        !! Scheme 2, directionly calculate 2nd derivative
+        !!$OMP PARALLEL DO PRIVATE(i,iVar)
+        !do k = kds+1,kde-1
+        !  do i = ids+1,ide-1
+        !    do iVar = 2,4
+        !      ! Scheme 1
+        !      src(iVar,i,k) = src(iVar,i,k) + viscosity_coef * qC(1,i,k) * ( ( q_diff(iVar,i+1,k) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i-1,k) ) / dx  **2 &
+        !                                                                   + ( q_diff(iVar,i,k+1) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i,k-1) ) / deta**2 / sqrtG(i,k)**2 )
+        !    enddo
+        !  enddo
+        !enddo
+        !!$OMP END PARALLEL DO
+      endif
       
       ! Calculate tend
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1)
@@ -434,9 +433,18 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
-      
+      !iVar = 2
+      !do i = ids,ide/2
+      !  print*,i,maxloc( ( Fe(iVar,nx/2+i+1,kds:kde) - Fe(iVar,nx/2+i,kds:kde) ) + ( Fe(iVar,nx/2+2-i,kds:kde) - Fe(iVar,nx/2-i+1,kds:kde) ) ),&
+      !           maxval( ( Fe(iVar,nx/2+i+1,kds:kde) - Fe(iVar,nx/2+i,kds:kde) ) + ( Fe(iVar,nx/2+2-i,kds:kde) - Fe(iVar,nx/2-i+1,kds:kde) ) ),&
+      !           nx/2+i+1
+      !enddo
+      !!i = 1
+      !!k = 45
+      !!print*,( Fe(iVar,nx/2+i+1,k) - Fe(iVar,nx/2+i,k) ), ( Fe(iVar,nx/2+2-i,k) - Fe(iVar,nx/2-i+1,k) )
+      !stop
       !print*,sum( abs(stat%q(4,1:nx/2,kds:kde) - stat%q(4,nx:nx/2+1:-1,kds:kde)) ) / maxval(abs(stat%q(4,ids:ide,kds:kde)))
-      !print*,sum( abs(tend%q(4,1:nx/2,kds:kde) - tend%q(4,nx:nx/2+1:-1,kds:kde)) ) / maxval(abs(tend%q(4,ids:ide,kds:kde)))
+      !print*,maxval( abs(tend%q(iVar,1:nx/2,kds:kde) + tend%q(iVar,nx:nx/2+1:-1,kds:kde)) )
       
     end subroutine spatial_operator
     
@@ -723,7 +731,7 @@ MODULE spatial_operators_mod
         eig(5) = ( coef1 + coef2 ) / coef3
       endif
       
-      calc_eigenvalue_x = maxval(eig)
+      calc_eigenvalue_x = maxval(abs(eig))
       
     end function calc_eigenvalue_x
     
@@ -782,7 +790,7 @@ MODULE spatial_operators_mod
         eig(5) = ( coef1 + coef2 ) / coef3
       endif
       
-      calc_eigenvalue_z = maxval(eig)
+      calc_eigenvalue_z = maxval(abs(eig))
       
     end function calc_eigenvalue_z
     

@@ -162,8 +162,13 @@ module temporal_mod
       type(tend_field), intent(in   ) :: tend
       real            , intent(in   ) :: inc_t
       
+      !print*,'start'
+      !print*,maxval( abs( abs(stat_old%q(:,1:nx/2,kds:kde)) - abs(stat_old%q(:,nx:nx/2+1:-1,kds:kde)) ) )
+      !print*,maxval( abs( abs(tend%q(:,1:nx/2,kds:kde)) - abs(tend%q(:,nx:nx/2+1:-1,kds:kde)) ) )
+      
       stat_new%q = stat_old%q + inc_t * tend%q
       
+      !print*,maxval( abs( abs(stat_new%q(:,1:nx/2,kds:kde)) - abs(stat_new%q(:,nx:nx/2+1:-1,kds:kde)) ) )
     end subroutine update_stat
     
     subroutine update_stat_RK3_TVD_1(stat_new, stat_old,stat1, tend)

@@ -5,7 +5,7 @@ module tend_mod
   implicit none
   
   type tend_field
-    real, dimension(:,:,:), allocatable :: q
+    real(r_kind), dimension(:,:,:), allocatable :: q
   end type tend_field
   
   type(tend_field), dimension(:), allocatable :: tend ! allocated by n time points, which is used by temporal integration schemes
