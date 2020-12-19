@@ -186,6 +186,15 @@ module parameters_mod
     
     nsteps = total_run_time / dt
     
+    print*,'ids = ',ids
+    print*,'ide = ',ide
+    print*,'kds = ',kds
+    print*,'kde = ',kde
+    print*,'ics = ',ics
+    print*,'ice = ',ice
+    print*,'kcs = ',kcs
+    print*,'kce = ',kce
+    
   end subroutine initParameters
   
 end module parameters_mod
