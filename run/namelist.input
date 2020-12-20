@@ -4,24 +4,24 @@ run_days         = 0
 run_hours        = 0
 run_minutes      = 0
 run_seconds      = 900 !3000 for case 1, 36000 for case 2, 900 for case 3
-dt               = 0.12
+dt               = 0.2
 history_interval = 6
-integral_scheme  = 'RK4' ! Choose from 'RK3', 'RK4', 'SSPRK', 'RK3_TVD', 'PC2', 'IRK2'
+integral_scheme  = 'RK3_TVD' ! Choose from 'RK3', 'RK4', 'SSPRK', 'RK3_TVD', 'PC2', 'IRK2'
 IRK_residual     = 1.E-5
 /
 
 &case_select
-case_num = 3, ! Choose from 1, 2
+case_num = 3, ! Choose from 1, 2, 3
 /
 
 &domain
-dx                    = 50! 125, 250 for case 1, 250 for case 2, 100 for case3
-nz                    = 128! 200, 100 for case 1, 100 for case 2, 64 for case3
+dx                    = 100! 125, 250 for case 1, 250 for case 2, 100 for case3
+nz                    = 64! 200, 100 for case 1, 100 for case 2, 64 for case3
 x_max                 = 100000.
 x_min                 = 0.
 z_max                 = 60000.
 z_min                 = 0.
 vertical_distribution = 1
-vertical_coordinate   = 1
+vertical_coordinate   = 2
 m_coef                = 2
 /
