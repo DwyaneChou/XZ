@@ -6,9 +6,9 @@ pic_path  = '.\picture';
 varname   = 'theta';
 
 time_start = 1;
-time_end   = 201;
+time_end   = 501;
 
-history_interval = 5;
+history_interval = 6;
 
 R2D    = 180/pi;
 radius = 6371229;
@@ -35,6 +35,6 @@ parfor it = time_start:time_end
     
     % output picture
     title([varname,' at ',num2str((it-1)*history_interval),' second(s)'])
-    print(gcf,'-r600','-dpng',[pic_path,'\',varname,'_',num2str(it-1,'%.4d'),'.png']);
+    print(gcf,'-r300','-dpng',[pic_path,'\',varname,'_',num2str(it-1,'%.4d'),'.png']);
     
 end

@@ -18,7 +18,7 @@ MODULE constants_mod
   real(r_kind),parameter :: pi        = 2.*asin(1.)
   real(r_kind),parameter :: D2R       = PI/180.    ! convert degree into radian
   real(r_kind),parameter :: R2D       = 180./PI    ! convert radian into degree
-  real(r_kind),parameter :: FillValue = -999999999999999.  
+  real(r_kind),parameter :: FillValue = -99999999999999999999999.
   
   real(r_kind),parameter :: piq       = 0.25_r16*pi
   real(r_kind),parameter :: pih       = 0.5_r16 *pi
@@ -28,16 +28,27 @@ MODULE constants_mod
   
   real(r_kind),parameter :: gravity   = 9.80616
   
+  !! thermal dynamic constants
+  !real(r_kind),parameter :: Rd        = 287.0583
+  !real(r_kind),parameter :: Rv        = 461.5233
+  !real(r_kind),parameter :: p0        = 100000. ! base pressure in Pa
+  !real(r_kind),parameter :: Md        = 0.0289644
+  !real(r_kind),parameter :: Mv        = 0.01801528
+  !real(r_kind),parameter :: eq        = Md / Mv - 1.
+  !real(r_kind),parameter :: Cpd       = 1005.
+  !real(r_kind),parameter :: Cpv       = 1846.
+  !real(r_kind),parameter :: Cvd       = 718.
+  !real(r_kind),parameter :: Cvv       = 1385.
+  
   ! thermal dynamic constants
-  real(r_kind),parameter :: Rd        = 287.0583
+  real(r_kind),parameter :: Rd        = 287.
   real(r_kind),parameter :: Rv        = 461.5233
   real(r_kind),parameter :: p0        = 100000. ! base pressure in Pa
   real(r_kind),parameter :: Md        = 0.0289644
   real(r_kind),parameter :: Mv        = 0.01801528
   real(r_kind),parameter :: eq        = Md / Mv - 1.
-  real(r_kind),parameter :: Cpd       = 1005.
+  real(r_kind),parameter :: Cpd       = 1004.5
   real(r_kind),parameter :: Cpv       = 1846.
-  real(r_kind),parameter :: Cvd       = 718.
+  real(r_kind),parameter :: Cvd       = 717.5
   real(r_kind),parameter :: Cvv       = 1385.
-  
 END MODULE constants_mod

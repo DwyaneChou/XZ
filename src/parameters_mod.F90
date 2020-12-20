@@ -39,10 +39,14 @@ module parameters_mod
   
   integer(i_kind), parameter :: extPts = 3
   
+  real   (r_kind) :: viscosity_coef ! For viscosity term in Density Current case
+  
   integer(i_kind) :: ids, ide
   integer(i_kind) :: kds, kde
   integer(i_kind) :: ics, ice
   integer(i_kind) :: kcs, kce
+  integer(i_kind) :: ies, iee
+  integer(i_kind) :: kes, kee
   
   integer(i_kind) :: nx_ext
   integer(i_kind) :: nz_ext
@@ -112,8 +116,16 @@ module parameters_mod
     ! Setting the number of substeps in temporal integration scheme
     if(trim(adjustl(integral_scheme)) == 'RK3')then
       nIntegralSubSteps = 3
+    elseif(trim(adjustl(integral_scheme)) == 'RK3_TVD')then
+      nIntegralSubSteps = 3
     elseif(trim(adjustl(integral_scheme)) == 'RK4')then
       nIntegralSubSteps = 4
+    elseif(trim(adjustl(integral_scheme)) == 'SSPRK')then
+      nIntegralSubSteps = 4
+    elseif(trim(adjustl(integral_scheme)) == 'PC2')then
+      nIntegralSubSteps = 3
+    elseif(trim(adjustl(integral_scheme)) == 'IRK2')then
+      nIntegralSubSteps = 2
     else
       stop 'Unknown integral scheme, please select from RK3 or RK4 ...'
     endif
@@ -128,6 +140,26 @@ module parameters_mod
       x_max = 20. * 1000.
       z_min = 0.
       z_max = 10. * 1000.
+    elseif(case_num==2)then
+      print*,'Schar Mountain case is selected'
+      print*,'Reset x_min to -25 km'
+      print*,'Reset x_max to  25 km'
+      print*,'Reset z_min to  0  km'
+      print*,'Reset z_max to  21 km'
+      x_min = -25000.
+      x_max = 25000.
+      z_min = 0.
+      z_max = 21000.
+    elseif(case_num==3)then
+      print*,'Density Current case is selected'
+      print*,'Reset x_min to -25.6 km'
+      print*,'Reset x_max to  25.6 km'
+      print*,'Reset z_min to  0  km'
+      print*,'Reset z_max to  6.4 km'
+      x_min = -25600.
+      x_max = 25600.
+      z_min = 0.
+      z_max = 6400.
     else
       stop 'Unknow case_num'
     endif
@@ -146,6 +178,11 @@ module parameters_mod
     
     nx_ext = ice - ics + 1
     nz_ext = kce - kcs + 1
+    
+    ies = ics * 2 - 1
+    iee = ice * 2 + 1
+    kes = kcs * 2 - 1
+    kee = kce * 2 + 1
     
     nsteps = total_run_time / dt
     
