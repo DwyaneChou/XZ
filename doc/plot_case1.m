@@ -6,7 +6,7 @@ pic_path  = '.\';
 varname   = 'theta';
 
 time_start = 1;
-time_end   = 236;
+time_end   = 201;
 
 it = time_end;
 
