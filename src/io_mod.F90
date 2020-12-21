@@ -138,7 +138,7 @@ module io_mod
       w2 = stat%q(2,ids:ide,kds:kde)
       w3 = stat%q(3,ids:ide,kds:kde)
       w4 = stat%q(4,ids:ide,kds:kde)
-      w5 = stat%q(5,ids:ide,kds:kde)
+      !w5 = stat%q(5,ids:ide,kds:kde)
       
       sqrtGrho = w1 + w5
       rho      = sqrtGrho / sqrtG(ids:ide,kds:kde)

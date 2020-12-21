@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[     31634,        833]
+NotebookDataLength[     31632,        833]
 NotebookOptionsPosition[     30770,        811]
-NotebookOutlinePosition[     31157,        828]
-CellTagsIndexPosition[     31114,        825]
+NotebookOutlinePosition[     31155,        828]
+CellTagsIndexPosition[     31112,        825]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -809,9 +809,9 @@ Cell[BoxData[
 8ab5212a6831"]
 }, Open  ]]
 },
-WindowSize->{2544, 1357},
-WindowMargins->{{-8, Automatic}, {Automatic, 0}},
-Magnification:>1.4 Inherited,
+WindowSize->{766, 772},
+WindowMargins->{{Automatic, -7}, {Automatic, 0}},
+Magnification:>1.2 Inherited,
 FrontEndVersion->"11.3 for Microsoft Windows (64-bit) (2018\:5e743\:670828\
 \:65e5)",
 StyleDefinitions->"Default.nb"
@@ -828,12 +828,12 @@ CellTagsIndex->{}
 (*NotebookFileOutline
 Notebook[{
 Cell[CellGroupData[{
-Cell[580, 22, 13518, 256, 1445, "Input",ExpressionUUID->"4dd136e8-b80d-4544-a61b-21e0a43b2548"],
-Cell[14101, 280, 667, 18, 62, "Print",ExpressionUUID->"9c31e48f-1774-4a6b-a553-d94ff56c6dcc"],
-Cell[14771, 300, 1879, 58, 292, "Output",ExpressionUUID->"d2cf5316-322e-4773-84a1-58a6126ad7c0"],
-Cell[16653, 360, 1962, 61, 225, "Output",ExpressionUUID->"b7f91763-0042-40c2-983e-5313d8a53c9e"],
-Cell[18618, 423, 3097, 99, 258, "Output",ExpressionUUID->"0510ecd1-b704-4eeb-9600-0976650f85af"],
-Cell[21718, 524, 9036, 284, 466, "Output",ExpressionUUID->"b01063d2-b6e8-4253-b6c7-8ab5212a6831"]
+Cell[580, 22, 13518, 256, 1260, "Input",ExpressionUUID->"4dd136e8-b80d-4544-a61b-21e0a43b2548"],
+Cell[14101, 280, 667, 18, 49, "Print",ExpressionUUID->"9c31e48f-1774-4a6b-a553-d94ff56c6dcc"],
+Cell[14771, 300, 1879, 58, 233, "Output",ExpressionUUID->"d2cf5316-322e-4773-84a1-58a6126ad7c0"],
+Cell[16653, 360, 1962, 61, 183, "Output",ExpressionUUID->"b7f91763-0042-40c2-983e-5313d8a53c9e"],
+Cell[18618, 423, 3097, 99, 217, "Output",ExpressionUUID->"0510ecd1-b704-4eeb-9600-0976650f85af"],
+Cell[21718, 524, 9036, 284, 334, "Output",ExpressionUUID->"b01063d2-b6e8-4253-b6c7-8ab5212a6831"]
 }, Open  ]]
 }
 ]

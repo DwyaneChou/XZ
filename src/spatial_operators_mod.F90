@@ -13,6 +13,7 @@ MODULE spatial_operators_mod
          spatial_operator
   
   real(r_kind), dimension(:,:,:), allocatable :: qC ! Extended forecast variables
+  real(r_kind), dimension(:,:,:), allocatable :: q_diff
   
   real(r_kind), dimension(:,:,:), allocatable :: qL    ! Reconstructed q_(i-1/2,k)
   real(r_kind), dimension(:,:,:), allocatable :: qR    ! Reconstructed q_(i+1/2,k)
@@ -49,13 +50,14 @@ MODULE spatial_operators_mod
   
   real(r_kind), dimension(  :,:), allocatable :: rho_p ! density perturbation
       
-  real(r_kind), dimension(  :,:), allocatable :: eig_x
-  real(r_kind), dimension(  :,:), allocatable :: eig_z
-      
   real(r_kind), dimension(:,:), allocatable :: relax_coef ! Relax coefficient of Rayleigh damping
   
-  real(r_kind) maxeigen_x
-  real(r_kind) maxeigen_z
+  real(r_kind), dimension(nVar,nVar) :: eigen_mtx_x
+  real(r_kind), dimension(nVar,nVar) :: eigen_mtx_z
+  
+  real(r_kind)                  :: sqrtGe
+  real(r_kind)                  :: G13e
+  real(r_kind), dimension(nVar) :: qe
   
     contains
     subroutine init_spatial_operator
@@ -70,6 +72,7 @@ MODULE spatial_operators_mod
       integer(i_kind) kp2,km2
       
       allocate(qC    (nVar,ics:ice,kcs:kce))
+      allocate(q_diff(nVar,ics:ice,kcs:kce))
                      
       allocate(qL    (nVar,ics:ice,kcs:kce))
       allocate(qR    (nVar,ics:ice,kcs:kce))
@@ -105,18 +108,12 @@ MODULE spatial_operators_mod
       
       allocate(rho_p(     ids:ide,kds:kde))
       
-      allocate(eig_x (ics:ice,kcs:kce))
-      allocate(eig_z (ics:ice,kcs:kce))
-      
       allocate(relax_coef(ics:ice,kcs:kce))
       
       P     = FillValue
       P_ref = FillValue
       F     = FillValue
       H     = FillValue
-
-      eig_x = 0
-      eig_z = 0
       
       ! Set reference pressure
       qC = ref%q
@@ -195,14 +192,11 @@ MODULE spatial_operators_mod
       
       ! Calculate P, F, H and eigenvalues
       !$OMP PARALLEL DO PRIVATE(i)
-      do k = kds,kce
+      do k = kds,kde
         do i = ids,ide
           P    (  i,k) = calc_pressure(sqrtG(i,k),qC(:,i,k))
           F    (:,i,k) = calc_F(sqrtG(i,k),qC(:,i,k),P(i,k))
           H    (:,i,k) = calc_H(sqrtG(i,k),G13(i,k),qC(:,i,k),P(i,k),P_ref(i,k))
-          
-          eig_x(  i,k) = calc_eigenvalue_x(sqrtG(i,k)         ,qC(:,i,k))
-          eig_z(  i,k) = calc_eigenvalue_z(sqrtG(i,k),G13(i,k),qC(:,i,k))
         enddo
       enddo
       !$OMP END PARALLEL DO
@@ -270,117 +264,105 @@ MODULE spatial_operators_mod
       
       call bdy_condition(P,stat%q,ref%q,src)
       
-      rho_p = ( stat%q(1,ids:ide,kds:kde) + stat%q(5,ids:ide,kds:kde) &
-              - ref%q (1,ids:ide,kds:kde) - ref%q (5,ids:ide,kds:kde) ) / sqrtG(ids:ide,kds:kde)
+      rho_p = ( stat%q(1,ids:ide,kds:kde) - ref%q (1,ids:ide,kds:kde) ) / sqrtG(ids:ide,kds:kde)
       
       where(abs(rho_p)<=1.E-13)rho_p=0.
       
       src(3,ids:ide,kds:kde) = src(3,ids:ide,kds:kde) - sqrtG(ids:ide,kds:kde) * rho_p(ids:ide,kds:kde) * gravity
       
       ! calc x flux
-      !$OMP PARALLEL DO PRIVATE(i,im1,maxeigen_x,iVar)
+      !$OMP PARALLEL DO PRIVATE(i,im1,eigen_mtx_x,qe,sqrtGe)
       do k = kds,kde
         do i = ids,ide+1
           im1 = i - 1
           
-          maxeigen_x = max(abs(eig_x(i,k)),abs(eig_x(im1,k)))
+          qe          = 0.5 * ( qL(:,i,k) + qR(:,im1,k) )
+          sqrtGe      = 0.5 * ( sqrtGL(i,k) + sqrtGR(im1,k) )
+          eigen_mtx_x = calc_eigen_matrix_x( qe, sqrtGe )
           
-          !Fe(:,i,k) = 0.5 * ( FL(:,i,k) + FR(:,im1,k) - maxeigen_x * ( qL(:,i,k) - qR(:,im1,k) ) )
-          
-          do iVar = 1,nVar
-            if(abs(FL(iVar,i,k) + FR(iVar,im1,k))<=1.E-15)then
-              Fe(iVar,i,k) = 0
-            else
-              Fe(iVar,i,k) = 0.5 * ( FL(iVar,i,k) + FR(iVar,im1,k) - maxeigen_x * ( qL(iVar,i,k) - qR(iVar,im1,k) ) )
-            endif
-          enddo
+          Fe(:,i,k) = 0.5 * ( FL(:,i,k) + FR(:,im1,k) - matmul( eigen_mtx_x, ( FL(:,i,k) - FR(:,im1,k) ) ) )
         enddo
       enddo
       !$OMP END PARALLEL DO
       
       ! calc z flux
-      !$OMP PARALLEL DO PRIVATE(k,km1,maxeigen_z,iVar)
+      !$OMP PARALLEL DO PRIVATE(k,km1,eigen_mtx_z,qe,sqrtGe,G13e)
       do i = ids,ide
         do k = kds,kde+1
           km1 = k - 1
           
-          maxeigen_z = max(abs(eig_z(i,k)),abs(eig_z(i,km1)))
+          qe          = 0.5 * ( qB(:,i,k) + qT(:,i,km1) )
+          sqrtGe      = 0.5 * ( sqrtGB(i,k) + sqrtGT(i,km1) )
+          G13e        = 0.5 * ( G13B(i,k) + G13T(i,km1) )
+          eigen_mtx_z = calc_eigen_matrix_z( qe, sqrtGe, G13e )
           
-          !He(:,i,k) = 0.5 * ( HB(:,i,k) + HT(:,i,km1) - maxeigen_z * ( qB(:,i,k) - qT(:,i,km1) ) )
-          
-          do iVar = 1,nVar
-            if(abs(HB(iVar,i,k) + HT(iVar,i,km1))<=1.E-15)then
-              He(iVar,i,k) = 0
-            else
-              He(iVar,i,k) = 0.5 * ( HB(iVar,i,k) + HT(iVar,i,km1) - maxeigen_z * ( qB(iVar,i,k) - qT(iVar,i,km1) ) )
-            endif
-          enddo
+          He(:,i,k) = 0.5 * ( HB(:,i,k) + HT(:,i,km1) - matmul( eigen_mtx_z, ( HB(:,i,k) - HT(:,i,km1) ) ) )
         enddo
       enddo
       !$OMP END PARALLEL DO
       
-      !! Viscosity terms for Density Current case only
-      !if(case_num==3)then
-      !  do iVar = 2,4
-      !    q_diff(iVar,ids:ide,kds:kde) = qC(iVar,ids:ide,kds:kde) / qC(1,ids:ide,kds:kde)
-      !  enddo
-      !  
-      !  !! Scheme 1, 1st derivative flux
-      !  !do iVar = 2,4
-      !  !  do k = kde,kde
-      !  !    ! Left bdy
-      !  !    i = ids
-      !  !    Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef *  qL(1,i,k) * dqdxL(q_diff(iVar,i:i+2,k),dx)
-      !  !    i = ids + 1
-      !  !    Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qL(1,i,k) + qR(1,i-1,k) ) / 2. * dqdxC(q_diff(iVar,i-1:i,k),dx)
-      !  !    
-      !  !    ! Right bdy
-      !  !    i = ide
-      !  !    Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * qR(1,i,k) * dqdxR(q_diff(iVar,i-2:i,k),dx)
-      !  !    i = ide - 1
-      !  !    Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qR(1,i,k) + qL(1,i+1,k) ) / 2. * dqdxC(q_diff(iVar,i-1:i,k),dx)
-      !  !  enddo
-      !  !
-      !  !  do i = ids,ide
-      !  !    ! Bottom bdy
-      !  !    k = kds
-      !  !    He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * qB(1,i,k) * dqdxL(q_diff(iVar,i,k:k+2),deta) / sqrtGB(i,k)**2
-      !  !    k = kds + 1
-      !  !    He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * ( qB(1,i,k) + qT(1,i,k-1) ) / 2. * dqdxC(q_diff(iVar,i,k-1:k),deta) / ( ( sqrtGB(i,k) + sqrtGT(i,k-1) ) / 2. )**2
-      !  !    
-      !  !    ! Top bdy
-      !  !    k = kde
-      !  !    He(iVar,i,k+1) = He(iVar,i,k+1) - viscosity_coef * qT(1,i,k) * dqdxR(q_diff(iVar,i,k-2:k),deta) / sqrtGT(i,k)**2
-      !  !    k = kde - 1
-      !  !    He(iVar,i,k+1) = He(iVar,i,k+1) - viscosity_coef * ( qB(1,i,k+1) + qT(1,i,k) ) / 2. * dqdxC(q_diff(iVar,i,k:k+1),deta) / ( ( sqrtGB(i,k+1) + sqrtGT(i,k) ) / 2. )**2
-      !  !  enddo
-      !  !  
-      !  !  ! Center domain
-      !  !  do k = kds,kde
-      !  !    do i = ids+2,ide-2
-      !  !      Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qR(1,i,k) + qL(1,i+1,k) ) / 2. * dqdx(q_diff(iVar,i-2:i+1,k),dx)
-      !  !    enddo
-      !  !  enddo
-      !  !  
-      !  !  do k = kds+1,kde-2
-      !  !    do i = ids,ide
-      !  !      He(iVar,i,k+1) = He(iVar,i,k+1) - viscosity_coef * ( qT(1,i,k) + qB(1,i,k+1) ) / 2. * dqdx(q_diff(iVar,i,k-1:k+2),deta) / ( ( sqrtGB(i,k+1) + sqrtGT(i,k) ) / 2. )**2
-      !  !    enddo
-      !  !  enddo
-      !  !enddo
-      !  
-      !  ! Scheme 2, directionly calculate 2nd derivative
-      !  !$OMP PARALLEL DO PRIVATE(i,iVar)
-      !  do k = kds+1,kde-1
-      !    do i = ids+1,ide-1
-      !      do iVar = 2,4
-      !        src(iVar,i,k) = src(iVar,i,k) + viscosity_coef * qC(1,i,k) * ( ( q_diff(iVar,i+1,k) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i-1,k) ) / dx  **2 &
-      !                                                                     + ( q_diff(iVar,i,k+1) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i,k-1) ) / deta**2 / sqrtG(i,k)**2 )
-      !      enddo
-      !    enddo
-      !  enddo
-      !  !$OMP END PARALLEL DO
-      !endif
+      ! Viscosity terms for Density Current case only
+      if(case_num==3)then
+        do iVar = 2,4
+          q_diff(iVar,ids:ide,kds:kde) = qC(iVar,ids:ide,kds:kde) / qC(1,ids:ide,kds:kde)
+        enddo
+        
+        ! Scheme 1, 1st derivative flux
+        do iVar = 2,4
+          do k = kde,kde
+            ! Left bdy
+            i = ids
+            Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef *  qL(1,i,k) * dqdxL(q_diff(iVar,i:i+2,k),dx)
+            i = ids + 1
+            Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qL(1,i,k) + qR(1,i-1,k) ) / 2. * dqdxC(q_diff(iVar,i-1:i,k),dx)
+            
+            ! Right bdy
+            i = ide
+            Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * qR(1,i,k) * dqdxR(q_diff(iVar,i-2:i,k),dx)
+            i = ide - 1
+            Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qR(1,i,k) + qL(1,i+1,k) ) / 2. * dqdxC(q_diff(iVar,i-1:i,k),dx)
+          enddo
+        
+          do i = ids,ide
+            ! Bottom bdy
+            k = kds
+            He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * qB(1,i,k) * dqdxL(q_diff(iVar,i,k:k+2),deta) / sqrtGB(i,k)**2
+            k = kds + 1
+            He(iVar,i,k) = He(iVar,i,k) - viscosity_coef * ( qB(1,i,k) + qT(1,i,k-1) ) / 2. * dqdxC(q_diff(iVar,i,k-1:k),deta) / ( ( sqrtGB(i,k) + sqrtGT(i,k-1) ) / 2. )**2
+            
+            ! Top bdy
+            k = kde
+            He(iVar,i,k+1) = He(iVar,i,k+1) - viscosity_coef * qT(1,i,k) * dqdxR(q_diff(iVar,i,k-2:k),deta) / sqrtGT(i,k)**2
+            k = kde - 1
+            He(iVar,i,k+1) = He(iVar,i,k+1) - viscosity_coef * ( qB(1,i,k+1) + qT(1,i,k) ) / 2. * dqdxC(q_diff(iVar,i,k:k+1),deta) / ( ( sqrtGB(i,k+1) + sqrtGT(i,k) ) / 2. )**2
+          enddo
+          
+          ! Center domain
+          do k = kds,kde
+            do i = ids+2,ide-2
+              Fe(iVar,i,k) = Fe(iVar,i,k) - viscosity_coef * ( qR(1,i,k) + qL(1,i+1,k) ) / 2. * dqdx(q_diff(iVar,i-2:i+1,k),dx)
+            enddo
+          enddo
+          
+          do k = kds+1,kde-2
+            do i = ids,ide
+              He(iVar,i,k+1) = He(iVar,i,k+1) - viscosity_coef * ( qT(1,i,k) + qB(1,i,k+1) ) / 2. * dqdx(q_diff(iVar,i,k-1:k+2),deta) / ( ( sqrtGB(i,k+1) + sqrtGT(i,k) ) / 2. )**2
+            enddo
+          enddo
+        enddo
+        
+        !! Scheme 2, directionly calculate 2nd derivative
+        !!$OMP PARALLEL DO PRIVATE(i,iVar)
+        !do k = kds+1,kde-1
+        !  do i = ids+1,ide-1
+        !    do iVar = 2,4
+        !      src(iVar,i,k) = src(iVar,i,k) + viscosity_coef * qC(1,i,k) * ( ( q_diff(iVar,i+1,k) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i-1,k) ) / dx  **2 &
+        !                                                                   + ( q_diff(iVar,i,k+1) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i,k-1) ) / deta**2 / sqrtG(i,k)**2 )
+        !    enddo
+        !  enddo
+        !enddo
+        !!$OMP END PARALLEL DO
+      endif
       
       !$OMP PARALLEL DO PRIVATE(i,ip1,kp1,iVar,dFe,dHe)
       do k = kds,kde
@@ -459,25 +441,21 @@ MODULE spatial_operators_mod
         FL(2,ids,kds:kde) = sqrtG_P_L!sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
         FL(3,ids,kds:kde) = 0
         FL(4,ids,kds:kde) = 0
-        FL(5,ids,kds:kde) = 0
         
         FR(1,ide,kds:kde) = 0
         FR(2,ide,kds:kde) = sqrtG_P_R!sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
         FR(3,ide,kds:kde) = 0
         FR(4,ide,kds:kde) = 0
-        FR(5,ide,kds:kde) = 0
         
         HB(1,ids:ide,kds) = 0
         HB(2,ids:ide,kds) = 0
         HB(3,ids:ide,kds) = PpB!PB(ids:ide,kds) - PB_ref(ids:ide,kds)
         HB(4,ids:ide,kds) = 0
-        HB(5,ids:ide,kds) = 0
         
         HT(1,ids:ide,kde) = 0
         HT(2,ids:ide,kde) = 0
         HT(3,ids:ide,kde) = PpT!PT(ids:ide,kde) - PT_ref(ids:ide,kde)
         HT(4,ids:ide,kde) = 0
-        HT(5,ids:ide,kde) = 0
       
         FR(:,ids-1,kds:kde) = FL(:,ids,kds:kde)
         FL(:,ide+1,kds:kde) = FR(:,ide,kds:kde)
@@ -493,25 +471,21 @@ MODULE spatial_operators_mod
         FL(2,ids,kds:kde) = q_ref(2,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde) + sqrtG_P_L!sqrtGL(ids,kds:kde) * PL(ids,kds:kde)
         FL(3,ids,kds:kde) = q_ref(3,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde)
         FL(4,ids,kds:kde) = q_ref(4,ids,kds:kde) * q_ref(2,ids,kds:kde) / q_ref(1,ids,kds:kde)
-        FL(5,ids,kds:kde) = 0
         
         FR(1,ide,kds:kde) = q_ref(2,ide,kds:kde)
         FR(2,ide,kds:kde) = q_ref(2,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde) + sqrtG_P_R!sqrtGR(ide,kds:kde) * PR(ide,kds:kde)
         FR(3,ide,kds:kde) = q_ref(3,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde)
         FR(4,ide,kds:kde) = q_ref(4,ide,kds:kde) * q_ref(2,ide,kds:kde) / q_ref(1,ide,kds:kde)
-        FR(5,ide,kds:kde) = 0
         
         HB(1,ids:ide,kds) = 0
         HB(2,ids:ide,kds) = sqrtG_G13_P_B!sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) * PB(ids:ide,kds)
         HB(3,ids:ide,kds) = PpB!PB(ids:ide,kds) - PB_ref(ids:ide,kds)
         HB(4,ids:ide,kds) = 0
-        HB(5,ids:ide,kds) = 0
         
         HT(1,ids:ide,kde) = 0
         HT(2,ids:ide,kde) = sqrtG_G13_P_T!sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) * PT(ids:ide,kde)
         HT(3,ids:ide,kde) = PpT!PT(ids:ide,kde) - PT_ref(ids:ide,kde)
         HT(4,ids:ide,kde) = 0
-        HT(5,ids:ide,kde) = 0
         
         FR(:,ids-1,kds:kde) = FL(:,ids,kds:kde)
         FL(:,ide+1,kds:kde) = FR(:,ide,kds:kde)
@@ -657,13 +631,12 @@ MODULE spatial_operators_mod
     end subroutine Rayleigh_coef
     
     function calc_pressure(sqrtG,q)
-      real(r_kind) calc_pressure
-      real(r_kind) sqrtG
-      real(r_kind) q(5)
+      real(r_kind)                 :: calc_pressure
+      real(r_kind)                 :: sqrtG
+      real(r_kind),dimension(nVar) :: q
       
       real(r_kind) w1
       real(r_kind) w4
-      real(r_kind) w5
       
       real(r_kind) rho
       real(r_kind) R
@@ -676,10 +649,9 @@ MODULE spatial_operators_mod
       
       w1 = q(1)
       w4 = q(4)
-      w5 = q(5)
       
-      rho      = ( w1 + w5 ) / sqrtG
-      gamma    = w5 / w1
+      rho      = w1 / sqrtG
+      gamma    = 0
       sh       = gamma / ( 1. + gamma )
       R        = ( 1. + eq * sh ) * Rd
       theta    = w4 / w1
@@ -692,32 +664,31 @@ MODULE spatial_operators_mod
     end function calc_pressure
     
     function calc_w_eta(sqrtG,G13,q)
-      real(r_kind)              :: calc_w_eta
-      real(r_kind)              :: sqrtG
-      real(r_kind)              :: G13
-      real(r_kind),dimension(5) :: q(5)
+      real(r_kind)                 :: calc_w_eta
+      real(r_kind)                 :: sqrtG
+      real(r_kind)                 :: G13
+      real(r_kind),dimension(nVar) :: q
       
       real(r_kind) :: u
       real(r_kind) :: w
 
-      u = q(2) / ( q(1) + q(5) )
-      w = q(3) / ( q(1) + q(5) )
+      u = q(2) / q(1)
+      w = q(3) / q(1)
       
       calc_w_eta = w / sqrtG + G13 * u
     
     end function calc_w_eta
     
     function calc_F(sqrtG,q,P)
-      real(r_kind),dimension(5) :: calc_F
-      real(r_kind)              :: sqrtG
-      real(r_kind),dimension(5) :: q(5)
-      real(r_kind)              :: p      ! pressure
+      real(r_kind),dimension(nVar) :: calc_F
+      real(r_kind)                 :: sqrtG
+      real(r_kind),dimension(nVar) :: q
+      real(r_kind)                 :: p      ! pressure
       
       real(r_kind) w1
       real(r_kind) w2
       real(r_kind) w3
       real(r_kind) w4
-      real(r_kind) w5
       
       real(r_kind) sqrtGrho
       real(r_kind) u
@@ -726,35 +697,31 @@ MODULE spatial_operators_mod
       w2 = q(2)
       w3 = q(3)
       w4 = q(4)
-      w5 = q(5)
       
-      sqrtGrho = w1 + w5
+      sqrtGrho = w1
       u        = w2 / sqrtGrho
-      !p        = p0*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))**((cpd*w1 + cpv*w5)/(cvd*w1 + cvv*w5))
       
       calc_F(1) = w1 * u
       calc_F(2) = w2 * u + sqrtG * p
       calc_F(3) = w3 * u
       calc_F(4) = w4 * u
-      calc_F(5) = w5 * u
       
     end function calc_F
     
     function calc_H(sqrtG,G13,q,p,p_ref)
-      real(r_kind),dimension(5) :: calc_H
-      real(r_kind)              :: sqrtG
-      real(r_kind)              :: G13
-      real(r_kind),dimension(5) :: q(5)
-      real(r_kind)              :: p      ! pressure
-      real(r_kind)              :: p_ref  ! reference pressure
+      real(r_kind),dimension(nVar) :: calc_H
+      real(r_kind)                 :: sqrtG
+      real(r_kind)                 :: G13
+      real(r_kind),dimension(nVar) :: q
+      real(r_kind)                 :: p      ! pressure
+      real(r_kind)                 :: p_ref  ! reference pressure
       
-      real(r_kind)              :: p_pert ! pressure  perturbation
+      real(r_kind)                 :: p_pert ! pressure  perturbation
       
       real(r_kind) w1
       real(r_kind) w2
       real(r_kind) w3
       real(r_kind) w4
-      real(r_kind) w5
       real(r_kind) ww
       
       real(r_kind) sqrtGrho
@@ -765,12 +732,10 @@ MODULE spatial_operators_mod
       w2 = q(2)
       w3 = q(3)
       w4 = q(4)
-      w5 = q(5)
       
-      sqrtGrho = w1 + w5
+      sqrtGrho = w1
       u        = w2 / sqrtGrho
       w        = w3 / sqrtGrho
-      !p        = p0*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))**((cpd*w1 + cpv*w5)/(cvd*w1 + cvv*w5))
       p_pert   = p - p_ref
       if(abs(p_pert)/p_ref<1.e-13)p_pert=0
       
@@ -780,26 +745,24 @@ MODULE spatial_operators_mod
       calc_H(2) = w2 * ww + sqrtG * G13 * p
       calc_H(3) = w3 * ww + p_pert
       calc_H(4) = w4 * ww
-      calc_H(5) = w5 * ww
       
     end function calc_H
     
     function calc_H_w_eta(sqrtG,G13,q,p,p_ref,w_eta)
-      real(r_kind),dimension(5) :: calc_H_w_eta
-      real(r_kind)              :: sqrtG
-      real(r_kind)              :: G13
-      real(r_kind),dimension(5) :: q(5)
-      real(r_kind)              :: p      ! pressure
-      real(r_kind)              :: p_ref  ! reference pressure
-      real(r_kind)              :: w_eta  ! deta/dt
+      real(r_kind),dimension(nVar) :: calc_H_w_eta
+      real(r_kind)                 :: sqrtG
+      real(r_kind)                 :: G13
+      real(r_kind),dimension(nVar) :: q
+      real(r_kind)                 :: p      ! pressure
+      real(r_kind)                 :: p_ref  ! reference pressure
+      real(r_kind)                 :: w_eta  ! deta/dt
       
-      real(r_kind)              :: p_pert ! pressure  perturbation
+      real(r_kind)                 :: p_pert ! pressure  perturbation
       
       real(r_kind) w1
       real(r_kind) w2
       real(r_kind) w3
       real(r_kind) w4
-      real(r_kind) w5
       real(r_kind) ww
       
       real(r_kind) sqrtGrho
@@ -810,12 +773,10 @@ MODULE spatial_operators_mod
       w2 = q(2)
       w3 = q(3)
       w4 = q(4)
-      w5 = q(5)
       
-      sqrtGrho = w1 + w5
+      sqrtGrho = w1
       u        = w2 / sqrtGrho
       w        = w3 / sqrtGrho
-      !p        = p0*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))**((cpd*w1 + cpv*w5)/(cvd*w1 + cvv*w5))
       p_pert   = p - p_ref
       if(abs(p_pert)/p_ref<1.e-13)p_pert=0
       
@@ -825,22 +786,20 @@ MODULE spatial_operators_mod
       calc_H_w_eta(2) = w2 * ww + sqrtG * G13 * p
       calc_H_w_eta(3) = w3 * ww + p_pert
       calc_H_w_eta(4) = w4 * ww
-      calc_H_w_eta(5) = w5 * ww
       
     end function calc_H_w_eta
     
     function calc_eigenvalue_x(sqrtG,q)
-      real(r_kind)              :: calc_eigenvalue_x
-      real(r_kind)              :: sqrtG
-      real(r_kind),dimension(5) :: q(5)
+      real(r_kind),dimension(nVar) :: calc_eigenvalue_x
+      real(r_kind)                 :: sqrtG
+      real(r_kind),dimension(nVar) :: q
       
       real(r_kind) w1
       real(r_kind) w2
       real(r_kind) w3
       real(r_kind) w4
-      real(r_kind) w5
       
-      real(r_kind) eig(5)
+      real(r_kind) eig(nVar)
       
       real(r_kind) coef1,coef2,coef3
       
@@ -851,43 +810,35 @@ MODULE spatial_operators_mod
         w2 = q(2)
         w3 = q(3)
         w4 = q(4)
-        w5 = q(5)
         
-        coef1 = cvd**2*w1**3*w2*w4*(w1 + w5)*(w1 + w5 + eq*w5) + &
-              2.*cvd*cvv*w1**2*w2*w4*w5*(w1 + w5)*(w1 + w5 + eq*w5) + &
-              cvv**2*w1*w2*w4*w5**2*(w1 + w5)*(w1 + w5 + eq*w5)
+        coef1 = w2
         
-        coef2 = sqrt( p0*sqrtG*w1**2*w4**2*(w1 + w5)**3*(cpd*w1 + cpv*w5)*&
-              (cvd*w1 + cvv*w5)**3*(w1 + w5 + &
-              eq*w5)**2*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))**&
-              ((cpd*w1 + cpv*w5)/(cvd*w1 + cvv*w5)) )
+        coef2 = sqrt( cpd * p0 * sqrtG * w1 / cvd ) * ((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))
         
-        coef3 = w1*w4*(w1 + w5)**2*(cvd*w1 + cvv*w5)**2*(w1 + w5 + eq*w5)
+        coef3 = w1
         
-        eig(1) = w2 / ( w1 + w5 )
+        eig(1) = w2 / w1
         eig(2) = eig(1)
-        eig(3) = eig(1)
-        eig(4) = ( coef1 - coef2 ) / coef3
-        eig(5) = ( coef1 + coef2 ) / coef3
+        eig(3) = ( coef1 - coef2 ) / coef3
+        eig(4) = ( coef1 + coef2 ) / coef3
       endif
       
-      calc_eigenvalue_x = maxval(abs(eig))
+      calc_eigenvalue_x = eig
       
     end function calc_eigenvalue_x
     
     function calc_eigenvalue_z(sqrtG,G13,q)
-      real(r_kind)              :: calc_eigenvalue_z
-      real(r_kind)              :: sqrtG
-      real(r_kind)              :: G13
-      real(r_kind),dimension(5) :: q(5)
+      real(r_kind),dimension(nVar) :: calc_eigenvalue_z
+      real(r_kind)                 :: sqrtG
+      real(r_kind)                 :: G13
+      real(r_kind),dimension(nVar) :: q
       
       real(r_kind) w1
       real(r_kind) w2
       real(r_kind) w3
       real(r_kind) w4
-      real(r_kind) w5
       
-      real(r_kind) eig(5)
+      real(r_kind) eig(nVar)
       
       real(r_kind) sqrtGrho
       real(r_kind) u
@@ -904,36 +855,285 @@ MODULE spatial_operators_mod
         w2 = q(2)
         w3 = q(3)
         w4 = q(4)
-        w5 = q(5)
         
-        !sqrtGrho = w1 + w5
-        !u        = w2 / sqrtGrho
-        !w        = w3 / sqrtGrho
+        coef1 = cvd*sqrtG**2*w1**3*(G13*sqrtG*w2 + w3)*w4
         
-        coef1 = cvd**2*w1**3*(G13*sqrtG*w2 + w3)*w4*(w1 + w5)*(w1 + w5 + eq*w5) + &
-              2.*cvd*cvv*w1**2*(G13*sqrtG*w2 + w3)*w4*                            &
-              w5*(w1 + w5)*(w1 + w5 + eq*w5) +                                    &
-              cvv**2*w1*(G13*sqrtG*w2 + w3)*w4*w5**2*(w1 + w5)*(w1 + w5 + eq*w5)
+        coef2 = sqrt( cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*w4**2&
+                    *((Rd*w4)/(p0*sqrtG))**(cpd/cvd) )
         
-        coef2 = sqrt( p0*sqrtG*(1 + G13**2*sqrtG**2)*w1**2*                    &
-              w4**2*(w1 + w5)**3*(cpd*w1 + cpv*w5)*(cvd*w1 + cvv*w5)**3*       &
-              (w1 + w5 + eq*w5)**2*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))** &
-              ((cpd*w1 + cpv*w5)/(cvd*w1 + cvv*w5)) )
+        coef3 = cvd*sqrtG**3*w1**4*w4
         
-        coef3 = sqrtG*w1*w4*(w1 + w5)**2*(cvd*w1 + cvv*w5)**2*(w1 + w5 + eq*w5)
-        
-        drhoetadt = (G13*sqrtG*w2 + w3)/(sqrtG*w1 + sqrtG*w5)
+        drhoetadt = (G13*sqrtG*w2 + w3)/ (sqrtG*w1)
         
         eig(1) = drhoetadt
         eig(2) = drhoetadt
-        eig(3) = drhoetadt
-        eig(4) = ( coef1 - coef2 ) / coef3
-        eig(5) = ( coef1 + coef2 ) / coef3
+        eig(3) = ( coef1 - coef2 ) / coef3
+        eig(4) = ( coef1 + coef2 ) / coef3
+        
+        !eig(3) = (sqrtG**2*w1**3*(G13*sqrtG*w2 + w3) -                           &
+        !            Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*w4**2*  &
+        !                  ((Rd*w4)/(p0*sqrtG))**(cpd/cvd))/(cvd*w4))/            &
+        !         (sqrtG**3*w1**4)
+        !eig(4) = (cvd*sqrtG**2*w1**3*(G13*sqrtG*w2 + w3)*w4 +                    &
+        !             Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*w4**2* &
+        !                 ((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))/                      &
+        !          (cvd*sqrtG**3*w1**4*w4)
       endif
       
-      calc_eigenvalue_z = maxval(abs(eig))
+      calc_eigenvalue_z = eig
       
     end function calc_eigenvalue_z
+    
+    ! A_x = R_x \lambda_x L_x, L_x = R_x^-1
+    function calc_eigen_matrix_x(q,sqrtG)
+      real(r_kind), dimension(nVar,nVar)              :: calc_eigen_matrix_x
+      real(r_kind), dimension(nVar     ), intent(in ) :: q
+      real(r_kind),                       intent(in ) :: sqrtG
+      
+      real(r_kind), dimension(nVar,nVar)              :: mtx
+      
+      real(r_kind) w1
+      real(r_kind) w2
+      real(r_kind) w3
+      real(r_kind) w4
+      
+      real(r_kind) a,b,c
+      
+      real(r_kind), dimension(nVar) :: eigen_value
+      
+      w1 = q(1)
+      w2 = q(2)
+      w3 = q(3)
+      w4 = q(4)
+      
+      eigen_value = calc_eigenvalue_x(sqrtG,q)
+      a = sign( 1._r_kind, eigen_value(1) )
+      b = sign( 1._r_kind, eigen_value(3) )
+      c = sign( 1._r_kind, eigen_value(4) )
+      
+      mtx(1,1) = (b*Sqrt(cvd)*w2 - c*Sqrt(cvd)*w2 +    &
+                  2*a*Sqrt(cpd*p0*sqrtG*w1)            &
+                   *((Rd*w4)/(p0*sqrtG))**             &
+                     (cpd/(2*cvd)))/                   &
+                 (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))* &
+                 (2*Sqrt(cpd*p0*sqrtG*w1)))
+      
+      mtx(1,2) = ((-b + c)*Sqrt(cvd*w1))/               &
+                 (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))*  &
+                  (2*Sqrt(cpd*p0*sqrtG)))
+      
+      mtx(1,3) = 0
+      
+      mtx(1,4) = ((-2*a + b + c)*w1)/(2*w4)
+      
+      mtx(2,1) = (w2*(2*a*Sqrt(w1) - b*Sqrt(w1) -        &
+               c*Sqrt(w1) + (b*Sqrt(cvd)*w2)/            &
+                 (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))*   &
+                    (Sqrt(cpd*p0*sqrtG))) -              &
+               (c*Sqrt(cvd)*w2)/(((Rd*w4)/(p0*sqrtG))**  &
+               (cpd/(2*cvd))*(Sqrt(cpd*p0*sqrtG)))))/(2*w1**(3./2.))
+      
+      mtx(2,2) = 0.5 * (b + c - (b*Sqrt(cvd)*w2)/   &
+             (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))*  &
+                (Sqrt(cpd*p0*sqrtG*w1)))            &
+                + (c*Sqrt(cvd)*w2)/                 &
+             (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))*  &
+                (Sqrt(cpd*p0*sqrtG*w1))))
+      
+      mtx(2,3) = 0
+      
+      mtx(2,4) = -((2*a*w2 - b*w2 - c*w2 +           &
+             (b*Sqrt(cpd*p0*sqrtG*w1)                &
+              *((Rd*w4)/(p0*sqrtG))**                &
+                    (cpd/(2*cvd)))/Sqrt(cvd) -       &
+             (c*Sqrt(cpd*p0*sqrtG*w1)                &
+             *((Rd*w4)/(p0*sqrtG))**                 &
+                    (cpd/(2*cvd)))/Sqrt(cvd))/(2*w4))
+      
+      mtx(3,1) = ((b - c)*Sqrt(cvd)*w2*w3)/          &
+              (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))*  &
+                 (2*Sqrt(cpd*p0*sqrtG)*              &
+                    w1**(3./2.)))
+      
+      mtx(3,2) = -(((b - c)*Sqrt(cvd)*w3)/           &
+             (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))*   &
+                (2*Sqrt(cpd*p0*sqrtG*w1))))
+      
+      mtx(3,3) = a
+      
+      mtx(3,4) = ((-2*a + b + c)*w3)/(2*w4)
+      
+      mtx(4,1) = ((b - c)*Sqrt(cvd)*w2*w4)/           &
+                (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))* &
+                   (2*Sqrt(cpd*p0*sqrtG)* &
+                      w1**(3./2.)))
+      
+      mtx(4,2) = -(((b - c)*Sqrt(cvd)*w4)/  &
+      (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))* &
+         (2*Sqrt(cpd*p0*sqrtG*w1))))
+            
+      mtx(4,3) = 0
+      
+      mtx(4,4) = ( b + c ) / 2.
+      
+      calc_eigen_matrix_x = mtx
+    end function calc_eigen_matrix_x
+    
+    ! A_z = R_z \lambda_z L_z, L_z = R_z^-1
+    function calc_eigen_matrix_z(q,sqrtG,G13)
+      real(r_kind), dimension(nVar,nVar)              :: calc_eigen_matrix_z
+      real(r_kind), dimension(nVar     ), intent(in ) :: q
+      real(r_kind),                       intent(in ) :: sqrtG
+      real(r_kind),                       intent(in ) :: G13
+      
+      real(r_kind), dimension(nVar,nVar)              :: mtx
+      
+      real(r_kind) w1
+      real(r_kind) w2
+      real(r_kind) w3
+      real(r_kind) w4
+      
+      real(r_kind) a,b,c
+      
+      real(r_kind), dimension(nVar) :: eigen_value
+      
+      w1 = q(1)
+      w2 = q(2)
+      w3 = q(3)
+      w4 = q(4)
+      
+      eigen_value = calc_eigenvalue_z(sqrtG,G13,q)
+      a = sign( 1._r_kind, eigen_value(1) )
+      b = sign( 1._r_kind, eigen_value(3) )
+      c = sign( 1._r_kind, eigen_value(4) )
+      
+      mtx(1,1) = (b*cvd*sqrtG**2*w1**3*(G13*sqrtG*w2 + w3)*w4 -               &
+                    c*cvd*sqrtG**2*w1**3*(G13*sqrtG*w2 + w3)*w4 +             &
+                    2*a*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
+                          w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))/            &
+                 (2*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*     &
+                        w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))
+          
+      mtx(1,2) = -(((b - c)*cvd*G13*sqrtG**3*w1**4*w4)/                      &
+                 (2*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*    &
+                        w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))
+      
+      mtx(1,3) = -(((b - c)*cvd*sqrtG**2*w1**4*w4)/                      &
+                (2*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
+                       w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))
+      
+      mtx(1,4) = ((-2*a + b + c)*w1)/(2*w4)
+      
+      mtx(2,1) = -((sqrtG*(G13*sqrtG*w2 + w3)*                                 &
+                   ((-b)*cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 +         &
+                      c*cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 -          &
+                      2*a*G13*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*  &
+                            w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)) +     &
+                      b*G13*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*    &
+                            w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)) +     &
+                      c*G13*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*    &
+                            w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))/    &
+                (2*(w1 + G13**2*sqrtG**2*w1)*                                  &
+                   Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*w4**2* &
+                       ((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))
+      
+      mtx(2,2) = (2*a*Sqrt(                                                      &
+                  cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*               &
+                   w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)) -                      &
+                   b*G13*sqrtG**2*(cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 - &
+                   G13*Sqrt(                                                     &
+                     cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*            &
+                      w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))) +                  &
+                   c*G13*sqrtG**2*(cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 + &
+                   G13*Sqrt(                                                     &
+                     cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*            &
+                      w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))/                  &
+                (2*(1 + G13**2*sqrtG**2)*                                        &
+                Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*            &
+                  w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))
+      
+      mtx(2,3) = 0.5*sqrtG*(-((2*a*G13)/(1 + G13**2*sqrtG**2)) + (b*G13)/(1 + &
+                  G13**2*sqrtG**2) + (c*G13)/(1 + G13**2*sqrtG**2) -          &
+                  (b*cvd*sqrtG*w1**3*w2*w4)/                                  &
+                Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*         &
+                  w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)) +                    &
+                  (c*cvd*sqrtG*w1**3*w2*w4)/                                  &
+                Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*         &
+                  w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))
+      
+      mtx(2,4) = (-2*a*cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 +     &
+                  b*cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 +        &
+                     c*cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 -     &
+                     b*G13*                                              &
+                   Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
+                     w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)) +            &
+                     c*G13*                                              &
+                   Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
+                     w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))/            &
+                  (2*cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w4**2)
+      
+      mtx(3,1) = -(((G13*sqrtG*w2 + w3)*                                         &
+                   (-2*a*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*         &
+                            w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)) +       &
+                      b*((-cvd)*sqrtG**2*(1 + G13**2*sqrtG**2)*w1**3*w3*w4 +     &
+                           Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
+                               w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))) +         &
+                      c*(cvd*sqrtG**2*(1 + G13**2*sqrtG**2)*w1**3*w3*w4 +        &
+                           Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
+                               w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))))/        &
+                (2*(w1 + G13**2*sqrtG**2*w1)*                                    &
+                   Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*w4**2*   &
+                       ((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))
+      
+      mtx(3,2) = (G13*sqrtG*(-2*a*Sqrt(cpd*cvd*p0*sqrtG**5*                         &
+                           (1 + G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))** &
+                             (cpd/cvd)) +                                           &
+                     b*((-cvd)*sqrtG**2*(1 + G13**2*sqrtG**2)*w1**3*w3*w4 +         &
+                          Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*     &
+                              w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))) +             &
+                     c*(cvd*sqrtG**2*(1 + G13**2*sqrtG**2)*w1**3*w3*w4 +            &
+                          Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*     &
+                              w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))))/            &
+               (2*(1 + G13**2*sqrtG**2)*Sqrt(cpd*cvd*p0*sqrtG**5*                   &
+                      (1 + G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**      &
+                        (cpd/cvd)))
+      
+      mtx(3,3) = (2*a*G13**2*sqrtG**2*Sqrt(cpd*cvd*p0*sqrtG**5*                  &
+                     (1 + G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**    &
+                       (cpd/cvd)) + b*((-cvd)*sqrtG**2*(1 + G13**2*sqrtG**2)*    &
+                      w1**3*w3*w4 + Sqrt(cpd*cvd*p0*sqrtG**5*                    &
+                        (1 + G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))** &
+                          (cpd/cvd))) + c*(cvd*sqrtG**2*(1 + G13**2*sqrtG**2)*   &
+                      w1**3*w3*w4 + Sqrt(cpd*cvd*p0*sqrtG**5*                    &
+                        (1 + G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))** &
+                          (cpd/cvd))))/(2*(1 + G13**2*sqrtG**2)*                 &
+               Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*w4**2*       &
+                   ((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))
+      
+      mtx(3,4) = (-2*a*w3*w4 + b*w3*w4 + c*w3*w4 -                         &
+                 (b*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*  &
+                          w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))/         &
+                   (sqrtG**2*(cvd + cvd*G13**2*sqrtG**2)*w1**3) +          &
+                 (c*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*  &
+                          w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))/         &
+                   (sqrtG**2*(cvd + cvd*G13**2*sqrtG**2)*w1**3))/(2*w4**2)
+      
+      mtx(4,1) = ((b - c)*cvd*sqrtG**2*w1**2*(G13*sqrtG*w2 + w3)*w4**2)/   &
+                 (2*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*  &
+                        w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))
+      
+      mtx(4,2) = -(((b - c)*cvd*G13*sqrtG**3*w1**3*w4**2)/                 &
+                 (2*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*  &
+                        w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))
+            
+      mtx(4,3) = -(((b - c)*cvd*sqrtG**2*w1**3*w4**2)/                   &
+                (2*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
+                       w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))
+      
+      mtx(4,4) = ( b + c ) / 2.
+      
+      calc_eigen_matrix_z = mtx
+    end function calc_eigen_matrix_z
     
 END MODULE spatial_operators_mod
 

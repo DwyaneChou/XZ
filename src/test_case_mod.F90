@@ -91,30 +91,6 @@ module test_case_mod
         enddo
       enddo
       
-      !do i = ics,ice
-      !  call spline2_integration(nz_ext-1,z(i,:),dexner(i,:),0.,0.,nz_ext,z(i,:),dexner(i,:))
-      !  !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
-      !  
-      !  exner(i,1) = 1.
-      !  
-      !  do k = kds+1,kce
-      !    exner(i,k) = exner(i,1) + sum(dexner(i,kds+1:k))
-      !  enddo
-      !  
-      !  do k = kcs,kds-1
-      !    exner(i,k) = 1. - sum(dexner(i,kds:k+1:-1))
-      !  enddo
-      !  
-      !  do k = kcs,kce
-      !    p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
-      !    T    (i,k) = exner(i,k) * theta(i,k)
-      !    rho  (i,k) = p(i,k) / ( Rd * T(i,k) )
-      !    u    (i,k) = 0.
-      !    w    (i,k) = 0.
-      !    q    (i,k) = 0.
-      !  enddo
-      !enddo
-      
       do i = ics,ice
         do k = kcs,kce
           exner(i,k) = 1. + dexner(i,k) * z(i,k)
@@ -135,7 +111,6 @@ module test_case_mod
       q_ref(2,:,:) = 0.
       q_ref(3,:,:) = 0.
       q_ref(4,:,:) = 300.
-      q_ref(5,:,:) = 0.
       
       do iVar = 2,nVar
         q_ref(iVar,:,:) = q_ref(iVar,:,:) * q_ref(1,:,:)
@@ -154,7 +129,6 @@ module test_case_mod
       stat%q(2,:,:) = sqrtG * rho * u
       stat%q(3,:,:) = sqrtG * rho * w
       stat%q(4,:,:) = sqrtG * rho * theta
-      stat%q(5,:,:) = sqrtG * rho * q
       
       print*,'max/min value of sqrtG           ',maxval(sqrtG(   ids:ide,kds:kde)),minval(sqrtG(   ids:ide,kds:kde))
       print*,'max/min value of G13             ',maxval(G13  (   ids:ide,kds:kde)),minval(G13  (   ids:ide,kds:kde))
@@ -162,7 +136,6 @@ module test_case_mod
       print*,'max/min value of sqrtG*rho*u     ',maxval(stat%q(2,ids:ide,kds:kde)),minval(stat%q(2,ids:ide,kds:kde))
       print*,'max/min value of sqrtG*rho*w     ',maxval(stat%q(3,ids:ide,kds:kde)),minval(stat%q(3,ids:ide,kds:kde))
       print*,'max/min value of sqrtG*rho*theta ',maxval(stat%q(4,ids:ide,kds:kde)),minval(stat%q(4,ids:ide,kds:kde))
-      print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,ids:ide,kds:kde)),minval(stat%q(5,ids:ide,kds:kde))
       
     end subroutine thermal_bubble
     
@@ -222,55 +195,6 @@ module test_case_mod
       
       call init_vertical_coordinate
       
-      !do k = kcs,kce
-      !  do i = ics,ice
-      !    theta_bar(i,k) = theta0 * exp( N0**2 /gravity * z(i,k) )
-      !    theta    (i,k) = theta_bar(i,k)
-      !    dexner   (i,k) = -gravity / ( Cpd * theta(i,k) )
-      !  enddo
-      !enddo
-      !
-      !! Set exner on top
-      !do i = ics,ice
-      !  exner(i,1) = 1.
-      !  
-      !  call spline2_integration(nz_ext-1,xi(i,:),dexner(i,:),0.,0.,nz_ext,xi(i,:),dexner(i,:))
-      !  !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
-      !  
-      !  do k = kds+1,kce
-      !    exner(i,k) = exner(i,1) + sum(dexner(i,kds+1:k))
-      !  enddo
-      !  
-      !enddo
-      !exner(:,kce) = sum( exner(ids:ide,kce) ) / nx
-      !
-      !do k = kcs,kce
-      !  do i = ics,ice
-      !    theta_bar(i,k) = theta0 * exp( N0**2 /gravity * z(i,k) )
-      !    theta    (i,k) = theta_bar(i,k)
-      !    dexner   (i,k) = -gravity / ( Cpd * theta(i,k) )
-      !  enddo
-      !enddo
-      !
-      !! Initialize fields
-      !do i = ics,ice
-      !  call spline2_integration(nz_ext-1,z(i,:),dexner(i,:),0.,0.,nz_ext,z(i,:),dexner(i,:))
-      !  !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
-      !  
-      !  do k = kce,kcs,-1
-      !    exner(i,k) = exner(i,kce) - sum(dexner(i,k:kce))
-      !  enddo
-      !  
-      !  do k = kcs,kce
-      !    p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
-      !    T    (i,k) = exner(i,k) * theta(i,k)
-      !    rho  (i,k) = p(i,k) / ( Rd * T(i,k) )
-      !    u    (i,k) = 10.
-      !    w    (i,k) = 0.
-      !    q    (i,k) = 0.
-      !  enddo
-      !enddo
-      
       do k = kcs,kce
         do i = ics,ice
           theta_bar(i,k) = theta0 * exp( N0**2 /gravity * z(i,k) )
@@ -297,7 +221,6 @@ module test_case_mod
       q_ref(2,:,:) = sqrtG * rho * u
       q_ref(3,:,:) = sqrtG * rho * w
       q_ref(4,:,:) = sqrtG * rho * theta
-      q_ref(5,:,:) = sqrtG * rho * q
       
       ref%q = q_ref
       
@@ -305,7 +228,6 @@ module test_case_mod
       stat%q(2,:,:) = sqrtG * rho * u
       stat%q(3,:,:) = sqrtG * rho * w
       stat%q(4,:,:) = sqrtG * rho * theta
-      stat%q(5,:,:) = sqrtG * rho * q
       
       print*,'max/min value of sqrtG           ',maxval(sqrtG(   ids:ide,kds:kde)),minval(sqrtG(   ids:ide,kds:kde))
       print*,'max/min value of G13             ',maxval(G13  (   ids:ide,kds:kde)),minval(G13  (   ids:ide,kds:kde))
@@ -313,7 +235,6 @@ module test_case_mod
       print*,'max/min value of sqrtG*rho*u     ',maxval(stat%q(2,ids:ide,kds:kde)),minval(stat%q(2,ids:ide,kds:kde))
       print*,'max/min value of sqrtG*rho*w     ',maxval(stat%q(3,ids:ide,kds:kde)),minval(stat%q(3,ids:ide,kds:kde))
       print*,'max/min value of sqrtG*rho*theta ',maxval(stat%q(4,ids:ide,kds:kde)),minval(stat%q(4,ids:ide,kds:kde))
-      print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,ids:ide,kds:kde)),minval(stat%q(5,ids:ide,kds:kde))
     end subroutine schar_mountain
     
     ! Density current according to Li 2013
@@ -398,7 +319,6 @@ module test_case_mod
       q_ref(2,:,:) = 0.
       q_ref(3,:,:) = 0.
       q_ref(4,:,:) = 300.
-      q_ref(5,:,:) = 0.
       
       do iVar = 2,nVar
         q_ref(iVar,:,:) = q_ref(iVar,:,:) * q_ref(1,:,:)
@@ -408,7 +328,6 @@ module test_case_mod
       
       ! Set theta perturbation
       where(r<=1.)theta = theta_bar + dtheta * ( cos(pi*r) + 1. )/2.
-      !where(r<=1.)theta = theta_bar + dtheta * cos(pi*r/2)**2
       
       viscosity_coef = 75
       
@@ -416,7 +335,6 @@ module test_case_mod
       stat%q(2,:,:) = sqrtG * rho * u
       stat%q(3,:,:) = sqrtG * rho * w
       stat%q(4,:,:) = sqrtG * rho * theta
-      stat%q(5,:,:) = sqrtG * rho * q
       
       print*,'max/min value of sqrtG           ',maxval(sqrtG        ),minval(sqrtG        )
       print*,'max/min value of G13             ',maxval(G13          ),minval(G13          )
@@ -424,7 +342,6 @@ module test_case_mod
       print*,'max/min value of sqrtG*rho*u     ',maxval(stat%q(2,:,:)),minval(stat%q(2,:,:))
       print*,'max/min value of sqrtG*rho*v     ',maxval(stat%q(3,:,:)),minval(stat%q(3,:,:))
       print*,'max/min value of sqrtG*rho*theta ',maxval(stat%q(4,:,:)),minval(stat%q(4,:,:))
-      print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,:,:)),minval(stat%q(5,:,:))
       
     end subroutine density_current
     
