@@ -3,7 +3,7 @@ clear
 
 ncfile    = '..\run\output_xz_1.nc';
 pic_path  = '.\';
-varname   = 'w';
+varname   = 'theta';
 
 time_start = 1;
 time_end   = 201;
@@ -42,7 +42,7 @@ nt = time_end - time_start + 1;
 var = ncread(ncfile,varname,[1,1,it],[Inf,Inf,1]);
 
 disp(['Plotting time ',num2str(it),'/',num2str(nt)])
-% figure('visible','off')
+figure%('visible','off')
 
 if strcmp(varname,'u')||strcmp(varname,'w')
     var_p = var;
