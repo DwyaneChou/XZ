@@ -161,7 +161,17 @@ module temporal_mod
       type(tend_field), intent(in   ) :: tend
       real            , intent(in   ) :: inc_t
       
+      integer iVar
+      
+      print*,'start'
+      iVar = 2
+      !print*,maxval(abs(stat_old%q(:,1:nx/2,kds:kde)) - abs(stat_old%q(:,nx:nx/2+1:-1,kds:kde))),maxval(stat_old%q(:,ids:ide,kds:kde))
+      !print*,maxval(abs(tend%q(:,1:nx/2,kds:kde)) - abs(tend%q(:,nx:nx/2+1:-1,kds:kde))),maxval(tend%q(:,ids:ide,kds:kde))
+      print*,maxval(abs(stat_old%q(iVar,1:nx/2,kds:kde) + stat_old%q(iVar,nx:nx/2+1:-1,kds:kde)))
+      print*,maxval(abs(tend%q(iVar,1:nx/2,kds:kde) + tend%q(iVar,nx:nx/2+1:-1,kds:kde)))
       stat_new%q = stat_old%q + inc_t * tend%q
+      !print*,maxval(abs(stat_new%q(:,1:nx/2,kds:kde)) - abs(stat_new%q(:,nx:nx/2+1:-1,kds:kde))),maxval(stat_new%q(:,ids:ide,kds:kde))
+      print*,maxval(abs(stat_new%q(iVar,1:nx/2,kds:kde) + stat_new%q(iVar,nx:nx/2+1:-1,kds:kde)))
       
     end subroutine update_stat
     

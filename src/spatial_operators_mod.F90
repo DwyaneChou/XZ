@@ -425,6 +425,10 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
+      !iVar = 3
+      !print*,maxval(abs(Fe(iVar,1:nx/2,kds:kde)) - abs(Fe(iVar,nx+1:nx/2+2:-1,kds:kde))),maxval(Fe(iVar,ids:ide,kds:kde))
+      !print*,maxval(abs(He(iVar,1:nx/2,kds:kde+1)) - abs(He(iVar,nx:nx/2+1:-1,kds:kde+1))),maxval(He(iVar,ids:ide,kds:kde))
+      !print*,maxval(abs(tend%q(iVar,1:nx/2,kds:kde)) - abs(tend%q(iVar,nx:nx/2+1:-1,kds:kde))),maxval(tend%q(iVar,ids:ide,kds:kde))
       
     end subroutine spatial_operator
     
