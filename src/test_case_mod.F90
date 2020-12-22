@@ -378,6 +378,30 @@ module test_case_mod
         enddo
       enddo
       
+      !do i = ics,ice
+      !  call spline2_integration(nz_ext-1,z(i,:),dexner(i,:),0.,0.,nz_ext,z(i,:),dexner(i,:))
+      !  !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
+      !  
+      !  exner(i,1) = 1.
+      !  
+      !  do k = kds+1,kce
+      !    exner(i,k) = exner(i,1) + sum(dexner(i,kds+1:k))
+      !  enddo
+      !  
+      !  do k = kcs,kds-1
+      !    exner(i,k) = 1. - sum(dexner(i,kds:k+1:-1))
+      !  enddo
+      !  
+      !  do k = kcs,kce
+      !    p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
+      !    T    (i,k) = exner(i,k) * theta(i,k)
+      !    rho  (i,k) = p(i,k) / ( Rd * T(i,k) )
+      !    u    (i,k) = 0.
+      !    w    (i,k) = 0.
+      !    q    (i,k) = 0.
+      !  enddo
+      !enddo
+      
       do i = ics,ice
         do k = kcs,kce
           exner(i,k) = 1. + dexner(i,k) * z(i,k)
