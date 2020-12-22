@@ -272,11 +272,11 @@ MODULE spatial_operators_mod
       
       call bdy_condition(P,stat%q,ref%q,src)
       
-      rho_p = ( stat%q(1,ids:ide,kds:kde) - ref%q (1,ids:ide,kds:kde) ) / sqrtG(ids:ide,kds:kde)
+      rho_p = stat%q(1,ids:ide,kds:kde) - ref%q (1,ids:ide,kds:kde)
       
-      where(abs(rho_p)<=1.E-13)rho_p=0.
+      where(abs(rho_p)<=1.E-10)rho_p=0.
       
-      src(3,ids:ide,kds:kde) = src(3,ids:ide,kds:kde) - sqrtG(ids:ide,kds:kde) * rho_p(ids:ide,kds:kde) * gravity
+      src(3,ids:ide,kds:kde) = src(3,ids:ide,kds:kde) - rho_p(ids:ide,kds:kde) * gravity
       
       ! calc x flux
       !$OMP PARALLEL DO PRIVATE(i,im1,eigen_mtx_x,qe,u,w,theta,sqrtGe)
@@ -285,12 +285,11 @@ MODULE spatial_operators_mod
           im1 = i - 1
           
           ! Scheme 1
-          qe          = 0.5 * ( qL(:,i,k) + qR(:,im1,k) )
-          !u           = qe(2) / qe(1)
-          !qe          = qe - 0.5 * sign(1._r_kind,u) * ( qL(:,i,k) - qR(:,im1,k) )
+          qe = 0.5 * ( qL(:,i,k) + qR(:,im1,k) )
+          !u  = qe(2) / qe(1)
+          !qe = qe - 0.5 * sign(1._r_kind,u) * ( qL(:,i,k) - qR(:,im1,k) )
           
-          sqrtGe      = 0.5 * ( sqrtGL(i,k) + sqrtGR(im1,k) )
-          eigen_mtx_x = calc_eigen_matrix_x( qe, sqrtGe )
+          sqrtGe = 0.5 * ( sqrtGL(i,k) + sqrtGR(im1,k) )
           
           !! Scheme 2
           !rho   = ( 0.5 * ( sqrt(qL(1,i,k)) + sqrt(qR(1,im1,k)) ) )**2
@@ -303,8 +302,11 @@ MODULE spatial_operators_mod
           !qe(3) = rho * w
           !qe(4) = rho * theta
           !
-          !sqrtGe      = 0.5 * ( sqrtGL(i,k) + sqrtGR(im1,k) )
-          !eigen_mtx_x = calc_eigen_matrix_x( qe, sqrtGe )
+          !sqrtGe = 0.5 * ( sqrtGL(i,k) + sqrtGR(im1,k) )
+          
+          eigen_mtx_x = calc_eigen_matrix_x( qe, sqrtGe )
+          
+          !where( abs( FL(:,i,k) - FR(:,im1,k) ) < 1.e-13 ) FL(:,i,k) = FR(:,im1,k) ! For IEEE_UNDERFLOW_FLAG, no influence to result
           
           Fe(:,i,k) = 0.5 * ( FL(:,i,k) + FR(:,im1,k) - matmul( eigen_mtx_x, ( FL(:,i,k) - FR(:,im1,k) ) ) )
         enddo
@@ -339,6 +341,8 @@ MODULE spatial_operators_mod
           !G13e        = 0.5 * ( G13B(i,k) + G13T(i,km1) )
           
           eigen_mtx_z = calc_eigen_matrix_z( qe, sqrtGe, G13e )
+          
+          !where( abs( HB(:,i,k) - HT(:,i,km1) ) < 1.e-13 ) HB(:,i,k) = HT(:,i,km1) ! For IEEE_UNDERFLOW_FLAG, no influence to result
           
           He(:,i,k) = 0.5 * ( HB(:,i,k) + HT(:,i,km1) - matmul( eigen_mtx_z, ( HB(:,i,k) - HT(:,i,km1) ) ) )
         enddo
@@ -425,10 +429,22 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
-      !iVar = 3
-      !print*,maxval(abs(Fe(iVar,1:nx/2,kds:kde)) - abs(Fe(iVar,nx+1:nx/2+2:-1,kds:kde))),maxval(Fe(iVar,ids:ide,kds:kde))
-      !print*,maxval(abs(He(iVar,1:nx/2,kds:kde+1)) - abs(He(iVar,nx:nx/2+1:-1,kds:kde+1))),maxval(He(iVar,ids:ide,kds:kde))
-      !print*,maxval(abs(tend%q(iVar,1:nx/2,kds:kde)) - abs(tend%q(iVar,nx:nx/2+1:-1,kds:kde))),maxval(tend%q(iVar,ids:ide,kds:kde))
+      
+      !! Check asymmetry
+      !iVar = 2
+      !if( maxval( abs( tend%q(iVar,1:nx/2,kds:kde) + tend%q(iVar,nx:nx/2+1:-1,kds:kde) ) ) > 1.e-13 )then
+      !  !print*,maxval(abs(Fe(iVar,1:nx/2,kds:kde)) - abs(Fe(iVar,nx+1:nx/2+2:-1,kds:kde))),maxval(Fe(iVar,ids:ide,kds:kde))
+      !  !print*,maxval(abs(He(iVar,1:nx/2,kds:kde+1)) - abs(He(iVar,nx:nx/2+1:-1,kds:kde+1))),maxval(He(iVar,ids:ide,kds:kde))
+      !  !print*,maxval(abs(tend%q(iVar,1:nx/2,kds:kde)) - abs(tend%q(iVar,nx:nx/2+1:-1,kds:kde))),maxval(tend%q(iVar,ids:ide,kds:kde))
+      !  
+      !  print*,'Check asymmetry'
+      !  do k = kds,kde
+      !    do i = ids,ide/2
+      !      if( abs( tend%q(iVar,i,k) + tend%q(iVar,nx-i+1,k) ) /= 0 ) print*,k,i,abs( tend%q(iVar,i,k) + tend%q(iVar,nx-i+1,k) ), tend%q(iVar,i,k), tend%q(iVar,nx-i+1,k)
+      !    enddo
+      !  enddo
+      !  stop 'Check asymmetry'
+      !endif
       
     end subroutine spatial_operator
     
@@ -959,67 +975,63 @@ MODULE spatial_operators_mod
       b = sign( 1._r_kind, eigen_value(3) )
       c = sign( 1._r_kind, eigen_value(4) )
       
-      mtx(1,1) = (b*Sqrt(cvd)*w2 - c*Sqrt(cvd)*w2 +    &
-                  2*a*Sqrt(cpd*p0*sqrtG*w1)            &
-                   *((Rd*w4)/(p0*sqrtG))**             &
-                     (cpd/(2*cvd)))/                   &
-                 (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))* &
-                 (2*Sqrt(cpd*p0*sqrtG*w1)))
+      if( abs( eigen_value(1) )< 1.e-13 ) a = 0
+      if( abs( eigen_value(3) )< 1.e-13 ) b = 0
+      if( abs( eigen_value(4) )< 1.e-13 ) c = 0
       
-      mtx(1,2) = ((-b + c)*Sqrt(cvd*w1))/               &
-                 (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))*  &
-                  (2*Sqrt(cpd*p0*sqrtG)))
+      mtx(1,1) = (b*Sqrt(cvd)*w2 - c*Sqrt(cvd)*w2 + 2.*a*Sqrt(cpd)*Sqrt(p0)* &
+                   Sqrt(sqrtG)*Sqrt(w1)*((Rd*w4)/(p0*sqrtG))**               &
+                     (cpd/(2.*cvd)))/(((Rd*w4)/(p0*sqrtG))**(cpd/(2.*cvd))*  &
+                 (2.*Sqrt(cpd)*Sqrt(p0)*Sqrt(sqrtG)*Sqrt(w1)))
+      
+      mtx(1,2) = ((-b + c)*Sqrt(cvd)*Sqrt(w1))/         &
+                 (((Rd*w4)/(p0*sqrtG))**(cpd/(2.*cvd))* &
+                    (2.*Sqrt(cpd)*Sqrt(p0)*Sqrt(sqrtG)))
       
       mtx(1,3) = 0
       
-      mtx(1,4) = ((-2*a + b + c)*w1)/(2*w4)
+      mtx(1,4) = ((-2.*a + b + c)*w1)/(2.*w4)
       
-      mtx(2,1) = (w2*(2*a*Sqrt(w1) - b*Sqrt(w1) -          &
-                 c*Sqrt(w1) + (b*Sqrt(cvd)*w2)/            &
-                   (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))*   &
-                      (Sqrt(cpd*p0*sqrtG))) -              &
-                 (c*Sqrt(cvd)*w2)/(((Rd*w4)/(p0*sqrtG))**  &
-                 (cpd/(2*cvd))*(Sqrt(cpd*p0*sqrtG)))))/    &
-                 (2*w1**(3./2.))
+      mtx(2,1) = (w2*(2.*a*Sqrt(w1) - b*Sqrt(w1) - c*Sqrt(w1) +           &
+                 (b*Sqrt(cvd)*w2)/(((Rd*w4)/(p0*sqrtG))**(cpd/(2.*cvd))*  &
+                      (Sqrt(cpd)*Sqrt(p0)*Sqrt(sqrtG))) -                 &
+                 (c*Sqrt(cvd)*w2)/(((Rd*w4)/(p0*sqrtG))**(cpd/(2.*cvd))*  &
+                      (Sqrt(cpd)*Sqrt(p0)*Sqrt(sqrtG)))))/(2.*w1**(3./2.))
       
-      mtx(2,2) = 0.5 * (b + c - (b*Sqrt(cvd)*w2)/   &
-             (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))*  &
-                (Sqrt(cpd*p0*sqrtG*w1)))            &
-                + (c*Sqrt(cvd)*w2)/                 &
-             (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))*  &
-                (Sqrt(cpd*p0*sqrtG*w1))))
+      mtx(2,2) = (1./2.)*(b + c - (b*Sqrt(cvd)*w2)/                      &
+                   (((Rd*w4)/(p0*sqrtG))**(cpd/(2.*cvd))*                &
+                      (Sqrt(cpd)*Sqrt(p0)*Sqrt(sqrtG)*Sqrt(w1))) +       &
+                 (c*Sqrt(cvd)*w2)/(((Rd*w4)/(p0*sqrtG))**(cpd/(2.*cvd))* &
+                      (Sqrt(cpd)*Sqrt(p0)*Sqrt(sqrtG)*Sqrt(w1))))
       
       mtx(2,3) = 0
       
-      mtx(2,4) = -((2*a*w2 - b*w2 - c*w2 +           &
-             (b*Sqrt(cpd*p0*sqrtG*w1)                &
-              *((Rd*w4)/(p0*sqrtG))**                &
-                    (cpd/(2*cvd)))/Sqrt(cvd) -       &
-             (c*Sqrt(cpd*p0*sqrtG*w1)                &
-             *((Rd*w4)/(p0*sqrtG))**                 &
-                    (cpd/(2*cvd)))/Sqrt(cvd))/(2*w4))
+      mtx(2,4) = -((2.*a*w2 - b*w2 - c*w2 + (b*Sqrt(cpd)*Sqrt(p0)*         &
+                         Sqrt(sqrtG)*Sqrt(w1)*((Rd*w4)/(p0*sqrtG))**       &
+                           (cpd/(2.*cvd)))/Sqrt(cvd) -                     &
+                    (c*Sqrt(cpd)*Sqrt(p0)*Sqrt(sqrtG)*Sqrt(w1)*            &
+                         ((Rd*w4)/(p0*sqrtG))**(cpd/(2.*cvd)))/Sqrt(cvd))/ &
+                 (2.*w4))
       
-      mtx(3,1) = ((b - c)*Sqrt(cvd)*w2*w3)/          &
-              (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))*  &
-                 (2*Sqrt(cpd*p0*sqrtG)*              &
-                    w1**(3./2.)))
+      mtx(3,1) = ((b - c)*Sqrt(cvd)*w2*w3)/                         &
+                 (((Rd*w4)/(p0*sqrtG))**(cpd/(2.*cvd))*             &
+                    (2.*Sqrt(cpd)*Sqrt(p0)*Sqrt(sqrtG)*w1**(3./2.)))
       
-      mtx(3,2) = -(((b - c)*Sqrt(cvd)*w3)/           &
-             (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))*   &
-                (2*Sqrt(cpd*p0*sqrtG*w1))))
+      mtx(3,2) = -(((b - c)*Sqrt(cvd)*w3)/(((Rd*w4)/(p0*sqrtG))**   &
+                 (cpd/(2.*cvd))*(2.*Sqrt(cpd)*Sqrt(p0)*Sqrt(sqrtG)* &
+                  Sqrt(w1))))
       
       mtx(3,3) = a
       
-      mtx(3,4) = ((-2*a + b + c)*w3)/(2*w4)
+      mtx(3,4) = ((-2.*a + b + c)*w3)/(2.*w4)
       
-      mtx(4,1) = ((b - c)*Sqrt(cvd)*w2*w4)/           &
-                (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))* &
-                   (2*Sqrt(cpd*p0*sqrtG)* &
-                      w1**(3./2.)))
+      mtx(4,1) = ((b - c)*Sqrt(cvd)*w2*w4)/                         &
+                 (((Rd*w4)/(p0*sqrtG))**(cpd/(2.*cvd))*             &
+                    (2.*Sqrt(cpd)*Sqrt(p0)*Sqrt(sqrtG)*w1**(3./2.)))
       
-      mtx(4,2) = -(((b - c)*Sqrt(cvd)*w4)/  &
-      (((Rd*w4)/(p0*sqrtG))**(cpd/(2*cvd))* &
-         (2*Sqrt(cpd*p0*sqrtG*w1))))
+      mtx(4,2) = -(((b - c)*Sqrt(cvd)*w4)/(((Rd*w4)/(p0*sqrtG))**   &
+                 (cpd/(2.*cvd))*(2.*Sqrt(cpd)*Sqrt(p0)*Sqrt(sqrtG)* &
+                  Sqrt(w1))))
             
       mtx(4,3) = 0
       
@@ -1056,127 +1068,131 @@ MODULE spatial_operators_mod
       b = sign( 1._r_kind, eigen_value(3) )
       c = sign( 1._r_kind, eigen_value(4) )
       
-      mtx(1,1) = (b*cvd*sqrtG**2*w1**3*(G13*sqrtG*w2 + w3)*w4 -               &
-                    c*cvd*sqrtG**2*w1**3*(G13*sqrtG*w2 + w3)*w4 +             &
-                    2*a*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
-                          w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))/            &
-                 (2*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*     &
+      if( abs( eigen_value(1) )< 1.e-13 ) a = 0
+      if( abs( eigen_value(3) )< 1.e-13 ) b = 0
+      if( abs( eigen_value(4) )< 1.e-13 ) c = 0
+      
+      mtx(1,1) = (b*cvd*sqrtG**2*w1**3*(G13*sqrtG*w2 + w3)*w4 -                &
+                    c*cvd*sqrtG**2*w1**3*(G13*sqrtG*w2 + w3)*w4 +              &
+                    2*a*Sqrt(cpd*cvd*p0*sqrtG**5*(1. + G13**2*sqrtG**2)*w1**7* &
+                          w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))/             &
+                 (2.*Sqrt(cpd*cvd*p0*sqrtG**5*(1. + G13**2*sqrtG**2)*w1**7*    &
                         w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))
           
       mtx(1,2) = -(((b - c)*cvd*G13*sqrtG**3*w1**4*w4)/                      &
-                 (2*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*    &
+                 (2.*Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*   &
                         w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))
       
-      mtx(1,3) = -(((b - c)*cvd*sqrtG**2*w1**4*w4)/                      &
-                (2*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
+      mtx(1,3) = -(((b - c)*cvd*sqrtG**2*w1**4*w4)/                       &
+                (2.*Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7* &
                        w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))
       
-      mtx(1,4) = ((-2*a + b + c)*w1)/(2*w4)
+      mtx(1,4) = ((-2.*a + b + c)*w1)/(2.*w4)
       
       mtx(2,1) = -((sqrtG*(G13*sqrtG*w2 + w3)*                                 &
-                   ((-b)*cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 +         &
-                      c*cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 -          &
-                      2*a*G13*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*  &
+                   ((-b)*cvd*sqrtG*(1.+ G13**2*sqrtG**2)*w1**3*w2*w4 +         &
+                      c*cvd*sqrtG*(1.+ G13**2*sqrtG**2)*w1**3*w2*w4 -          &
+                      2.*a*G13*Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)* &
                             w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)) +     &
-                      b*G13*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*    &
+                      b*G13*Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*    &
                             w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)) +     &
-                      c*G13*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*    &
+                      c*G13*Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*    &
                             w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))/    &
-                (2*(w1 + G13**2*sqrtG**2*w1)*                                  &
-                   Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*w4**2* &
+                (2.*(w1 + G13**2*sqrtG**2*w1)*                                 &
+                   Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*w4**2* &
                        ((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))
       
-      mtx(2,2) = (2*a*Sqrt(                                                      &
-                  cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*               &
+      mtx(2,2) = (2.*a*Sqrt(                                                     &
+                  cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*               &
                    w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)) -                      &
-                   b*G13*sqrtG**2*(cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 - &
+                   b*G13*sqrtG**2*(cvd*sqrtG*(1.+ G13**2*sqrtG**2)*w1**3*w2*w4 - &
                    G13*Sqrt(                                                     &
-                     cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*            &
+                     cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*            &
                       w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))) +                  &
-                   c*G13*sqrtG**2*(cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 + &
+                   c*G13*sqrtG**2*(cvd*sqrtG*(1.+ G13**2*sqrtG**2)*w1**3*w2*w4 + &
                    G13*Sqrt(                                                     &
-                     cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*            &
+                     cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*            &
                       w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))/                  &
-                (2*(1 + G13**2*sqrtG**2)*                                        &
-                Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*            &
+                (2.*(1.+ G13**2*sqrtG**2)*                                       &
+                Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*            &
                   w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))
       
-      mtx(2,3) = 0.5*sqrtG*(-((2*a*G13)/(1 + G13**2*sqrtG**2)) + (b*G13)/(1 + &
-                  G13**2*sqrtG**2) + (c*G13)/(1 + G13**2*sqrtG**2) -          &
+      mtx(2,3) = 0.5*sqrtG*(-((2.*a*G13)/(1.+ G13**2*sqrtG**2)) + (b*G13)/(1.+&
+                  G13**2*sqrtG**2) + (c*G13)/(1.+ G13**2*sqrtG**2) -          &
                   (b*cvd*sqrtG*w1**3*w2*w4)/                                  &
-                Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*         &
+                Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*         &
                   w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)) +                    &
                   (c*cvd*sqrtG*w1**3*w2*w4)/                                  &
-                Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*         &
+                Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*         &
                   w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))
       
-      mtx(2,4) = (-2*a*cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 +     &
-                  b*cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 +        &
-                     c*cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w2*w4 -     &
+      mtx(2,4) = (-2.*a*cvd*sqrtG*(1.+ G13**2*sqrtG**2)*w1**3*w2*w4 +    &
+                  b*cvd*sqrtG*(1.+ G13**2*sqrtG**2)*w1**3*w2*w4 +        &
+                     c*cvd*sqrtG*(1.+ G13**2*sqrtG**2)*w1**3*w2*w4 -     &
                      b*G13*                                              &
-                   Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
+                   Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7* &
                      w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)) +            &
                      c*G13*                                              &
-                   Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
+                   Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7* &
                      w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))/            &
-                  (2*cvd*sqrtG*(1 + G13**2*sqrtG**2)*w1**3*w4**2)
+                  (2.*cvd*sqrtG*(1.+ G13**2*sqrtG**2)*w1**3*w4**2)
       
       mtx(3,1) = -(((G13*sqrtG*w2 + w3)*                                         &
-                   (-2*a*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*         &
+                   (-2.*a*Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*        &
                             w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)) +       &
-                      b*((-cvd)*sqrtG**2*(1 + G13**2*sqrtG**2)*w1**3*w3*w4 +     &
-                           Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
+                      b*((-cvd)*sqrtG**2*(1.+ G13**2*sqrtG**2)*w1**3*w3*w4 +     &
+                           Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7* &
                                w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))) +         &
-                      c*(cvd*sqrtG**2*(1 + G13**2*sqrtG**2)*w1**3*w3*w4 +        &
-                           Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
+                      c*(cvd*sqrtG**2*(1.+ G13**2*sqrtG**2)*w1**3*w3*w4 +        &
+                           Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7* &
                                w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))))/        &
-                (2*(w1 + G13**2*sqrtG**2*w1)*                                    &
-                   Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*w4**2*   &
+                (2.*(w1 + G13**2*sqrtG**2*w1)*                                   &
+                   Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*w4**2*   &
                        ((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))
       
-      mtx(3,2) = (G13*sqrtG*(-2*a*Sqrt(cpd*cvd*p0*sqrtG**5*                         &
-                           (1 + G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))** &
+      mtx(3,2) = (G13*sqrtG*(-2.*a*Sqrt(cpd*cvd*p0*sqrtG**5*                        &
+                           (1.+ G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))** &
                              (cpd/cvd)) +                                           &
-                     b*((-cvd)*sqrtG**2*(1 + G13**2*sqrtG**2)*w1**3*w3*w4 +         &
-                          Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*     &
+                     b*((-cvd)*sqrtG**2*(1.+ G13**2*sqrtG**2)*w1**3*w3*w4 +         &
+                          Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*     &
                               w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))) +             &
-                     c*(cvd*sqrtG**2*(1 + G13**2*sqrtG**2)*w1**3*w3*w4 +            &
-                          Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*     &
+                     c*(cvd*sqrtG**2*(1.+ G13**2*sqrtG**2)*w1**3*w3*w4 +            &
+                          Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*     &
                               w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))))/            &
-               (2*(1 + G13**2*sqrtG**2)*Sqrt(cpd*cvd*p0*sqrtG**5*                   &
-                      (1 + G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**      &
+               (2.*(1.+ G13**2*sqrtG**2)*Sqrt(cpd*cvd*p0*sqrtG**5*                  &
+                      (1.+ G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**      &
                         (cpd/cvd)))
       
-      mtx(3,3) = (2*a*G13**2*sqrtG**2*Sqrt(cpd*cvd*p0*sqrtG**5*                  &
-                     (1 + G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**    &
-                       (cpd/cvd)) + b*((-cvd)*sqrtG**2*(1 + G13**2*sqrtG**2)*    &
+      mtx(3,3) = (2.*a*G13**2*sqrtG**2*Sqrt(cpd*cvd*p0*sqrtG**5*                 &
+                     (1.+ G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))**    &
+                       (cpd/cvd)) + b*((-cvd)*sqrtG**2*(1.+ G13**2*sqrtG**2)*    &
                       w1**3*w3*w4 + Sqrt(cpd*cvd*p0*sqrtG**5*                    &
-                        (1 + G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))** &
-                          (cpd/cvd))) + c*(cvd*sqrtG**2*(1 + G13**2*sqrtG**2)*   &
+                        (1.+ G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))** &
+                          (cpd/cvd))) + c*(cvd*sqrtG**2*(1.+ G13**2*sqrtG**2)*   &
                       w1**3*w3*w4 + Sqrt(cpd*cvd*p0*sqrtG**5*                    &
-                        (1 + G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))** &
-                          (cpd/cvd))))/(2*(1 + G13**2*sqrtG**2)*                 &
-               Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*w4**2*       &
+                        (1.+ G13**2*sqrtG**2)*w1**7*w4**2*((Rd*w4)/(p0*sqrtG))** &
+                          (cpd/cvd))))/(2.*(1.+ G13**2*sqrtG**2)*                &
+               Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*w4**2*       &
                    ((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))
       
-      mtx(3,4) = (-2*a*w3*w4 + b*w3*w4 + c*w3*w4 -                         &
-                 (b*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*  &
+      mtx(3,4) = (-2.*a*w3*w4 + b*w3*w4 + c*w3*w4 -                        &
+                 (b*Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*  &
                           w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))/         &
                    (sqrtG**2*(cvd + cvd*G13**2*sqrtG**2)*w1**3) +          &
-                 (c*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*  &
+                 (c*Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7*  &
                           w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))/         &
-                   (sqrtG**2*(cvd + cvd*G13**2*sqrtG**2)*w1**3))/(2*w4**2)
+                   (sqrtG**2*(cvd + cvd*G13**2*sqrtG**2)*w1**3))/(2.*w4**2)
       
       mtx(4,1) = ((b - c)*cvd*sqrtG**2*w1**2*(G13*sqrtG*w2 + w3)*w4**2)/   &
-                 (2*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*  &
+                 (2.*Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7* &
                         w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd)))
       
       mtx(4,2) = -(((b - c)*cvd*G13*sqrtG**3*w1**3*w4**2)/                 &
-                 (2*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7*  &
+                 (2.*Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7* &
                         w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))
             
-      mtx(4,3) = -(((b - c)*cvd*sqrtG**2*w1**3*w4**2)/                   &
-                (2*Sqrt(cpd*cvd*p0*sqrtG**5*(1 + G13**2*sqrtG**2)*w1**7* &
+      mtx(4,3) = -(((b - c)*cvd*sqrtG**2*w1**3*w4**2)/                    &
+                (2.*Sqrt(cpd*cvd*p0*sqrtG**5*(1.+ G13**2*sqrtG**2)*w1**7* &
                        w4**2*((Rd*w4)/(p0*sqrtG))**(cpd/cvd))))
       
       mtx(4,4) = ( b + c ) / 2.
