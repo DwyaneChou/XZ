@@ -25,8 +25,6 @@ module temporal_mod
       type(stat_field), intent(inout) :: stat_new
       type(stat_field), intent(inout) :: stat_old
       
-      integer :: iPoint
-      
       real,dimension(4),parameter :: RK4_weight = [1./6.,1./3.,1./3.,1./6.]
       
       !call copyStat(stat(k1),stat_old)
