@@ -8,7 +8,7 @@ varname   = 'theta';
 time_start = 1;
 time_end   = 301;
 
-history_interval = 6;
+history_interval = 3;
 
 R2D    = 180/pi;
 radius = 6371229;
@@ -37,6 +37,6 @@ parfor it = time_start:time_end
     
     % output picture
     title([varname,' at ',num2str((it-1)*history_interval),' second(s)'])
-    print(gcf,'-r300','-dpng',[pic_path,'\case3_',varname,'_',num2str(it-1,'%.4d'),'.png']);
+    print(gcf,'-r600','-dpng',[pic_path,'\case3_',varname,'_',num2str(it-1,'%.4d'),'.png']);
     
 end
