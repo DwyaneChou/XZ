@@ -131,35 +131,15 @@ module parameters_mod
     endif
     
     if(case_num==1)then
-      print*,'Thermal Bubble case is selected'
-      print*,'Reset x_min to 0  km'
-      print*,'Reset x_max to 20 km'
-      print*,'Reset z_min to 0  km'
-      print*,'Reset z_max to 10 km'
-      x_min = 0.
-      x_max = 20. * 1000.
+      print*,'case 1 is selected'
+      print*,'Reset x_min to 0   km'
+      print*,'Reset x_max to 300 km'
+      print*,'Reset z_min to 0   km'
+      print*,'Reset z_max to 25  km'
+      x_min = -150 * 1000
+      x_max = 150. * 1000.
       z_min = 0.
-      z_max = 10. * 1000.
-    elseif(case_num==2)then
-      print*,'Schar Mountain case is selected'
-      print*,'Reset x_min to -25 km'
-      print*,'Reset x_max to  25 km'
-      print*,'Reset z_min to  0  km'
-      print*,'Reset z_max to  21 km'
-      x_min = -25000.
-      x_max = 25000.
-      z_min = 0.
-      z_max = 21000.
-    elseif(case_num==3)then
-      print*,'Density Current case is selected'
-      print*,'Reset x_min to -25.6 km'
-      print*,'Reset x_max to  25.6 km'
-      print*,'Reset z_min to  0  km'
-      print*,'Reset z_max to  6.4 km'
-      x_min = -25600.
-      x_max = 25600.
-      z_min = 0.
-      z_max = 6400.
+      z_max = 25. * 1000.
     else
       stop 'Unknow case_num'
     endif
