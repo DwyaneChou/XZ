@@ -155,25 +155,25 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      ! Reconstruct Z
-      !$OMP PARALLEL DO PRIVATE(i,iVar,q_weno,dir,kp1,km1,kp2,km2)
-      do k = kds,kde
-        kp1 = k + 1
-        km1 = k - 1
-        kp2 = k + 2
-        km2 = k - 2
-        do i = ids,ide
-          iVar = 1
-          ! z-dir
-          q_weno = qC(iVar,i,km2:kp2)
-          
-          dir = -1
-          call WENO_limiter(qB(iVar,i,k),q_weno,dir)
-          dir = 1
-          call WENO_limiter(qT(iVar,i,k),q_weno,dir)
-        enddo
-      enddo
-      !$OMP END PARALLEL DO
+      !! Reconstruct Z
+      !!$OMP PARALLEL DO PRIVATE(i,iVar,q_weno,dir,kp1,km1,kp2,km2)
+      !do k = kds,kde
+      !  kp1 = k + 1
+      !  km1 = k - 1
+      !  kp2 = k + 2
+      !  km2 = k - 2
+      !  do i = ids,ide
+      !    iVar = 1
+      !    ! z-dir
+      !    q_weno = qC(iVar,i,km2:kp2)
+      !    
+      !    dir = -1
+      !    call WENO_limiter(qB(iVar,i,k),q_weno,dir)
+      !    dir = 1
+      !    call WENO_limiter(qT(iVar,i,k),q_weno,dir)
+      !  enddo
+      !enddo
+      !!$OMP END PARALLEL DO
       
       ! Calculate functions X
       !$OMP PARALLEL DO PRIVATE(i)
@@ -185,15 +185,15 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      ! Calculate functions Z
-      !$OMP PARALLEL DO PRIVATE(i)
-      do k = kds,kde
-        do i = ids,ide
-          HB(:,i,k) = qB(1,i,k) * detadtB(i,k)
-          HT(:,i,k) = qT(1,i,k) * detadtT(i,k)
-        enddo
-      enddo
-      !$OMP END PARALLEL DO
+      !! Calculate functions Z
+      !!$OMP PARALLEL DO PRIVATE(i)
+      !do k = kds,kde
+      !  do i = ids,ide
+      !    HB(:,i,k) = qB(1,i,k) * detadtB(i,k)
+      !    HT(:,i,k) = qT(1,i,k) * detadtT(i,k)
+      !  enddo
+      !enddo
+      !!$OMP END PARALLEL DO
       
       !src = 0
       
@@ -209,17 +209,17 @@ MODULE spatial_operators_mod
       enddo
       !$OMP END PARALLEL DO
       
-      ! calc z flux
-      iVar = 1
-      !$OMP PARALLEL DO PRIVATE(k,km1,maxeigen_z)
-      do i = ids,ide
-        do k = kds,kde+1
-          km1 = k - 1
-          maxeigen_z = sign(1.,detadtB(i,k))
-          He(iVar,i,k) = 0.5 * ( HB(iVar,i,k) + HT(iVar,i,km1) - maxeigen_z * ( HB(iVar,i,k) - HT(iVar,i,km1) ) )
-        enddo
-      enddo
-      !$OMP END PARALLEL DO
+      !! calc z flux
+      !iVar = 1
+      !!$OMP PARALLEL DO PRIVATE(k,km1,maxeigen_z)
+      !do i = ids,ide
+      !  do k = kds,kde+1
+      !    km1 = k - 1
+      !    maxeigen_z = sign(1.,detadtB(i,k))
+      !    He(iVar,i,k) = 0.5 * ( HB(iVar,i,k) + HT(iVar,i,km1) - maxeigen_z * ( HB(iVar,i,k) - HT(iVar,i,km1) ) )
+      !  enddo
+      !enddo
+      !!$OMP END PARALLEL DO
       
       ! Calculate tend
       iVar = 1
@@ -228,7 +228,7 @@ MODULE spatial_operators_mod
         do i = ids,ide
           ip1 = i + 1
           kp1 = k + 1
-          tend%q(iVar,i,k) = - ( ( Fe(iVar,ip1,k) - Fe(iVar,i,k) ) / dx + ( He(iVar,i,kp1) - He(iVar,i,k) ) / deta ) + src(iVar,i,k)
+          tend%q(iVar,i,k) = - ( ( Fe(iVar,ip1,k) - Fe(iVar,i,k) ) / dx )! + ( He(iVar,i,kp1) - He(iVar,i,k) ) / deta ) + src(iVar,i,k)
         enddo
       enddo
       !$OMP END PARALLEL DO

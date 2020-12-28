@@ -8,11 +8,11 @@ varname   = 'rho';
 x_min = -75000;
 x_max = 75000;
 y_min = 0;
-y_max = 15000;
+y_max = 25000;
 
 time_start = 1;
-% time_end   = 300;
-time_end   = 50;
+time_end   = 301;
+% time_end   = 51;
 
 it = time_end;
 
@@ -24,6 +24,8 @@ g      = 9.80616;
 x     = ncread(ncfile,'x');
 z     = ncread(ncfile,'z');
 sqrtG = ncread(ncfile,'sqrtG');
+nx = size(x,1);
+nz = size(z,1);
 nt = time_end - time_start + 1;
 
 var0 = ncread(ncfile,varname,[1,1,1 ],[Inf,Inf,1]);
@@ -31,9 +33,8 @@ var  = ncread(ncfile,varname,[1,1,it],[Inf,Inf,1]);
 
 disp(['Plotting time ',num2str(it),'/',num2str(nt)])
 figure%('visible','off')
-var_p = var;
-% theta
-plt = contour(x,z,var_p,'LineStyle','-');
+% plt = contour(x,z,var,'LineStyle','-');
+plt = pcolor(x,z,var);
 xlim([x_min,x_max])
 ylim([y_min,y_max])
 colormap(jet)
@@ -45,13 +46,21 @@ S1     = s_function(f_diff,sqrtG);
 S2     = s_function(fr    ,sqrtG);
 L2     = sqrt(S1/S2);
 
-% dx=1000,dz=500,L2=0.078258622350089
-% dx=500,dz=250,L2=0.075650091340192
+% dx=1000,dz=1000,L2= 0.013232901617973
+% dx=500,dz=500,L2= 3.890083089097581e-04
+% dx=250,dz=250,L2= 
+% dx=125,dz=125,L2=
+
+diff=sum(sum(abs(var-var0)))/(nx*nz);
+% dx = 1000, diff= 9.664717443009797e-04
+% dx = 500 , diff= 2.938352977327917e-05
+% dx = 250 , diff= 
+% dx = 125 , diff= 
 
 % % output picture
 % title([varname,' at ',num2str((it-1)*history_interval),' second(s)'])
 print(gcf,'-r600','-dpng',[pic_path,'\',varname,'_',num2str(it-1,'%.4d'),'.png']);
 
 function S = s_function(f,A)
-S = sum(f.*A) / sum(A);
+S = sum(sum(f.*A)) ./ sum(sum(A));
 end

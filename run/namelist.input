@@ -3,9 +3,9 @@ run_days         = 0
 run_hours        = 0
 run_minutes      = 0
 run_seconds      = 30000
-dt               = 50
+dt               = 10
 history_interval = 100
-integral_scheme  = 'RK3_TVD' ! Choose from 'RK3', 'RK4', 'SSPRK', 'RK3_TVD', 'PC2', 'IRK2'
+integral_scheme  = 'RK4' ! Choose from 'RK3', 'RK4', 'SSPRK', 'RK3_TVD', 'PC2', 'IRK2'
 IRK_residual     = 1.E-5
 /
 
@@ -14,8 +14,8 @@ case_num = 1, ! Choose from 1
 /
 
 &domain
-dx                    = 1000
-nz                    = 50
+dx                    = 500 ! x in [-150000,150000]
+nz                    = 50   ! z in [0,25000]
 x_max                 = 100000.
 x_min                 = 0.
 z_max                 = 60000.
