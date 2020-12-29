@@ -14,7 +14,7 @@ case_num = 1, ! Choose from 1
 /
 
 &domain
-dx                    = 500 ! x in [-150000,150000]
+dx                    = 1000 ! x in [-150000,150000]
 nz                    = 50   ! z in [0,25000]
 x_max                 = 100000.
 x_min                 = 0.

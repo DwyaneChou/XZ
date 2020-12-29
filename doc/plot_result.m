@@ -1,7 +1,7 @@
 clc
 clear
 
-ncfile    = '..\run\output_xz_1.nc';
+ncfile    = '..\run\output_xz_1_250m.nc';
 pic_path  = '.\';
 varname   = 'rho';
 
@@ -46,15 +46,15 @@ S1     = s_function(f_diff,sqrtG);
 S2     = s_function(fr    ,sqrtG);
 L2     = sqrt(S1/S2);
 
-% dx=1000,dz=1000,L2= 0.013232901617973
-% dx=500,dz=500,L2= 3.890083089097581e-04
-% dx=250,dz=250,L2= 
+% dx=1000,dz=500,L2= 0.031939202568543
+% dx=500,dz=250,L2= 0.003351975927782
+% dx=250,dz=125,L2= 7.369259322361821e-04
 % dx=125,dz=125,L2=
 
 diff=sum(sum(abs(var-var0)))/(nx*nz);
-% dx = 1000, diff= 9.664717443009797e-04
-% dx = 500 , diff= 2.938352977327917e-05
-% dx = 250 , diff= 
+% dx = 1000, diff= 5.867174223902470e-05
+% dx = 500 , diff= 5.339639190593575e-06
+% dx = 250 , diff= 8.786019802160002e-07
 % dx = 125 , diff= 
 
 % % output picture

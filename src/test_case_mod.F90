@@ -53,19 +53,19 @@ module test_case_mod
       allocate(u    (ics:ice,kcs:kce))
       allocate(w    (ics:ice,kcs:kce))
       
-      ! flat
-      zs    = 0.
-      dzsdx = 0.
-      
-      zs_ext    = 0.
-      dzsdx_ext = 0.
-      
-      !!mountain
-      !zs    = h0 * cos( pi * x / lambda0 )**2 * cos( pi * x / a0 / 2. )**2
-      !dzsdx = -((h0*pi*(lambda0*Cos((pi*x)/lambda0)*Sin((pi*x)/(2*a0)) + 2*a0*Cos((pi*x)/(2*a0))*Sin((pi*x)/lambda0)))/(2*a0*lambda0))
+      !! flat
+      !zs    = 0.
+      !dzsdx = 0.
       !
-      !zs_ext    = h0 * cos( pi * x_ext / lambda0 )**2 * cos( pi * x_ext / a0 / 2. )**2
-      !dzsdx_ext = -((h0*pi*(lambda0*Cos((pi*x_ext)/lambda0)*Sin((pi*x_ext)/(2*a0)) + 2*a0*Cos((pi*x_ext)/(2*a0))*Sin((pi*x_ext)/lambda0)))/(2*a0*lambda0))
+      !zs_ext    = 0.
+      !dzsdx_ext = 0.
+      
+      !mountain
+      zs    = h0 * cos( pi * x / lambda0 )**2 * cos( pi * x / a0 / 2. )**2
+      dzsdx = -((h0*pi*Cos((pi*x)/(2.*a0))*Cos((pi*x)/lambda0)*(lambda0*Cos((pi*x)/lambda0)*Sin((pi*x)/(2.*a0)) + 2.*a0*Cos((pi*x)/(2.*a0))*Sin((pi*x)/lambda0)))/(a0*lambda0))
+      
+      zs_ext    = h0 * cos( pi * x_ext / lambda0 )**2 * cos( pi * x_ext / a0 / 2. )**2
+      dzsdx_ext = -((h0*pi*Cos((pi*x_ext)/(2.*a0))*Cos((pi*x_ext)/lambda0)*(lambda0*Cos((pi*x_ext)/lambda0)*Sin((pi*x_ext)/(2.*a0)) + 2.*a0*Cos((pi*x_ext)/(2.*a0))*Sin((pi*x_ext)/lambda0)))/(a0*lambda0))
       
       where( abs(x) >= a0 )
         zs    = 0
@@ -81,25 +81,25 @@ module test_case_mod
       
       do k = kcs,kce
         do i = ics,ice
-          !r = sqrt( ( ( X(i,k) - X0 ) / Ax )**2 + ( ( Z(i,k) - Z0 ) / Az )**2 )
-          !
-          !if(r<=1)then
-          !  rho(i,k) = rho0 * cos( pi * r / 2. )**2
-          !else
-          !  rho(i,k) = 0
-          !endif
-          !
-          !if(z(i,k)>z2)then
-          !  u(i,k) = 1
-          !elseif(z(i,k)<z1)then
-          !  u(i,k) = 0
-          !else
-          !  u(i,k) = sin( pi/2. * ( z(i,k) - z1 ) / ( z2 - z1 ) )**2
-          !endif
-          !u(i,k) = u0 * u(i,k)
+          r = sqrt( ( ( X(i,k) - X0 ) / Ax )**2 + ( ( Z(i,k) - Z0 ) / Az )**2 )
           
-          rho(i,k) = sin(x(i,k)/(x_max-x_min)*40.*pi)*sin(z(i,k)/(z_max-z_min)*30*pi) + 1.
-          u(i,k) = u0
+          if(r<=1)then
+            rho(i,k) = rho0 * cos( pi * r / 2. )**2
+          else
+            rho(i,k) = 0
+          endif
+          
+          if(z(i,k)>z2)then
+            u(i,k) = 1
+          elseif(z(i,k)<z1)then
+            u(i,k) = 0
+          else
+            u(i,k) = sin( pi/2. * ( z(i,k) - z1 ) / ( z2 - z1 ) )**2
+          endif
+          u(i,k) = u0 * u(i,k)
+          
+          !rho(i,k) = sin(x(i,k)/(x_max-x_min)*40.*pi)*sin(z(i,k)/(z_max-z_min)*30*pi) + 1.
+          !u(i,k) = u0
         
           w(i,k) = 0
         enddo
