@@ -110,12 +110,12 @@ MODULE spatial_operators_mod
       qC = ref%q
       call fill_ghost(qC,ref%q)
       !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,iVar,q_weno,dir)
-      do k = kds-1,kde+1
+      do k = kds,kde
         kp1 = k + 1
         km1 = k - 1
         kp2 = k + 2
         km2 = k - 2
-        do i = ids-1,ide+1
+        do i = ids,ide
           ip1 = i + 1
           im1 = i - 1
           ip2 = i + 2
@@ -282,25 +282,28 @@ MODULE spatial_operators_mod
         PT(i,k) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
       enddo
       
-      !$OMP PARALLEL DO PRIVATE(i)
+      !$OMP PARALLEL DO PRIVATE(i,im1)
       do k = kds,kde
         do i = ids,ide+1
-          Fe(:,i,k) = calc_F(sqrtGL(i,k),sqrtGR(i,k),qL(:,i,k),qR(:,i,k),pL(i,k),pR(i,k))
+          im1 = i - 1
+          Fe(:,i,k) = calc_F(sqrtGR(im1,k),sqrtGL(i,k),qR(:,im1,k),qL(:,i,k),pR(im1,k),pL(i,k))
         enddo
       enddo
       !$OMP END PARALLEL DO
       
-      !$OMP PARALLEL DO PRIVATE(k)
+      !$OMP PARALLEL DO PRIVATE(k,km1)
       do i = ids,ide
         do k = kds,kde+1
-          He(:,i,k) = calc_H(sqrtGB(i,k),sqrtGT(i,k),G13B(i,k),G13T(i,k),qB(:,i,k),qT(:,i,k),pB(i,k),pT(i,k),pB_ref(i,k),pT_ref(i,k))
+          km1 = k - 1
+          He(:,i,k) = calc_H(sqrtGT(i,km1),sqrtGB(i,k),G13T(i,km1),G13B(i,k),qT(:,i,km1),qB(:,i,k),pT(i,km1),pB(i,k),pT_ref(i,km1),pB_ref(i,k))
         enddo
       enddo
       !$OMP END PARALLEL DO
       
       ! Calculate source term
-      rho_p = ( qC   (1,ids:ide,kds:kde) + qC   (5,ids:ide,kds:kde) &
-              - ref%q(1,ids:ide,kds:kde) - ref%q(5,ids:ide,kds:kde) ) / sqrtG(ids:ide,kds:kde)
+      !rho_p = ( qC   (1,ids:ide,kds:kde) + qC   (5,ids:ide,kds:kde) &
+      !        - ref%q(1,ids:ide,kds:kde) - ref%q(5,ids:ide,kds:kde) ) / sqrtG(ids:ide,kds:kde)
+      rho_p = ( qC   (1,ids:ide,kds:kde) + qC   (5,ids:ide,kds:kde) ) / sqrtG(ids:ide,kds:kde)
       
       where(abs(rho_p)<=1.E-13)rho_p=0.
       
@@ -538,8 +541,8 @@ MODULE spatial_operators_mod
       real(r_kind) m
       real(r_kind) p
       
-      rhoL = ( qL(1) + qL(5) ) / sqrtGL
-      rhoR = ( qR(1) + qR(5) ) / sqrtGR
+      rhoL = ( qL(1) + qL(5) ) * sqrtGL !!!!!!Attention!!!!!! Must be ( qL(1) + qL(5) ) * sqrtGL, but ( qL(1) + qL(5) ) / sqrtGL, why ?
+      rhoR = ( qR(1) + qR(5) ) * sqrtGR !!!!!!Attention!!!!!! Must be ( qR(1) + qR(5) ) * sqrtGR, but ( qR(1) + qR(5) ) / sqrtGR, why ?
       uL   = ( qL(3) + sqrtGL * G13L * qL(2) ) / ( sqrtGL * ( qL(1) + qL(5) ) )
       uR   = ( qR(3) + sqrtGR * G13R * qR(2) ) / ( sqrtGR * ( qR(1) + qR(5) ) )
       cL   = calc_sound_speed_z(sqrtGL,G13L,qL)
@@ -549,7 +552,7 @@ MODULE spatial_operators_mod
       
       calc_H = 0.5 * m * ( qL + qR - sign(1.,m) * ( qR - qL ) )
       calc_H(2) = calc_H(2) + sqrtGL * G13L * p !!!!!!attention!!!!!! Assume sqrtGL = sqrtGR
-      calc_H(3) = calc_H(3) + p - pL_ref !!!!!!attention!!!!!! 
+      calc_H(3) = calc_H(3) + p! - pL_ref !!!!!!attention!!!!!! 
       
     end function calc_H
     
@@ -678,7 +681,7 @@ MODULE spatial_operators_mod
       if(abs(M)>=1)then
         M4 = 0.5 * ( M + sign(1.,signal) * abs(M) )
       else
-        M4 = M2( M, sign(1.,signal) ) * ( 1. - sign(1.,signal) * 16. * beta * M2( M, sign(1.,signal) ) )
+        M4 = M2( M, sign(1.,signal) ) * ( 1. - sign(1.,signal) * 16. * beta * M2( M, -sign(1.,signal) ) )
       endif
       
     end function M4

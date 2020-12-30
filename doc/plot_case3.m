@@ -6,7 +6,7 @@ pic_path  = '.\';
 varname   = 'theta';
 
 time_start = 1;
-time_end   = 16;
+time_end   = 151;
 
 it = time_end;
 
@@ -24,7 +24,7 @@ R2D    = 180/pi;
 radius = 6371229;
 g      = 9.80616;
 
-LevelList = -12:1:-0.5;
+LevelList = -15:1:-0.5;
 
 % var = ncread(ncfile,varname);
 x  = ncread(ncfile,'x');
