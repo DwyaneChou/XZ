@@ -44,6 +44,21 @@ MODULE spatial_operators_mod
   real(r_kind), dimension(:,:,:), allocatable :: src   ! source term
   
   real(r_kind), dimension(  :,:), allocatable :: rho_p ! density perturbation
+      
+  real(r_kind), dimension(:,:,:), allocatable :: qL_ref
+  real(r_kind), dimension(:,:,:), allocatable :: qR_ref
+  real(r_kind), dimension(:,:,:), allocatable :: qB_ref
+  real(r_kind), dimension(:,:,:), allocatable :: qT_ref
+  
+  real(r_kind), dimension(  :,:), allocatable :: rhoL_ref ! reference density
+  real(r_kind), dimension(  :,:), allocatable :: rhoR_ref ! reference density
+  real(r_kind), dimension(  :,:), allocatable :: rhoB_ref ! reference density
+  real(r_kind), dimension(  :,:), allocatable :: rhoT_ref ! reference density
+      
+  real(r_kind), dimension(  :,:), allocatable :: cL_ref ! sound speed
+  real(r_kind), dimension(  :,:), allocatable :: cR_ref ! sound speed
+  real(r_kind), dimension(  :,:), allocatable :: cB_ref ! sound speed
+  real(r_kind), dimension(  :,:), allocatable :: cT_ref ! sound speed
   
   real(r_kind), dimension(:,:  ), allocatable :: PL_ref! Reconstructed P_ref_(i-1/2,k)
   real(r_kind), dimension(:,:  ), allocatable :: PR_ref! Reconstructed P_ref_(i+1/2,k)
@@ -95,6 +110,21 @@ MODULE spatial_operators_mod
       
       allocate(rho_p (    ids:ide,kds:kde))
       
+      allocate(qL_ref(nVar,ics:ice,kcs:kce))
+      allocate(qR_ref(nVar,ics:ice,kcs:kce))
+      allocate(qB_ref(nVar,ics:ice,kcs:kce))
+      allocate(qT_ref(nVar,ics:ice,kcs:kce))
+      
+      allocate(rhoL_ref(  ics:ice,kcs:kce)) ! reference density
+      allocate(rhoR_ref(  ics:ice,kcs:kce)) ! reference density
+      allocate(rhoB_ref(  ics:ice,kcs:kce)) ! reference density
+      allocate(rhoT_ref(  ics:ice,kcs:kce)) ! reference density
+      
+      allocate(cL_ref(    ics:ice,kcs:kce)) ! sound speed
+      allocate(cR_ref(    ics:ice,kcs:kce)) ! sound speed
+      allocate(cB_ref(    ics:ice,kcs:kce)) ! sound speed
+      allocate(cT_ref(    ics:ice,kcs:kce)) ! sound speed
+      
       allocate(PL_ref(    ics:ice,kcs:kce))
       allocate(PR_ref(    ics:ice,kcs:kce))
       allocate(PB_ref(    ics:ice,kcs:kce))
@@ -125,26 +155,61 @@ MODULE spatial_operators_mod
             q_weno = qC(iVar,im2:ip2,k)
             
             dir = -1
-            call WENO_limiter(qL(iVar,i,k),q_weno,dir)
+            call WENO_limiter(qL_ref(iVar,i,k),q_weno,dir)
             dir = 1
-            call WENO_limiter(qR(iVar,i,k),q_weno,dir)
+            call WENO_limiter(qR_ref(iVar,i,k),q_weno,dir)
             
             ! z-dir
             q_weno = qC(iVar,i,km2:kp2)
             
             dir = -1
-            call WENO_limiter(qB(iVar,i,k),q_weno,dir)
+            call WENO_limiter(qB_ref(iVar,i,k),q_weno,dir)
             dir = 1
-            call WENO_limiter(qT(iVar,i,k),q_weno,dir)
+            call WENO_limiter(qT_ref(iVar,i,k),q_weno,dir)
           enddo
-          
-          PL_ref(i,k) = calc_pressure(sqrtGL(i,k),qL(:,i,k))
-          PR_ref(i,k) = calc_pressure(sqrtGR(i,k),qR(:,i,k))
-          PB_ref(i,k) = calc_pressure(sqrtGB(i,k),qB(:,i,k))
-          PT_ref(i,k) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
         enddo
       enddo
       !$OMP END PARALLEL DO
+      
+      ! Fill outside boundary
+      ! left boundary
+      qR_ref(:,ids-1,kds:kde) = qL_ref(:,ids,kds:kde)
+      sqrtGR(  ids-1,kds:kde) = sqrtGL(  ids,kds:kde)
+      G13R  (  ids-1,kds:kde) = G13L  (  ids,kds:kde)
+      
+      ! right boundary
+      qL_ref(:,ide+1,kds:kde) = qR_ref(:,ide,kds:kde)
+      sqrtGL(  ide+1,kds:kde) = sqrtGR(  ide,kds:kde)
+      G13L  (  ide+1,kds:kde) = G13R  (  ide,kds:kde)
+      
+      ! bottom boundary
+      qT_ref(:,ids:ide,kds-1) = qB_ref(:,ids:ide,kds)
+      sqrtGT(  ids:ide,kds-1) = sqrtGB(  ids:ide,kds)
+      G13T  (  ids:ide,kds-1) = G13B  (  ids:ide,kds)
+      
+      ! top boundary
+      qB_ref(:,ids:ide,kde+1) = qT_ref(:,ids:ide,kde)
+      sqrtGB(  ids:ide,kde+1) = sqrtGT(  ids:ide,kde)
+      G13B  (  ids:ide,kde+1) = G13T  (  ids:ide,kde)
+          
+      do k = kds-1,kde+1
+        do i = ids-1,ide+1
+          rhoL_ref(i,k) = ( qL_ref(1,i,k) + qL_ref(5,i,k) ) / sqrtGL(i,k)
+          rhoR_ref(i,k) = ( qR_ref(1,i,k) + qR_ref(5,i,k) ) / sqrtGR(i,k)
+          rhoB_ref(i,k) = ( qB_ref(1,i,k) + qB_ref(5,i,k) ) / sqrtGB(i,k)
+          rhoT_ref(i,k) = ( qT_ref(1,i,k) + qT_ref(5,i,k) ) / sqrtGT(i,k)
+          
+          cL_ref(i,k) = calc_sound_speed_x(sqrtGL(i,k)          ,qL_ref(:,i,k))
+          cR_ref(i,k) = calc_sound_speed_x(sqrtGR(i,k)          ,qR_ref(:,i,k))
+          cB_ref(i,k) = calc_sound_speed_z(sqrtGB(i,k),G13B(i,k),qB_ref(:,i,k)) * sqrtGB(i,k) ! unit: m/s
+          cT_ref(i,k) = calc_sound_speed_z(sqrtGT(i,k),G13T(i,k),qT_ref(:,i,k)) * sqrtGT(i,k) ! unit: m/s
+          
+          PL_ref(i,k) = calc_pressure(sqrtGL(i,k),qL_ref(:,i,k))
+          PR_ref(i,k) = calc_pressure(sqrtGR(i,k),qR_ref(:,i,k))
+          PB_ref(i,k) = calc_pressure(sqrtGB(i,k),qB_ref(:,i,k))
+          PT_ref(i,k) = calc_pressure(sqrtGT(i,k),qT_ref(:,i,k))
+        enddo
+      enddo
       
       ! Calculate Rayleigh damping coef
       call Rayleigh_coef(relax_coef)
@@ -295,7 +360,8 @@ MODULE spatial_operators_mod
       do i = ids,ide
         do k = kds,kde+1
           km1 = k - 1
-          He(:,i,k) = calc_H(sqrtGT(i,km1),sqrtGB(i,k),G13T(i,km1),G13B(i,k),qT(:,i,km1),qB(:,i,k),pT(i,km1),pB(i,k),pT_ref(i,km1),pB_ref(i,k))
+          He(:,i,k) = calc_H(sqrtGT(i,km1),sqrtGB(i,k),G13T(i,km1),G13B(i,k),qT(:,i,km1),qB(:,i,k),pT(i,km1),pB(i,k),&
+                             rhoT_ref(i,km1),rhoB_ref(i,k),cT_ref(i,km1),cB_ref(i,k),pT_ref(i,km1),pB_ref(i,k))
         enddo
       enddo
       !$OMP END PARALLEL DO
@@ -343,7 +409,6 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
-      
     end subroutine spatial_operator
     
     subroutine fill_ghost(q,q_ref)
@@ -496,7 +561,7 @@ MODULE spatial_operators_mod
       real(r_kind) cR
       
       real(r_kind) m
-      real(r_kind) p
+      real(r_kind) p ! sqrtG * p
       
       rhoL = ( qL(1) + qL(5) ) / sqrtGL
       rhoR = ( qR(1) + qR(5) ) / sqrtGR
@@ -505,14 +570,14 @@ MODULE spatial_operators_mod
       cL   = calc_sound_speed_x(sqrtGL,qL)
       cR   = calc_sound_speed_x(sqrtGR,qR)
       
-      call AUSM_up_coef(m,p,rhoL,rhoR,uL,uR,pL,pR,cL,cR)
+      call AUSM_up_x(m,p,sqrtGL,sqrtGR,rhoL,rhoR,uL,uR,pL,pR,cL,cR)
       
       calc_F = 0.5 * m * ( qL + qR - sign(1.,m) * ( qR - qL ) )
-      calc_F(2) = calc_F(2) + sqrtGL * p !!!!!!attention!!!!!! Assume sqrtGL = sqrtGR
+      calc_F(2) = calc_F(2) + p
       
     end function calc_F
     
-    function calc_H(sqrtGL,sqrtGR,G13L,G13R,qL,qR,pL,pR,pL_ref,pR_ref)
+    function calc_H(sqrtGL,sqrtGR,G13L,G13R,qL,qR,pL,pR,rhoL_ref,rhoR_ref,cL_ref,cR_ref,pL_ref,pR_ref)
       real(r_kind) :: calc_H(nVar)
       real(r_kind) :: sqrtGL
       real(r_kind) :: sqrtGR
@@ -520,10 +585,14 @@ MODULE spatial_operators_mod
       real(r_kind) :: G13R
       real(r_kind) :: qL(nVar)
       real(r_kind) :: qR(nVar)
-      real(r_kind) :: pL      ! pressure
-      real(r_kind) :: pR      ! pressure
-      real(r_kind) :: pL_ref  ! reference pressure
-      real(r_kind) :: pR_ref  ! reference pressure
+      real(r_kind) :: pL        ! pressure
+      real(r_kind) :: pR        ! pressure
+      real(r_kind) :: rhoL_ref  ! reference density
+      real(r_kind) :: rhoR_ref  ! reference density
+      real(r_kind) :: cL_ref    ! reference sound speed
+      real(r_kind) :: cR_ref    ! reference sound speed
+      real(r_kind) :: pL_ref    ! reference pressure
+      real(r_kind) :: pR_ref    ! reference pressure
 
       real(r_kind) :: pL_pert ! pressure  perturbation
       real(r_kind) :: pR_pert ! pressure  perturbation
@@ -539,20 +608,23 @@ MODULE spatial_operators_mod
       real(r_kind) cR
       
       real(r_kind) m
-      real(r_kind) p
+      real(r_kind) p      ! sqrtG * G13 * p
+      real(r_kind) p_pert ! p - p_ref
       
-      rhoL = ( qL(1) + qL(5) ) * sqrtGL !!!!!!Attention!!!!!! Must be ( qL(1) + qL(5) ) * sqrtGL, but ( qL(1) + qL(5) ) / sqrtGL, why ?
-      rhoR = ( qR(1) + qR(5) ) * sqrtGR !!!!!!Attention!!!!!! Must be ( qR(1) + qR(5) ) * sqrtGR, but ( qR(1) + qR(5) ) / sqrtGR, why ?
-      uL   = ( qL(3) + sqrtGL * G13L * qL(2) ) / ( sqrtGL * ( qL(1) + qL(5) ) )
-      uR   = ( qR(3) + sqrtGR * G13R * qR(2) ) / ( sqrtGR * ( qR(1) + qR(5) ) )
-      cL   = calc_sound_speed_z(sqrtGL,G13L,qL)
-      cR   = calc_sound_speed_z(sqrtGR,G13R,qR)
+      rhoL = ( qL(1) + qL(5) ) / sqrtGL
+      rhoR = ( qR(1) + qR(5) ) / sqrtGR
+      uL   = ( qL(3) + sqrtGL * G13L * qL(2) ) / ( qL(1) + qL(5) ) ! a sqrtG has been multipled here
+      uR   = ( qR(3) + sqrtGR * G13R * qR(2) ) / ( qR(1) + qR(5) ) ! a sqrtG has been multipled here
+      cL   = calc_sound_speed_z(sqrtGL,G13L,qL) * sqrtGL
+      cR   = calc_sound_speed_z(sqrtGR,G13R,qR) * sqrtGR
       
-      call AUSM_up_coef(m,p,rhoL,rhoR,uL,uR,pL,pR,cL,cR)
+      call AUSM_up_z(m, p, p_pert,                                                  &
+                     sqrtGL, sqrtGR, G13L, G13R, rhoL, rhoR, uL, uR, cL, cR, pL, pR,&
+                     rhoL_ref, rhoR_ref, cL_ref, cR_ref, pL_ref, pR_ref)
       
       calc_H = 0.5 * m * ( qL + qR - sign(1.,m) * ( qR - qL ) )
-      calc_H(2) = calc_H(2) + sqrtGL * G13L * p !!!!!!attention!!!!!! Assume sqrtGL = sqrtGR
-      calc_H(3) = calc_H(3) + p! - pL_ref !!!!!!attention!!!!!! 
+      calc_H(2) = calc_H(2) + p
+      calc_H(3) = calc_H(3) + p_pert
       
     end function calc_H
     
@@ -625,9 +697,11 @@ MODULE spatial_operators_mod
       
     end function calc_sound_speed_z
     
-    subroutine AUSM_up_coef(m,p,rhoL,rhoR,uL,uR,pL,pR,cL,cR)
+    subroutine AUSM_up_x(m,p,sqrtGL,sqrtGR,rhoL,rhoR,uL,uR,pL,pR,cL,cR)
       real(r_kind),intent(out) :: m
       real(r_kind),intent(out) :: p
+      real(r_kind),intent(in ) :: sqrtGL
+      real(r_kind),intent(in ) :: sqrtGR
       real(r_kind),intent(in ) :: rhoL
       real(r_kind),intent(in ) :: rhoR
       real(r_kind),intent(in ) :: uL
@@ -640,6 +714,8 @@ MODULE spatial_operators_mod
       real(r_kind),parameter :: Ku    = 0.75
       real(r_kind),parameter :: Kp    = 0.25
       real(r_kind),parameter :: sigma = 1.
+      real(r_kind),parameter :: sp    = 1.
+      real(r_kind),parameter :: sn    = -1.
       
       real(r_kind) :: rho
       real(r_kind) :: a
@@ -656,32 +732,122 @@ MODULE spatial_operators_mod
       
       Mbar2 = ( uL**2 + uR**2 ) / ( 2. * a**2 )
       
-      Mh = M4( ML, 1._r_kind ) + M4( MR, -1._r_kind ) - Kp * max( 1. - sigma * Mbar2, 0. ) * ( PR - PL ) / ( rho * a**2 )
+      Mh = M4( ML, sp ) + M4( MR, sn ) - Kp * max( 1. - sigma * Mbar2, 0. ) * ( PR - PL ) / ( rho * a**2 )
       m  = a * Mh
       
-      p = P5(ML,1.) * PL + P5(MR,-1.) * PR - Ku * P5(ML,1.) * P5(MR,-1.) * ( rhoL + rhoR ) * a * ( uR - uL )
-    end subroutine AUSM_up_coef
+      p = P5(ML,sp) * sqrtGL * PL + P5(MR,sn) * sqrtGR * PR - Ku * P5(ML,sp) * P5(MR,sn) * ( sqrtGL * rhoL + sqrtGR * rhoR ) * a * ( uR - uL )
+      
+    end subroutine AUSM_up_x
+    
+    subroutine AUSM_up_z(m, p, p_pert,                                                  & ! output
+                         sqrtGL, sqrtGR, G13L, G13R, rhoL, rhoR, uL, uR, cL, cR, pL, pR,& ! input state
+                         rhoL_ref, rhoR_ref, cL_ref, cR_ref, pL_ref, pR_ref)              ! input reference state
+      real(r_kind),intent(out) :: m
+      real(r_kind),intent(out) :: p
+      real(r_kind),intent(out) :: p_pert
+      real(r_kind),intent(in ) :: sqrtGL
+      real(r_kind),intent(in ) :: sqrtGR
+      real(r_kind),intent(in ) :: G13L
+      real(r_kind),intent(in ) :: G13R
+      real(r_kind),intent(in ) :: rhoL
+      real(r_kind),intent(in ) :: rhoR
+      real(r_kind),intent(in ) :: uL
+      real(r_kind),intent(in ) :: uR
+      real(r_kind),intent(in ) :: cL       ! Sound speed
+      real(r_kind),intent(in ) :: cR       ! Sound speed
+      real(r_kind),intent(in ) :: pL
+      real(r_kind),intent(in ) :: pR
+      real(r_kind),intent(in ) :: rhoL_ref ! reference state
+      real(r_kind),intent(in ) :: rhoR_ref ! reference state
+      real(r_kind),intent(in ) :: cL_ref   ! reference state
+      real(r_kind),intent(in ) :: cR_ref   ! reference state
+      real(r_kind),intent(in ) :: pL_ref   ! reference state
+      real(r_kind),intent(in ) :: pR_ref   ! reference state
+      
+      real(r_kind),parameter :: Ku    = 0.75
+      real(r_kind),parameter :: Kp    = 0.25
+      real(r_kind),parameter :: sigma = 1.
+      real(r_kind),parameter :: sp    = 1.
+      real(r_kind),parameter :: sn    = -1.
+      
+      real(r_kind) :: rho
+      real(r_kind) :: a
+      real(r_kind) :: ML
+      real(r_kind) :: MR
+      real(r_kind) :: Mbar2
+      real(r_kind) :: Mh
+      
+      real(r_kind) :: rho_ref
+      real(r_kind) :: a_ref
+      
+      real(r_kind) :: pL_pert
+      real(r_kind) :: pR_pert
+      
+      real(r_kind) :: p_diff
+      
+      real(r_kind) :: coefL
+      real(r_kind) :: coefR
+      
+      rho = 0.5 * ( rhoL + rhoR )
+      a   = 0.5 * ( cL + cR )
+      
+      rho_ref = 0.5 * ( rhoL_ref + rhoR_ref )
+      a_ref   = 0.5 * ( cL_ref + cR_ref )
+      
+      pL_pert = pL - pL_ref
+      pR_pert = pR - pR_ref
+      
+      ML = uL / a
+      MR = uR / a
+      
+      Mbar2 = ( uL**2 + uR**2 ) / ( 2. * a**2 )
+      
+      !if( pL_pert/pL_ref<1.e-13 .and. pR_pert/pR_ref<1.e-13 )then
+      !  p_diff = 0
+      !else
+      !  p_diff = PR - PL
+      !endif
+      
+      p_diff = PR - PL
+      
+      Mh     = M4( ML, sp ) + M4( MR, sn ) - Kp * max( 1. - sigma * Mbar2, 0. ) * p_diff / ( rho * a**2 )
+      m      = 0.5 * ( cL / sqrtGL + cR / sqrtGR ) * Mh
+      
+      coefL = sqrtGL * G13L
+      coefR = sqrtGR * G13R
+      
+      p = P5(ML,sp) * coefL * PL + P5(MR,sn) * coefR * PR &
+        - Ku * P5(ML,sp) * P5(MR,sn) * ( coefL * rhoL + coefR * rhoR ) * a * ( uR - uL )
+      
+      !p_pert = P5(ML,sp) * pL_pert + P5(MR,sn) * pR_pert &
+      !       - 2. * Ku * P5(ML,sp) * P5(MR,sn) * ( rho * a - rho_ref * a_ref  ) * ( uR - uL )
+      p_pert = P5(ML,sp) * pL + P5(MR,sn) * pR &
+             - 2. * Ku * P5(ML,sp) * P5(MR,sn) * rho * a * ( uR - uL )
+      
+      !if( abs(2.*p_pert/(pL+pR)) < 1.e-13 )p_pert = 0
+      
+    end subroutine AUSM_up_z
     
     function M2(M,signal)
       real(r_kind) :: M2
       real(r_kind) :: M
-      real(r_kind) :: signal
+      real(r_kind) :: signal ! must be 1 or -1
       
-      M2 = sign(1.,signal) * 0.25 * ( M + sign(1.,signal) )**2
+      M2 = signal * 0.25 * ( M + signal )**2
       
     end function M2
     
     function M4(M,signal)
       real(r_kind) :: M4
       real(r_kind) :: M
-      real(r_kind) :: signal
+      real(r_kind) :: signal ! must be 1 or -1
       
       real(r_kind),parameter :: beta  = 0.125
       
       if(abs(M)>=1)then
-        M4 = 0.5 * ( M + sign(1.,signal) * abs(M) )
+        M4 = 0.5 * ( M + signal * abs(M) )
       else
-        M4 = M2( M, sign(1.,signal) ) * ( 1. - sign(1.,signal) * 16. * beta * M2( M, -sign(1.,signal) ) )
+        M4 = M2( M, signal ) * ( 1. - signal * 16. * beta * M2( M, -signal ) )
       endif
       
     end function M4
@@ -689,14 +855,14 @@ MODULE spatial_operators_mod
     function P5(M,signal)
       real(r_kind) :: P5
       real(r_kind) :: M
-      real(r_kind) :: signal
+      real(r_kind) :: signal ! must be 1 or -1
       
       real(r_kind),parameter :: alpha = 0.1875
       
       if(abs(M)>=1)then
-        P5 = 0.5 * ( 1. + sign(1.,signal) * sign(1.,M) )
+        P5 = 0.5 * ( 1. + signal * sign(1.,M) )
       else
-        P5 = M2( M, sign(1.,signal) ) * ( ( sign(2.,signal) - M ) - sign(16.*alpha,signal) * M * M2( M, -sign(1.,signal) ) )
+        P5 = M2( M, signal ) * ( ( 2. * signal - M ) - signal * 16.*alpha * M * M2( M, -signal ) )
       endif
       
     end function P5
