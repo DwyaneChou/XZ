@@ -401,6 +401,43 @@ MODULE spatial_operators_mod
       integer(i_kind) dir
       integer(i_kind) i,k,iVar
       
+      !if(case_num==1)then
+      !  ! No-flux
+      !  ! left
+      !  q(:,ics:ids-1,:) = FillValue
+      !  
+      !  ! right
+      !  q(:,ide+1:ice,:) = FillValue
+      !  
+      !  ! bottom
+      !  q(:,:,kcs:kds-1) = FillValue
+      !  
+      !  ! top
+      !  q(:,:,kde+1:kce) = FillValue
+      !  
+      !elseif(case_num==2)then
+      !  ! left
+      !  q(:,ics:ids-1,:) = FillValue
+      !  !q(:,ids:ids+2,:) = q_ref(:,ids:ids+2,:)
+      !  
+      !  ! right
+      !  q(:,ide+1:ice,:) = FillValue
+      !  !q(:,ide-2:ide,:) = q_ref(:,ide-2:ide,:)
+      !  
+      !  !! left
+      !  !q(:,ics:ids-1,:) = q_ref(:,ics:ids-1,:)
+      !  !
+      !  !! right
+      !  !q(:,ide+1:ice,:) = q_ref(:,ide+1:ice,:)
+      !  
+      !  ! bottom
+      !  q(:,:,kcs:kds-1) = FillValue
+      !  
+      !  ! top
+      !  q(:,:,kde+1:kce) = FillValue
+      !  
+      !endif
+      
       ! No-flux
       ! left
       q(:,ics:ids-1,:) = FillValue

@@ -90,5 +90,52 @@
       
     end subroutine WENO_limiter
     
+    real(r_kind) function dqdx(q,dx)
+      real(r_kind), dimension(4), intent(in ) :: q
+      real(r_kind)              , intent(in ) :: dx
+      real(r_kind) :: dq
+      
+      dq = ( q(1) / 12. - 5./4. * q(2) + 5./4. * q(3) - q(4) / 12.  ) / dx
+      
+      dqdx = dq
+    
+    end function dqdx
+    
+    real(r_kind) function dqdxC(q,dx)
+      real(r_kind), dimension(2), intent(in ) :: q
+      real(r_kind)              , intent(in ) :: dx
+      real(r_kind) :: dq
+      
+      dqdxC = ( q(2) - q(1)  ) / dx
+      
+      dqdxC = dq
+    
+    end function dqdxC
+    
+    real(r_kind) function dqdxL(q,dx)
+      real(r_kind), dimension(3), intent(in ) :: q
+      real(r_kind)              , intent(in ) :: dx
+      real(r_kind) :: dq
+      
+      dq = - ( 2. * q(1) - 3. * q(2) + q(3) ) / dx
+      
+      if(maxval(abs(q))/=0)then
+        if( abs( dq/maxval(abs(q)) * dx ) < 1.e-14 ) dq = 0
+      endif
+      
+      dqdxL = dq
+    
+    end function dqdxL
+    
+    real(r_kind) function dqdxR(q,dx)
+      real(r_kind), dimension(3), intent(in ) :: q
+      real(r_kind)              , intent(in ) :: dx
+      real(r_kind) :: dq
+      
+      dq = ( 2. * q(3) - 3. * q(2) + q(1) ) / dx
+    
+      dqdxR = dq
+    end function dqdxR
+    
   end module reconstruction_mod
     

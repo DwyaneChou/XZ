@@ -72,6 +72,9 @@ module test_case_mod
       zs    = 0.
       dzsdx = 0.
       
+      zs_ext    = 0.
+      dzsdx_ext = 0.
+      
       call init_vertical_coordinate
       
       theta_bar = 300.
@@ -87,6 +90,30 @@ module test_case_mod
           dexner(i,k) = -gravity / ( Cpd * theta(i,k) )
         enddo
       enddo
+      
+      !do i = ics,ice
+      !  call spline2_integration(nz_ext-1,z(i,:),dexner(i,:),0.,0.,nz_ext,z(i,:),dexner(i,:))
+      !  !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
+      !  
+      !  exner(i,1) = 1.
+      !  
+      !  do k = kds+1,kce
+      !    exner(i,k) = exner(i,1) + sum(dexner(i,kds+1:k))
+      !  enddo
+      !  
+      !  do k = kcs,kds-1
+      !    exner(i,k) = 1. - sum(dexner(i,kds:k+1:-1))
+      !  enddo
+      !  
+      !  do k = kcs,kce
+      !    p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
+      !    T    (i,k) = exner(i,k) * theta(i,k)
+      !    rho  (i,k) = p(i,k) / ( Rd * T(i,k) )
+      !    u    (i,k) = 0.
+      !    w    (i,k) = 0.
+      !    q    (i,k) = 0.
+      !  enddo
+      !enddo
       
       do i = ics,ice
         do k = kcs,kce
@@ -190,7 +217,59 @@ module test_case_mod
       zs    = h0 * exp( -( x / a0 )**2 ) * cos( pi * x / lambda0 )**2
       dzsdx = -((2.*h0*Cos((pi*x)/lambda0)*(lambda0*x*Cos((pi*x)/lambda0) + a0**2*pi*Sin((pi*x)/lambda0)))/(Exp(x**2/a0**2)*(a0**2*lambda0)))
       
+      zs_ext    = h0 * exp( -( x_ext / a0 )**2 ) * cos( pi * x_ext / lambda0 )**2
+      dzsdx_ext = -((2.*h0*Cos((pi*x_ext)/lambda0)*(lambda0*x_ext*Cos((pi*x_ext)/lambda0) + a0**2*pi*Sin((pi*x_ext)/lambda0)))/(Exp(x_ext**2/a0**2)*(a0**2*lambda0)))
+      
       call init_vertical_coordinate
+      
+      !do k = kcs,kce
+      !  do i = ics,ice
+      !    theta_bar(i,k) = theta0 * exp( N0**2 /gravity * z(i,k) )
+      !    theta    (i,k) = theta_bar(i,k)
+      !    dexner   (i,k) = -gravity / ( Cpd * theta(i,k) )
+      !  enddo
+      !enddo
+      !
+      !! Set exner on top
+      !do i = ics,ice
+      !  exner(i,1) = 1.
+      !  
+      !  call spline2_integration(nz_ext-1,xi(i,:),dexner(i,:),0.,0.,nz_ext,xi(i,:),dexner(i,:))
+      !  !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
+      !  
+      !  do k = kds+1,kce
+      !    exner(i,k) = exner(i,1) + sum(dexner(i,kds+1:k))
+      !  enddo
+      !  
+      !enddo
+      !exner(:,kce) = sum( exner(ids:ide,kce) ) / nx
+      !
+      !do k = kcs,kce
+      !  do i = ics,ice
+      !    theta_bar(i,k) = theta0 * exp( N0**2 /gravity * z(i,k) )
+      !    theta    (i,k) = theta_bar(i,k)
+      !    dexner   (i,k) = -gravity / ( Cpd * theta(i,k) )
+      !  enddo
+      !enddo
+      !
+      !! Initialize fields
+      !do i = ics,ice
+      !  call spline2_integration(nz_ext-1,z(i,:),dexner(i,:),0.,0.,nz_ext,z(i,:),dexner(i,:))
+      !  !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
+      !  
+      !  do k = kce,kcs,-1
+      !    exner(i,k) = exner(i,kce) - sum(dexner(i,k:kce))
+      !  enddo
+      !  
+      !  do k = kcs,kce
+      !    p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
+      !    T    (i,k) = exner(i,k) * theta(i,k)
+      !    rho  (i,k) = p(i,k) / ( Rd * T(i,k) )
+      !    u    (i,k) = 10.
+      !    w    (i,k) = 0.
+      !    q    (i,k) = 0.
+      !  enddo
+      !enddo
       
       do k = kcs,kce
         do i = ics,ice
@@ -279,6 +358,9 @@ module test_case_mod
       zs    = 0.
       dzsdx = 0.
       
+      zs_ext    = 0.
+      dzsdx_ext = 0.
+      
       call init_vertical_coordinate
       
       theta_bar = 300.
@@ -295,6 +377,30 @@ module test_case_mod
           dexner(i,k) = -gravity / ( Cpd * theta(i,k) )
         enddo
       enddo
+      
+      !do i = ics,ice
+      !  call spline2_integration(nz_ext-1,z(i,:),dexner(i,:),0.,0.,nz_ext,z(i,:),dexner(i,:))
+      !  !call spline4_integration(nz_ext-1,z(i,:),dexner(i,:)      ,nz_ext,z(i,:),dexner(i,:))
+      !  
+      !  exner(i,1) = 1.
+      !  
+      !  do k = kds+1,kce
+      !    exner(i,k) = exner(i,1) + sum(dexner(i,kds+1:k))
+      !  enddo
+      !  
+      !  do k = kcs,kds-1
+      !    exner(i,k) = 1. - sum(dexner(i,kds:k+1:-1))
+      !  enddo
+      !  
+      !  do k = kcs,kce
+      !    p    (i,k) = p0 * exner(i,k)**(Cpd/Rd)
+      !    T    (i,k) = exner(i,k) * theta(i,k)
+      !    rho  (i,k) = p(i,k) / ( Rd * T(i,k) )
+      !    u    (i,k) = 0.
+      !    w    (i,k) = 0.
+      !    q    (i,k) = 0.
+      !  enddo
+      !enddo
       
       do i = ics,ice
         do k = kcs,kce
