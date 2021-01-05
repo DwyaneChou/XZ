@@ -67,7 +67,7 @@
     
     end subroutine calc_polynomial_deriv_matrix
   
-    subroutine  calc_polynomial_integration(d,c)
+    subroutine  calc_polynomial_triangle_integration(d,c)
       integer(i_kind),               intent(in ) :: d ! degree of polynomial
       real   (r_kind), dimension(:), intent(out) :: c
       
@@ -85,7 +85,28 @@
         enddo
       enddo
       
-    end subroutine  calc_polynomial_integration
+    end subroutine  calc_polynomial_triangle_integration
+    
+    subroutine  calc_polynomial_square_integration(d,x_min,x_max,y_min,y_max,c)
+      integer(i_kind),               intent(in ) :: d ! degree of polynomial
+      real   (r_kind)              , intent(in ) :: x_min
+      real   (r_kind)              , intent(in ) :: x_max
+      real   (r_kind)              , intent(in ) :: y_min
+      real   (r_kind)              , intent(in ) :: y_max
+      real   (r_kind), dimension(:), intent(out) :: c
+      
+      integer(i_kind) :: i,j,k
+      
+      k = 0
+      c = 0
+      do j = 0,d
+        do i = 0,j
+          k = k + 1
+          c(k) = ( x_max**(j-i+1) - x_min**(j-i+1) ) * ( y_max**(i+1) - y_min**(i+1) ) / real( ( i + 1 ) * ( j - i + 1 ), r_kind )
+        enddo
+      enddo
+      
+    end subroutine  calc_polynomial_square_integration
     
     function nchoosek(n,k) ! same as nchoosek in matlab
       real   (r_kind) :: nchoosek
