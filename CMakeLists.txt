@@ -66,6 +66,7 @@ set(source_files
   src/netcdf_mod.F90
   src/reconstruction_mod.F90
   src/math_mod.F90
+  src/test_case_mod.F90
 )
 
 add_library(xz ${source_files})

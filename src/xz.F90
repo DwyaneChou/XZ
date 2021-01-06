@@ -4,6 +4,7 @@
       use mesh_mod
       use stat_mod
       use tend_mod
+      use test_case_mod
       implicit none
       
       integer :: it
@@ -25,9 +26,11 @@
       call SYSTEM_CLOCK(timeStart)
       
       call initParameters
+      call init_reconstruction
       call init_mesh
       call init_stat
       call init_tend
+      call init_test_case    
       
       ! Timing end
       call SYSTEM_CLOCK(timeEnd)

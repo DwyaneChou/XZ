@@ -4,10 +4,10 @@ module parameters_mod
   
   ! Namelist parameters
   ! time_settings
-  integer         :: run_days
-  integer         :: run_hours
-  integer         :: run_minutes
-  integer         :: run_seconds
+  integer(i_kind) :: run_days
+  integer(i_kind) :: run_hours
+  integer(i_kind) :: run_minutes
+  integer(i_kind) :: run_seconds
   real   (r_kind) :: dt               ! time step
   real   (r_kind) :: history_interval ! output interval in seconds
   real            :: IRK_residual
@@ -15,7 +15,7 @@ module parameters_mod
   character*200 :: integral_scheme
   
   ! Case select
-  integer :: case_num
+  integer(i_kind) :: case_num
   
   ! Domain
   real   (r_kind) :: dx        !  grid space in x-direction
@@ -29,6 +29,10 @@ module parameters_mod
   
   integer(i_kind) :: vertical_distribution ! 1 for even, 2 for atan function
   integer(i_kind) :: vertical_coordinate   ! 1 for Gal-Chen, 2 for Klemp 2011
+  
+  integer(i_kind), parameter :: nEdgesOnCell      = 4
+  integer(i_kind), parameter :: nPointsOnEdge     = 5
+  integer(i_kind), parameter :: nQuadPointsOnCell = nPointsOnEdge**2 !n Quadrature Points On Cell
   
   ! Reconstruction
   integer(i_kind) :: recPolyDegree ! reconstruction polynomial degree
