@@ -30,6 +30,10 @@ module parameters_mod
   integer(i_kind) :: vertical_distribution ! 1 for even, 2 for atan function
   integer(i_kind) :: vertical_coordinate   ! 1 for Gal-Chen, 2 for Klemp 2011
   
+  ! Reconstruction
+  integer(i_kind) :: recPolyDegree ! reconstruction polynomial degree
+  integer(i_kind) :: stencil_width ! Choose from odds, 3, 5, 7, 9
+  
   integer(i_kind) :: nIntegralSubSteps ! number of integral substeps in temporal integration scheme
   integer(i_kind) :: nsteps            ! total integral steps
   
@@ -66,14 +70,18 @@ module parameters_mod
                     vertical_distribution,&
                     vertical_coordinate
   
+  namelist /reconstruction/ recPolyDegree,&
+                            stencil_width
+  
   contains
   
   subroutine readNamelist
     
     open(1, file = 'namelist.input',status='old')
-    read(1, nml  = time_settings)
-    read(1, nml  = case_select  )
-    read(1, nml  = domain       )
+    read(1, nml  = time_settings )
+    read(1, nml  = case_select   )
+    read(1, nml  = domain        )
+    read(1, nml  = reconstruction)
     close(1)
     
   end subroutine readNamelist

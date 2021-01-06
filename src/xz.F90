@@ -25,7 +25,7 @@
       call SYSTEM_CLOCK(timeStart)
       
       call initParameters
-      !call init_mesh
+      call init_mesh
       call init_stat
       call init_tend
       

@@ -11,7 +11,7 @@ IRK_residual     = 1.E-5
 /
 
 &case_select
-case_num = 2, ! Choose from 1, 2
+case_num = 1, ! Choose from 1, 2
 /
 
 &domain
@@ -25,3 +25,9 @@ vertical_distribution = 1
 vertical_coordinate   = 2
 m_coef                = 2
 /
+
+&reconstruction
+recPolyDegree = 4, ! reconstruction polynomial degree
+stencil_width = 5, ! Choose from odds, 3, 5, 7, 9
+/
+
