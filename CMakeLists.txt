@@ -11,7 +11,7 @@ elseif (CMAKE_Fortran_COMPILER_ID MATCHES GNU)
   if (APPLE)
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -floop-parallelize-all -fdefault-real-8 -ffree-line-length-none")
   else ()
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -floop-parallelize-all -fdefault-real-8 -ftree-parallelize-loops=8 -ffree-line-length-none -lgomp -fopenmp")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -floop-parallelize-all -fdefault-real-8 -ftree-parallelize-loops=8 -ffree-line-length-none -lgomp -fopenmp -fopenacc")
   endif ()
   if (CMAKE_BUILD_TYPE MATCHES DEBUG)
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -gdwarf -Og -fbacktrace -fcheck=all")
@@ -67,6 +67,8 @@ set(source_files
   src/reconstruction_mod.F90
   src/math_mod.F90
   src/test_case_mod.F90
+  src/io_mod.F90
+  src/spatial_operators_mod.F90
 )
 
 add_library(xz ${source_files})

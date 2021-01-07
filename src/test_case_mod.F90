@@ -8,6 +8,11 @@ module test_case_mod
   
   real(r_kind), dimension(:,:,:), allocatable :: q_ref      ! reference q
   
+  integer(i_kind),parameter :: periodic = 0
+  integer(i_kind),parameter :: closed   = 1
+  
+  integer(i_kind), dimension(4) :: domain_bdy_type ! 1 left, 2 bottom, 3 right, 4 top
+  
     contains
     subroutine init_test_case
       integer(i_kind) iT
@@ -26,6 +31,8 @@ module test_case_mod
       else
         stop 'Unknown case_num'
       endif
+      
+      if(allocated(q_ref))deallocate(q_ref)
       
     end subroutine init_test_case
     
@@ -66,6 +73,8 @@ module test_case_mod
       allocate(T    (nQuadPointsOnCell,ics:ice,kcs:kce))
       
       allocate(dexner(nQuadPointsOnCell,ics:ice,kcs:kce))
+      
+      domain_bdy_type = closed
       
       zs    = 0.
       dzsdx = 0.
@@ -186,6 +195,8 @@ module test_case_mod
       
       allocate(theta_bar(nQuadPointsOnCell,ics:ice,kcs:kce))
       
+      domain_bdy_type = closed
+      
       h0      = 250.
       a0      = 5000.
       lambda0 = 4000.
@@ -292,6 +303,8 @@ module test_case_mod
       allocate(T    (nQuadPointsOnCell,ics:ice,kcs:kce))
       
       allocate(dexner(nQuadPointsOnCell,ics:ice,kcs:kce))
+      
+      domain_bdy_type = closed
       
       zs    = 0.
       dzsdx = 0.

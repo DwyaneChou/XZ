@@ -17,15 +17,15 @@
       real(r_kind), dimension(:,:,:), allocatable :: xi  ! xi coordinate of Quadrature Points
       real(r_kind), dimension(:,:,:), allocatable :: z   ! z coordinate of Quadrature Points
       
-      real   (r_kind), dimension(:,:,:), allocatable :: xL
-      real   (r_kind), dimension(:,:,:), allocatable :: xR
-      real   (r_kind), dimension(:,:,:), allocatable :: xB
-      real   (r_kind), dimension(:,:,:), allocatable :: xT
+      real   (r_kind), dimension(:), allocatable :: xL
+      real   (r_kind), dimension(:), allocatable :: xR
+      real   (r_kind), dimension(:), allocatable :: xB
+      real   (r_kind), dimension(:), allocatable :: xT
       
-      real   (r_kind), dimension(:,:,:), allocatable :: zL
-      real   (r_kind), dimension(:,:,:), allocatable :: zR
-      real   (r_kind), dimension(:,:,:), allocatable :: zB
-      real   (r_kind), dimension(:,:,:), allocatable :: zT
+      real   (r_kind), dimension(:), allocatable :: etaL
+      real   (r_kind), dimension(:), allocatable :: etaR
+      real   (r_kind), dimension(:), allocatable :: etaB
+      real   (r_kind), dimension(:), allocatable :: etaT
       
       real(r_kind), dimension(:,:,:), allocatable :: zs ! topography on Quadrature Points
       
@@ -43,6 +43,10 @@
       real(r_kind), dimension(:,:,:), allocatable :: G13R   ! G13 on RiemannPoints on Right edge of Cell
       real(r_kind), dimension(:,:,:), allocatable :: G13B   ! G13 on RiemannPoints on Bottom edge of Cell
       real(r_kind), dimension(:,:,:), allocatable :: G13T   ! G13 on RiemannPoints on Top edge of Cell
+      
+      real(r_kind), dimension(:,:), allocatable :: xC   ! x coordinate on Cell
+      real(r_kind), dimension(:,:), allocatable :: zC   ! z coordinate on Cell
+      real(r_kind), dimension(:,:), allocatable :: zsC ! topography on Cell
       
       ! For dzdeta ( sqrt(G) )
       real(r_kind), dimension(:,:,:), allocatable :: dzdxi
@@ -69,15 +73,15 @@
         allocate(xi (nQuadPointsOnCell,ics:ice,kcs:kce))
         allocate(z  (nQuadPointsOnCell,ics:ice,kcs:kce))
         
-        allocate(xL(nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(xR(nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(xB(nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(xT(nPointsOnEdge,ics:ice,kcs:kce))
+        allocate(xL(nPointsOnEdge))
+        allocate(xR(nPointsOnEdge))
+        allocate(xB(nPointsOnEdge))
+        allocate(xT(nPointsOnEdge))
         
-        allocate(zL(nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(zR(nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(zB(nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(zT(nPointsOnEdge,ics:ice,kcs:kce))
+        allocate(etaL(nPointsOnEdge))
+        allocate(etaR(nPointsOnEdge))
+        allocate(etaB(nPointsOnEdge))
+        allocate(etaT(nPointsOnEdge))
         
         allocate(zs   (nQuadPointsOnCell,ics:ice,kcs:kce)) ! topography on Quadrature Points
         
@@ -95,6 +99,10 @@
         allocate(G13R(nPointsOnEdge,ics:ice,kcs:kce))   ! G13 on RiemannPoints on Right edge of Cell
         allocate(G13B(nPointsOnEdge,ics:ice,kcs:kce))   ! G13 on RiemannPoints on Bottom edge of Cell
         allocate(G13T(nPointsOnEdge,ics:ice,kcs:kce))   ! G13 on RiemannPoints on Top edge of Cell
+        
+        allocate(xC (ics:ice,kcs:kce))
+        allocate(zC (ics:ice,kcs:kce))
+        allocate(zsC(ics:ice,kcs:kce))
         
         ! For dzdeta ( sqrt(G) )
         allocate(dzdxi  (nQuadPointsOnCell,ics:ice,kcs:kce))
@@ -134,7 +142,22 @@
                 xi (j,i,k) = eta(j,i,k) * dxideta(j,i,k)
               enddo
             enddo
+            xC(i,k) = Gaussian_quadrature_2d(x(:,i,k))
           enddo
+        enddo
+        
+        xL = - dx / 2.
+        xR =   dx / 2.
+        do iQP = 1,nPointsOnEdge
+          xB(iQP) = xL(1) + dx * quad_pos_1d(iQP)
+          xT(iQP) = xB(iQP)
+        enddo
+        
+        etaB = - deta / 2.
+        etaT =   deta / 2.
+        do jQP = 1,nPointsOnEdge
+          etaL(jQP) = etaB(1) + deta * quad_pos_1d(jQP)
+          etaR(jQP) = etaL(jQP)
         enddo
         
       end subroutine init_mesh
@@ -193,8 +216,16 @@
               sqrtG(j,i,k) = dzdeta(j,i,k)
               G13  (j,i,k) = detadx(j,i,k)
             enddo
-            sqrtGC(i,k) = Gaussian_quadrature_2d(sqrtG)
-            G13C  (i,k) = Gaussian_quadrature_2d(G13)
+          enddo
+        enddo
+        
+        ! Calculate cell value
+        do k = kcs,kce
+          do i = ics,ice
+            zC    (i,k) = Gaussian_quadrature_2d(z    (:,i,k))
+            zsC   (i,k) = Gaussian_quadrature_2d(zs   (:,i,k))
+            sqrtGC(i,k) = Gaussian_quadrature_2d(sqrtG(:,i,k))
+            G13C  (i,k) = Gaussian_quadrature_2d(G13  (:,i,k))
           enddo
         enddo
         
