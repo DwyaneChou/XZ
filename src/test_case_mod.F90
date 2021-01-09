@@ -150,7 +150,7 @@ module test_case_mod
       print*,'max/min value of sqrtG*rho*v     ',maxval(stat%q(3,:,:)),minval(stat%q(3,:,:))
       print*,'max/min value of sqrtG*rho*theta ',maxval(stat%q(4,:,:)),minval(stat%q(4,:,:))
       print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,:,:)),minval(stat%q(5,:,:))
-      
+      print*,''
     end subroutine thermal_bubble
     
     subroutine schar_mountain(stat)
@@ -263,6 +263,7 @@ module test_case_mod
       print*,'max/min value of sqrtG*rho*w     ',maxval(stat%q(3,:,:)),minval(stat%q(3,:,:))
       print*,'max/min value of sqrtG*rho*theta ',maxval(stat%q(4,:,:)),minval(stat%q(4,:,:))
       print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,:,:)),minval(stat%q(5,:,:))
+      print*,''
     end subroutine schar_mountain
     
     ! Density current according to Li 2013
@@ -378,7 +379,7 @@ module test_case_mod
       print*,'max/min value of sqrtG*rho*v     ',maxval(stat%q(3,:,:)),minval(stat%q(3,:,:))
       print*,'max/min value of sqrtG*rho*theta ',maxval(stat%q(4,:,:)),minval(stat%q(4,:,:))
       print*,'max/min value of sqrtG*rho*q     ',maxval(stat%q(5,:,:)),minval(stat%q(5,:,:))
-      
+      print*,''
     end subroutine density_current
     
 end module test_case_mod

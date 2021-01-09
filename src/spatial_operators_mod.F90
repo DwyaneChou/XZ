@@ -12,19 +12,32 @@
       
       public init_spatial_operator!,spatial_operator
       
-      integer(i_kind), dimension(:,:,:,:), allocatable :: iRec ! x index of reconstruction cells
-      integer(i_kind), dimension(:,:,:,:), allocatable :: kRec ! k index of reconstruction cells
+      integer(i_kind), dimension(:,:,:,:), allocatable :: iRecCell ! x index of reconstruction cells
+      integer(i_kind), dimension(:,:,:,:), allocatable :: kRecCell ! k index of reconstruction cells
+      
+      real   (r_kind), dimension(:,:,:,:,:), allocatable :: xRel   ! relative x coordinate of reconstruction cells
+      real   (r_kind), dimension(:,:,:,:,:), allocatable :: etaRel ! relative eta coordinate of reconstruction cells
+      
+      real   (r_kind), dimension(:,:,:), allocatable :: disCenter ! distance between adjacent cells and center cell on stencil
       
     contains
       subroutine init_spatial_operator
         integer(i_kind) :: i,j,k,iR,kR
         integer(i_kind) :: ibs,ibe,kbs,kbe
         integer(i_kind) :: recBdy
+        integer(i_kind) :: iRec,kRec
         
-        allocate(iRec(stencil_width,stencil_width,ids:ide,kds:kde))
-        allocate(kRec(stencil_width,stencil_width,ids:ide,kds:kde))
+        allocate(iRecCell  (stencil_width,stencil_width,ids:ide,kds:kde))
+        allocate(kRecCell  (stencil_width,stencil_width,ids:ide,kds:kde))
         
-        ! set reconstruction cells on each cell
+        allocate(xRel  (4,stencil_width,stencil_width,ids:ide,kds:kde))
+        allocate(etaRel(4,stencil_width,stencil_width,ids:ide,kds:kde))
+        
+        allocate(disCenter(nRecCells,ids:ide,kds:kde))
+        
+        ! set reconstruction cells on each stencil
+        print*,'Set reconstruction cells on each stencil'
+        print*,''
         recBdy = ( stencil_width - 1 ) / 2
         ibs    = ids + recBdy
         ibe    = ide - recBdy
@@ -36,7 +49,7 @@
           do i = ibs,ibe
             do kR = 1,stencil_width
               do iR = 1,stencil_width
-                iRec(iR,kR,i,k) = iR + i - 1 - recBdy
+                iRecCell(iR,kR,i,k) = iR + i - 1 - recBdy
               enddo
             enddo            
           enddo
@@ -44,7 +57,7 @@
           do i = ids,ibs-1
             do kR = 1,stencil_width
               do iR = 1,stencil_width
-                iRec(iR,kR,i,k) = ids - 1 + iR
+                iRecCell(iR,kR,i,k) = ids - 1 + iR
               enddo
             enddo
           enddo
@@ -52,7 +65,7 @@
           do i = ibe+1,ide
             do kR = 1,stencil_width
               do iR = 1,stencil_width
-                iRec(iR,kR,i,k) = ide - stencil_width + iR
+                iRecCell(iR,kR,i,k) = ide - stencil_width + iR
               enddo
             enddo
           enddo
@@ -64,7 +77,7 @@
           do k = kbs,kbe
             do kR = 1,stencil_width
               do iR = 1,stencil_width
-                kRec(iR,kR,i,k) = kR + k - 1 - recBdy
+                kRecCell(iR,kR,i,k) = kR + k - 1 - recBdy
               enddo
             enddo            
           enddo
@@ -72,7 +85,7 @@
           do k = kds,kbs-1
             do kR = 1,stencil_width
               do iR = 1,stencil_width
-                kRec(iR,kR,i,k) = kds - 1 + kR
+                kRecCell(iR,kR,i,k) = kds - 1 + kR
               enddo
             enddo
           enddo
@@ -80,25 +93,32 @@
           do k = kbe+1,kde
             do kR = 1,stencil_width
               do iR = 1,stencil_width
-                kRec(iR,kR,i,k) = kde - stencil_width  + kR
+                kRecCell(iR,kR,i,k) = kde - stencil_width  + kR
               enddo
             enddo
           enddo
         enddo
         
-        !i = ide
-        !k = kde-1
-        !do kR = 1,stencil_width
-        !  print*,kR,(kRec(iR,kR,i,k),iR=1,stencil_width)
-        !enddo
-        !do iR = 1,stencil_width
-        !  print*,iR,(iRec(iR,kR,i,k),kR=1,stencil_width)
-        !enddo
-        
         ! initilize polyCoordCoef
-        do k = kcs,kce
-          do i = ics,ice
-            call calc_polynomial_square_integration(recPolyDegree,xCorner(1,i,k),xCorner(2,i,k),etaCorner(1,i,k),etaCorner(4,i,k),polyCoordCoef(:,i,k))
+        print*,'Initilize polyCoordCoef'
+        print*,''
+        do k = kds,kde
+          do i = ids,ide
+            j = 0 ! Reset cell number on stencil
+            do kR = 1,stencil_width
+              do iR = 1,stencil_width
+                iRec = iRecCell(iR,kR,i,k)
+                kRec = kRecCell(iR,kR,i,k)
+                j    = j + 1
+                
+                xRel  (:,iR,kR,i,k) = xCorner  (:,iRec,kRec) - xCenter  (i,k)
+                etaRel(:,iR,kR,i,k) = etaCorner(:,iRec,kRec) - etaCenter(i,k)
+                
+                disCenter(j,i,k) = sqrt( ( xCenter(iRec,kRec) - xCenter(i,k) )**2 + ( etaCenter(iRec,kRec) - etaCenter(i,k) )**2 )
+                
+                call calc_polynomial_square_integration(recPolyDegree,xRel(1,iR,kR,i,k),xRel(2,iR,kR,i,k),etaRel(1,iR,kR,i,k),etaRel(4,iR,kR,i,k),polyCoordCoef(j,:,i,k))
+              enddo
+            enddo
           enddo
         enddo
         

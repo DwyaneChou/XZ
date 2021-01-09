@@ -39,23 +39,6 @@ else ()
   endif ()
 endif ()
 
-#set(source_files
-#  src/xz.F90
-#  src/constants_mod.F90
-#  src/parameters_mod.F90
-#  src/mesh_mod.F90
-#  src/stat_mod.F90
-#  src/tend_mod.F90
-#  src/test_case_mod.F90
-#  src/io_mod.F90
-#  src/netcdf_mod.F90
-#  src/spatial_operators_mod.F90
-#  src/temporal_mod.F90
-#  src/linear_integration_mod.F90
-#  src/reconstruction_mod.F90
-#  src/math_mod.F90
-#)
-
 set(source_files
   src/xz.F90
   src/constants_mod.F90
@@ -69,6 +52,7 @@ set(source_files
   src/test_case_mod.F90
   src/io_mod.F90
   src/spatial_operators_mod.F90
+  src/qr_solver_mod.F90
 )
 
 add_library(xz ${source_files})

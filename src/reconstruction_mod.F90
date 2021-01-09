@@ -1,6 +1,7 @@
     module reconstruction_mod
       use constants_mod
       use parameters_mod
+      use qr_solver_mod
       implicit none
       
       real   (r_kind), dimension(nPointsOnEdge    ) :: quad_pos_1d
@@ -11,7 +12,7 @@
       
       integer(i_kind) :: nRecTerms
       
-      real   (r_kind), dimension(:,:,:), allocatable :: polyCoordCoef
+      real   (r_kind), dimension(:,:,:,:), allocatable :: polyCoordCoef
       
     contains
       subroutine init_reconstruction
@@ -49,7 +50,14 @@
         nRecCells = stencil_width**2
         nRecTerms = (recPolyDegree+1) * (recPolyDegree+2) / 2
         
-        allocate( polyCoordCoef(nRecTerms,ics:ice,kcs:kce) )
+        ! Check known and unknown values
+        if(nRecCells<nRecTerms)then
+          print*,'Error! nRecCells<nRecTerms, nRecCells =',nRecCells,' nRecTerm =',nRecTerms
+          print*,'Choose larger stencil_width or smaller recPolyDegree'
+          stop
+        endif
+        
+        allocate( polyCoordCoef(nRecCells,nRecTerms,ids:ide,kds:kde) )
         
       end subroutine init_reconstruction
       
@@ -69,5 +77,50 @@
         
       end function Gaussian_quadrature_2d
     
+      function WLS_ENO(A,u,h,m,n,ic)
+        ! WLS_ENO
+        ! Ax = b -> WAx=Wb -> min|| WAx - Wb || -> x
+        ! where A->A, x->WLS_ENO, b->u
+        ! WLS_ENO : unknown vector x (the vector of reconstruction polynomial coefficients)
+        ! A       : matrix of coordinate coefficient
+        ! u       : vector of known values
+        ! h       : vector of distence between adjacent cells and center cell
+        ! m       : number of known values (volumn integration value on cell, or in other words, number of cells in a stencil)
+        ! n       : number of coeficients of reconstruction polynomial
+        ! ic      : index of center cell on stencil
+        real   (r_kind), dimension(n  )             :: WLS_ENO
+        integer(i_kind)                , intent(in) :: m
+        integer(i_kind)                , intent(in) :: n
+        real   (r_kind), dimension(m,n), intent(in) :: A
+        real   (r_kind), dimension(m  ), intent(in) :: u
+        real   (r_kind), dimension(m  ), intent(in) :: h
+        integer(i_kind)                , intent(in) :: ic
+        
+        real(r_kind),parameter :: alpha   = 100
+        real(r_kind),parameter :: epsilon = 1.e-10
+        
+        real(r_kind), dimension(m,n) :: WA
+        real(r_kind), dimension(m  ) :: Wu
+        real(r_kind), dimension(m  ) :: W ! weights matrix on each cells (diagnostic matrix)
+        real(r_kind), dimension(m  ) :: beta
+        
+        integer(i_kind) :: i,j,k
+        
+        do j = 1,m
+          beta(j) = ( u(j) - u(ic) )**2 + epsilon * h(j)**2
+        enddo
+        beta(ic) = minval(beta,abs(beta)>1.e-15)
+        
+        W = 1./beta
+        W(ic) = alpha * W(ic)
+        
+        do j = 1,m
+          WA(j,:) = W(j) * A(j,:)
+          Wu(j  ) = W(j) * u(j  )
+        enddo
+        
+        call qr_solver(WA,Wu,WLS_ENO,M,N)
+      end function WLS_ENO
+      
     end module reconstruction_mod
     

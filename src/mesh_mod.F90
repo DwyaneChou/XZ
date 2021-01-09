@@ -44,9 +44,12 @@
       real(r_kind), dimension(:,:,:), allocatable :: G13B   ! G13 on RiemannPoints on Bottom edge of Cell
       real(r_kind), dimension(:,:,:), allocatable :: G13T   ! G13 on RiemannPoints on Top edge of Cell
       
-      real(r_kind), dimension(:,:), allocatable :: xC   ! x coordinate on Cell
-      real(r_kind), dimension(:,:), allocatable :: zC   ! z coordinate on Cell
-      real(r_kind), dimension(:,:), allocatable :: zsC ! topography on Cell
+      real(r_kind), dimension(:,:), allocatable :: xC   ! x coordinate on Cell by Gaussian quadrature
+      real(r_kind), dimension(:,:), allocatable :: zC   ! z coordinate on Cell by Gaussian quadrature
+      real(r_kind), dimension(:,:), allocatable :: zsC ! topography on Cell by Gaussian quadrature
+        
+      real(r_kind), dimension(:,:), allocatable :: xCenter   ! center coordinate
+      real(r_kind), dimension(:,:), allocatable :: etaCenter ! center coordinate
       
       ! For dzdeta ( sqrt(G) )
       real(r_kind), dimension(:,:,:), allocatable :: dzdxi
@@ -63,6 +66,9 @@
       subroutine init_mesh
         integer(i_kind) :: i,j,k
         integer(i_kind) :: iQP,jQP
+        
+        print*,'Initialize mesh'
+        print*,''
         
         allocate(xCorner  (nEdgesOnCell,ics:ice,kcs:kce))
         allocate(etaCorner(nEdgesOnCell,ics:ice,kcs:kce))
@@ -103,6 +109,9 @@
         allocate(xC (ics:ice,kcs:kce))
         allocate(zC (ics:ice,kcs:kce))
         allocate(zsC(ics:ice,kcs:kce))
+        
+        allocate(xCenter  (ics:ice,kcs:kce))
+        allocate(etaCenter(ics:ice,kcs:kce))
         
         ! For dzdeta ( sqrt(G) )
         allocate(dzdxi  (nQuadPointsOnCell,ics:ice,kcs:kce))
@@ -146,6 +155,13 @@
           enddo
         enddo
         
+        do k = kds,kde
+          do i = ids,ide
+            xCenter   = ( xCorner  (1,i,k) + xCorner  (2,i,k) ) / 2.
+            etaCenter = ( etaCorner(1,i,k) + etaCorner(4,i,k) ) / 2.
+          enddo
+        enddo
+        
         xL = - dx / 2.
         xR =   dx / 2.
         do iQP = 1,nPointsOnEdge
@@ -168,6 +184,9 @@
         ! For Schar, 2002
         real(r_kind) :: H
         real(r_kind) :: s
+        
+        print*,'Initialize vertical coordinate'
+        print*,''
         
         if( vertical_coordinate == 1 )then
           ! Gal-Chen, 1975

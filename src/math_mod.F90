@@ -68,8 +68,8 @@
     end subroutine calc_polynomial_deriv_matrix
   
     subroutine  calc_polynomial_triangle_integration(d,c)
-      integer(i_kind),               intent(in ) :: d ! degree of polynomial
-      real   (r_kind), dimension(:), intent(out) :: c
+      integer(i_kind), intent(in ) :: d ! degree of polynomial
+      real   (r_kind), intent(out) :: c(:)
       
       integer(i_kind) :: i,j,k,r
       
@@ -88,12 +88,12 @@
     end subroutine  calc_polynomial_triangle_integration
     
     subroutine  calc_polynomial_square_integration(d,x_min,x_max,y_min,y_max,c)
-      integer(i_kind),               intent(in ) :: d ! degree of polynomial
-      real   (r_kind)              , intent(in ) :: x_min
-      real   (r_kind)              , intent(in ) :: x_max
-      real   (r_kind)              , intent(in ) :: y_min
-      real   (r_kind)              , intent(in ) :: y_max
-      real   (r_kind), dimension(:), intent(out) :: c
+      integer(i_kind), intent(in ) :: d ! degree of polynomial
+      real   (r_kind), intent(in ) :: x_min
+      real   (r_kind), intent(in ) :: x_max
+      real   (r_kind), intent(in ) :: y_min
+      real   (r_kind), intent(in ) :: y_max
+      real   (r_kind), intent(out) :: c(:)
       
       integer(i_kind) :: i,j,k
       

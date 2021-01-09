@@ -170,6 +170,7 @@ module parameters_mod
     else
       stop 'Unknow case_num'
     endif
+    print*,''
     
     ids = 1
     ide = ( x_max - x_min ) / dx
@@ -193,6 +194,7 @@ module parameters_mod
     print*,'ice = ',ice
     print*,'kcs = ',kcs
     print*,'kce = ',kce
+    print*,''
     
   end subroutine initParameters
   
