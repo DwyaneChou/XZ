@@ -6,7 +6,6 @@
       implicit none
       
       real(r_kind) deta
-      real(r_kind) dxi
       
       real(r_kind), dimension(:,:,:), allocatable :: xCorner   ! 1: low left, 2: low right, 3: up right, 4:  up left
       real(r_kind), dimension(:,:,:), allocatable :: etaCorner ! 1: low left, 2: low right, 3: up right, 4:  up left
@@ -14,7 +13,6 @@
       
       real(r_kind), dimension(:,:,:), allocatable :: x   ! x coordinate of Quadrature Points
       real(r_kind), dimension(:,:,:), allocatable :: eta ! eta coordinate of Quadrature Points
-      real(r_kind), dimension(:,:,:), allocatable :: xi  ! xi coordinate of Quadrature Points
       real(r_kind), dimension(:,:,:), allocatable :: z   ! z coordinate of Quadrature Points
       
       real   (r_kind), dimension(:), allocatable :: xL
@@ -52,13 +50,9 @@
       real(r_kind), dimension(:,:), allocatable :: etaCenter ! center coordinate
       
       ! For dzdeta ( sqrt(G) )
-      real(r_kind), dimension(:,:,:), allocatable :: dzdxi
-      real(r_kind), dimension(:,:,:), allocatable :: dxideta
       real(r_kind), dimension(:,:,:), allocatable :: dzdeta
       
       ! For detadx ( G13 )
-      real(r_kind), dimension(:,:,:), allocatable :: detadxi
-      real(r_kind), dimension(:,:,:), allocatable :: dxidx
       real(r_kind), dimension(:,:,:), allocatable :: dzsdx
       real(r_kind), dimension(:,:,:), allocatable :: detadx
     contains
@@ -76,7 +70,6 @@
         
         allocate(x  (nQuadPointsOnCell,ics:ice,kcs:kce))
         allocate(eta(nQuadPointsOnCell,ics:ice,kcs:kce))
-        allocate(xi (nQuadPointsOnCell,ics:ice,kcs:kce))
         allocate(z  (nQuadPointsOnCell,ics:ice,kcs:kce))
         
         allocate(xL(nPointsOnEdge))
@@ -114,21 +107,13 @@
         allocate(etaCenter(ics:ice,kcs:kce))
         
         ! For dzdeta ( sqrt(G) )
-        allocate(dzdxi  (nQuadPointsOnCell,ics:ice,kcs:kce))
-        allocate(dxideta(nQuadPointsOnCell,ics:ice,kcs:kce))
         allocate(dzdeta (nQuadPointsOnCell,ics:ice,kcs:kce))
         
         ! For detadx ( G13 )
-        allocate(detadxi(nQuadPointsOnCell,ics:ice,kcs:kce))
-        allocate(dxidx  (nQuadPointsOnCell,ics:ice,kcs:kce))
         allocate(dzsdx  (nQuadPointsOnCell,ics:ice,kcs:kce))
         allocate(detadx (nQuadPointsOnCell,ics:ice,kcs:kce))
         
-        deta = 1. / real(nz,r_kind)
-        dxi  = ( z_max - z_min ) / nz
-        
-        dxideta = z_max - z_min
-        detadxi = 1. / dxideta
+        deta = ( z_max - z_min ) / nz
         
         do k = kcs,kce
           do i = ics,ice
@@ -137,7 +122,7 @@
             xCorner(3,i,k) = xCorner(2,i,k)
             xCorner(4,i,k) = xCorner(1,i,k)
             
-            etaCorner(1,i,k) = ( real(k) - 1. ) * deta
+            etaCorner(1,i,k) = z_min + ( real(k) - 1. ) * deta
             etaCorner(2,i,k) = etaCorner(1,i,k)
             etaCorner(3,i,k) = etaCorner(1,i,k) + deta
             etaCorner(4,i,k) = etaCorner(3,i,k)
@@ -148,7 +133,6 @@
                 j = j + 1
                 x  (j,i,k) = xCorner  (1,i,k) + dx   * quad_pos_1d(iQP)
                 eta(j,i,k) = etaCorner(1,i,k) + deta * quad_pos_1d(jQP)
-                xi (j,i,k) = eta(j,i,k) * dxideta(j,i,k)
               enddo
             enddo
             xC(i,k) = Gaussian_quadrature_2d(x(:,i,k))
@@ -193,13 +177,10 @@
           do k = kcs,kce
             do i = ics,ice
               do j = 1,nQuadPointsOnCell
-                dzdxi(j,i,k) = ( z_max - zs(j,i,k) ) / z_max
-                dxidx(j,i,k) = ( xi(j,i,k) - z_max ) / ( z_max - zs(j,i,k) ) * dzsdx(j,i,k)
+                dzdeta(j,i,k) = ( z_max - zs(j,i,k) ) / z_max
+                detadx(j,i,k) = ( eta(j,i,k) - z_max ) / ( z_max - zs(j,i,k) ) * dzsdx(j,i,k)
                 
-                dzdeta(j,i,k) = dzdxi  (j,i,k) * dxideta(j,i,k)
-                detadx(j,i,k) = detadxi(j,i,k) * dxidx  (j,i,k)
-                
-                z(j,i,k) = ( z_max - zs(j,i,k) ) / z_max * xi(j,i,k)  + zs(j,i,k)
+                z(j,i,k) = ( z_max - zs(j,i,k) ) / z_max * eta(j,i,k)  + zs(j,i,k)
               enddo
             enddo
           enddo
@@ -215,14 +196,11 @@
           do k = kcs,kce
             do i = ics,ice
               do j = 1,nQuadPointsOnCell
-                dzdxi(j,i,k) = 1. - zs(j,i,k) * cosh( ( H - xi(j,i,k) ) / s ) / ( s * sinh( H / s ) )
-                dxidx(j,i,k) = -sinh( ( z_max - xi(j,i,k) ) / s ) / sinh( z_max / s ) &
-                             / ( 1. - zs(j,i,k) / s * cosh( ( z_max - xi(j,i,k) ) / s ) / sinh( z_max / s ) ) * dzsdx(j,i,k)
+                dzdeta(j,i,k) = 1. - zs(j,i,k) * cosh( ( H - eta(j,i,k) ) / s ) / ( s * sinh( H / s ) )
+                detadx(j,i,k) = -sinh( ( z_max - eta(j,i,k) ) / s ) / sinh( z_max / s ) &
+                             / ( 1. - zs(j,i,k) / s * cosh( ( z_max - eta(j,i,k) ) / s ) / sinh( z_max / s ) ) * dzsdx(j,i,k)
                 
-                dzdeta(j,i,k) = dzdxi  (j,i,k) * dxideta(j,i,k)
-                detadx(j,i,k) = detadxi(j,i,k) * dxidx  (j,i,k)
-                
-                z(j,i,k) = xi(j,i,k) + zs(j,i,k) * sinh( ( H - xi(j,i,k) ) / s ) / sinh( H / s )
+                z(j,i,k) = eta(j,i,k) + zs(j,i,k) * sinh( ( H - eta(j,i,k) ) / s ) / sinh( H / s )
               enddo
             enddo
           enddo
