@@ -96,12 +96,12 @@
         real   (r_kind), dimension(m  ), intent(in) :: h
         integer(i_kind)                , intent(in) :: ic
         
-        real(r_kind),parameter :: alpha   = 100
+        real(r_kind),parameter :: alpha   = 1.5
         real(r_kind),parameter :: epsilon = 1.e-10
         
         real(r_kind), dimension(m,n) :: WA
         real(r_kind), dimension(m  ) :: Wu
-        real(r_kind), dimension(m  ) :: W ! weights matrix on each cells (diagnostic matrix)
+        real(r_kind), dimension(m  ) :: W ! weights on each cells
         real(r_kind), dimension(m  ) :: beta
         
         integer(i_kind) :: i,j,k

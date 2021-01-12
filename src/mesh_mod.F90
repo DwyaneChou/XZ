@@ -141,8 +141,8 @@
         
         do k = kds,kde
           do i = ids,ide
-            xCenter   = ( xCorner  (1,i,k) + xCorner  (2,i,k) ) / 2.
-            etaCenter = ( etaCorner(1,i,k) + etaCorner(4,i,k) ) / 2.
+            xCenter  (i,k) = ( xCorner  (1,i,k) + xCorner  (2,i,k) ) / 2.
+            etaCenter(i,k) = ( etaCorner(1,i,k) + etaCorner(4,i,k) ) / 2.
           enddo
         enddo
         

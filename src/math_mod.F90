@@ -1,19 +1,20 @@
     module math_mod
     use constants_mod
     contains
-    subroutine calc_polynomial_matrix(d,n,xi,eta,A)
+    subroutine calc_polynomial_matrix(d,m,n,xi,eta,A)
       integer(i_kind), intent(in ) :: d ! polynomial degree
-      integer(i_kind), intent(in ) :: n ! number of points on cell, n = (d+1)*(d+2)/2
-      real   (r_kind), intent(in ) :: xi (n)
-      real   (r_kind), intent(in ) :: eta(n)
-      real   (r_kind), intent(out) :: A  (n,n)
+      integer(i_kind), intent(in ) :: m ! number of points
+      integer(i_kind), intent(in ) :: n ! number of terms of polynomial, n = (d+1)*(d+2)/2
+      real   (r_kind), intent(in ) :: xi (m)
+      real   (r_kind), intent(in ) :: eta(m)
+      real   (r_kind), intent(out) :: A  (m,n)
       
       real   (r_kind) :: x
       real   (r_kind) :: y
       integer(i_kind) :: iPOC
       integer(i_kind)  :: i,j,k
       
-      do iPOC = 1,n
+      do iPOC = 1,m
         x = xi (iPOC)
         y = eta(iPOC)
         
