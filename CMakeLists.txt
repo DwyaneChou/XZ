@@ -52,6 +52,7 @@ set(source_files
   src/test_case_mod.F90
   src/io_mod.F90
   src/spatial_operators_mod.F90
+  src/temporal_mod.F90
   src/qr_solver_mod.F90
 )
 

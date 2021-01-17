@@ -154,13 +154,13 @@ module io_mod
       T        = p / ( rho * Ra )
       
       !print*,'nf90_put_var'
-      status = nf90_put_var(ncid, rho_id  , rho  , start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
-      status = nf90_put_var(ncid, u_id    , u    , start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
-      status = nf90_put_var(ncid, w_id    , w    , start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
-      status = nf90_put_var(ncid, theta_id, theta, start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
-      status = nf90_put_var(ncid, q_id    , q    , start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
-      status = nf90_put_var(ncid, p_id    , p    , start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
-      status = nf90_put_var(ncid, T_id    , T    , start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
+      status = nf90_put_var(ncid, rho_id  , real(rho  ,r8), start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
+      status = nf90_put_var(ncid, u_id    , real(u    ,r8), start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
+      status = nf90_put_var(ncid, w_id    , real(w    ,r8), start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
+      status = nf90_put_var(ncid, theta_id, real(theta,r8), start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
+      status = nf90_put_var(ncid, q_id    , real(q    ,r8), start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
+      status = nf90_put_var(ncid, p_id    , real(p    ,r8), start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
+      status = nf90_put_var(ncid, T_id    , real(T    ,r8), start=(/1,1,time_slot_num/),count=(/nx,nz,1/))
       if(status/=nf90_noerr) call handle_err(status)
       
       !print*,'nf90_close'

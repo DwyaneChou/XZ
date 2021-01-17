@@ -6,7 +6,7 @@ pic_path  = '.\';
 varname   = 'theta';
 
 time_start = 1;
-time_end   = 236;
+time_end   = 251;
 
 it = time_end;
 
@@ -81,4 +81,4 @@ colormap(jet)
 % 
 % % output picture
 % title([varname,' at ',num2str((it-1)*history_interval),' second(s)'])
-print(gcf,'-r600','-dpng',[pic_path,'\',varname,'_',num2str(it-1,'%.4d'),'.png']);
+% print(gcf,'-r600','-dpng',[pic_path,'\',varname,'_',num2str(it-1,'%.4d'),'.png']);

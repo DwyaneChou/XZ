@@ -14,6 +14,11 @@
       
       real   (r_kind), dimension(:,:,:,:), allocatable :: polyCoordCoef
       
+      real   (r_kind) :: recCoef
+      real   (r_kind) :: recdx
+      real   (r_kind) :: recdeta
+      real   (r_kind) :: recdV
+      
     contains
       subroutine init_reconstruction
         integer(i_kind) :: i,j,k
@@ -84,7 +89,7 @@
         ! WLS_ENO : unknown vector x (the vector of reconstruction polynomial coefficients)
         ! A       : matrix of coordinate coefficient
         ! u       : vector of known values
-        ! h       : vector of distence between adjacent cells and center cell
+        ! h       : average edge length of cells
         ! m       : number of known values (volumn integration value on cell, or in other words, number of cells in a stencil)
         ! n       : number of coeficients of reconstruction polynomial
         ! ic      : index of center cell on stencil
@@ -93,11 +98,11 @@
         integer(i_kind)                , intent(in) :: n
         real   (r_kind), dimension(m,n), intent(in) :: A
         real   (r_kind), dimension(m  ), intent(in) :: u
-        real   (r_kind), dimension(m  ), intent(in) :: h
+        real   (r_kind)                , intent(in) :: h
         integer(i_kind)                , intent(in) :: ic
         
         real(r_kind),parameter :: alpha   = 1.5
-        real(r_kind),parameter :: epsilon = 1.e-10
+        real(r_kind),parameter :: epsilon = 1.e-2
         
         real(r_kind), dimension(m,n) :: WA
         real(r_kind), dimension(m  ) :: Wu
@@ -107,7 +112,7 @@
         integer(i_kind) :: i,j,k
         
         do j = 1,m
-          beta(j) = ( u(j) - u(ic) )**2 + epsilon * h(j)**2
+          beta(j) = ( u(j) - u(ic) )**2 + epsilon * h*h
         enddo
         beta(ic) = minval(beta,abs(beta)>1.e-15)
         
@@ -120,6 +125,17 @@
         enddo
         
         call qr_solver(WA,Wu,WLS_ENO,M,N)
+        
+        !if(abs(WLS_ENO(1)-1.)>1.e-15)then
+        !  print*,W
+        !  print*,''
+        !  !print*,u
+        !  !print*,''
+        !  print*,A
+        !  print*,''
+        !  print*,WLS_ENO
+        !endif
+        
       end function WLS_ENO
       
     end module reconstruction_mod

@@ -5,8 +5,9 @@
       use stat_mod
       use tend_mod
       use test_case_mod
-      use io_mod
       use spatial_operators_mod
+      use temporal_mod
+      use io_mod
       implicit none
       
       integer :: it
@@ -47,8 +48,36 @@
       call history_init
       call history_write_stat(stat(old),output_idx)
       print*,'output index/total',output_idx-1,'/',total_output_num
-      
+            
       total_mass0 = sum(stat(old)%q(1,ids:ide,kds:kde))
+      
+      do it = 1,nsteps
+        if(trim(adjustl(integral_scheme)) == 'RK3_TVD')then
+          call RK3_TVD(stat(new),stat(old))
+        elseif(trim(adjustl(integral_scheme)) == 'RK4')then
+          call RK4(stat(new),stat(old))
+        elseif(trim(adjustl(integral_scheme)) == 'IRK2')then
+          call IRK2(stat(new),stat(old))
+        elseif(trim(adjustl(integral_scheme)) == 'PC2')then
+          call PC2(stat(new),stat(old))
+        elseif(trim(adjustl(integral_scheme)) == 'SSPRK')then
+          call SSPRK(stat(new),stat(old))
+        endif
+        
+        if( mod( it, output_interval )==0 .and. ( it >= output_interval ) )then
+          total_mass = sum(stat(new)%q(1,ids:ide,kds:kde))!calc_total_mass     (stat(new))
+          
+          MCR = ( total_mass - total_mass0 ) / total_mass0
+          
+          print*,'MCR = ',MCR
+            
+          output_idx = output_idx + 1
+          call history_write_stat(stat(new),output_idx)
+          print*,'output index/total',output_idx-1,'/',total_output_num
+        endif
+        
+        call copyStat(stat(old),stat(new))
+      enddo
       
       ! Timing end
       call SYSTEM_CLOCK(timeEnd)

@@ -114,10 +114,10 @@ module test_case_mod
       print*,'Set reference fields'
       do k = kcs,kce
         do i = ics,ice
-          q_ref(1,i,k) = Gaussian_quadrature_2d(sqrtG(:,i,k)*rho(:,i,k))
+          q_ref(1,i,k) = Gaussian_quadrature_2d( sqrtG(:,i,k) * rho(:,i,k) )
           q_ref(2,i,j) = 0.
           q_ref(3,i,j) = 0.
-          q_ref(4,i,k) = q_ref(1,i,k) * theta_bar
+          q_ref(4,i,k) = Gaussian_quadrature_2d( sqrtG(:,i,k) * rho(:,i,k) * theta(:,i,k) )
           q_ref(5,i,j) = 0.
         enddo
       enddo
@@ -322,7 +322,7 @@ module test_case_mod
       do k = kcs,kce
         do i = ics,ice
           do j = 1,nQuadPointsOncell
-            r     (j,i,k) = sqrt( ( x(j,i,k) - x0 )**2 + ( z(j,i,k) - z0 )**2 )
+            r     (j,i,k) = sqrt( ( ( x(j,i,k) - x0 ) / xr )**2 + ( ( z(j,i,k) - z0 ) / zr )**2 )
             theta (j,i,k) = theta_bar
             dexner(j,i,k) = -gravity / ( Cpd * theta(j,i,k) )
           enddo
@@ -346,10 +346,10 @@ module test_case_mod
       print*,'Set reference fields'
       do k = kcs,kce
         do i = ics,ice
-          q_ref(1,i,k) = Gaussian_quadrature_2d(sqrtG(:,i,k)*rho(:,i,k))
+          q_ref(1,i,k) = Gaussian_quadrature_2d( sqrtG(:,i,k) * rho(:,i,k) )
           q_ref(2,i,j) = 0.
           q_ref(3,i,j) = 0.
-          q_ref(4,i,k) = q_ref(1,i,k) * theta_bar
+          q_ref(4,i,k) = Gaussian_quadrature_2d( sqrtG(:,i,k) * rho(:,i,k) * theta(:,i,k) )
           q_ref(5,i,j) = 0.
         enddo
       enddo
