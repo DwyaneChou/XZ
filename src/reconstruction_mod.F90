@@ -101,7 +101,7 @@
         real   (r_kind)                , intent(in) :: h
         integer(i_kind)                , intent(in) :: ic
         
-        real(r_kind),parameter :: alpha   = 1.5
+        real(r_kind),parameter :: alpha   = 10
         real(r_kind),parameter :: epsilon = 1.e-2
         
         real(r_kind), dimension(m,n) :: WA

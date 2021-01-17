@@ -65,21 +65,6 @@
       
       real(r_kind), dimension(  :,:), allocatable :: rho_p ! density perturbation
       
-      real(r_kind), dimension(:,:,:,:), allocatable :: qL_ref
-      real(r_kind), dimension(:,:,:,:), allocatable :: qR_ref
-      real(r_kind), dimension(:,:,:,:), allocatable :: qB_ref
-      real(r_kind), dimension(:,:,:,:), allocatable :: qT_ref
-  
-      real(r_kind), dimension(:,:,:), allocatable :: rhoL_ref ! reference density
-      real(r_kind), dimension(:,:,:), allocatable :: rhoR_ref ! reference density
-      real(r_kind), dimension(:,:,:), allocatable :: rhoB_ref ! reference density
-      real(r_kind), dimension(:,:,:), allocatable :: rhoT_ref ! reference density
-          
-      real(r_kind), dimension(:,:,:), allocatable :: cL_ref ! sound speed
-      real(r_kind), dimension(:,:,:), allocatable :: cR_ref ! sound speed
-      real(r_kind), dimension(:,:,:), allocatable :: cB_ref ! sound speed
-      real(r_kind), dimension(:,:,:), allocatable :: cT_ref ! sound speed
-      
       real(r_kind), dimension(  :,:), allocatable :: PC_ref
       real(r_kind), dimension(:,:,:), allocatable :: PL_ref! Reconstructed P_ref_(i-1/2,k)
       real(r_kind), dimension(:,:,:), allocatable :: PR_ref! Reconstructed P_ref_(i+1/2,k)
@@ -141,21 +126,6 @@
         allocate(src  (nVar,ids:ide,kds:kde))
         
         allocate(rho_p (    ids:ide,kds:kde))
-      
-        allocate(qL_ref  (nVar,nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(qR_ref  (nVar,nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(qB_ref  (nVar,nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(qT_ref  (nVar,nPointsOnEdge,ics:ice,kcs:kce))
-        
-        allocate(rhoL_ref(     nPointsOnEdge,ics:ice,kcs:kce)) ! reference density
-        allocate(rhoR_ref(     nPointsOnEdge,ics:ice,kcs:kce)) ! reference density
-        allocate(rhoB_ref(     nPointsOnEdge,ics:ice,kcs:kce)) ! reference density
-        allocate(rhoT_ref(     nPointsOnEdge,ics:ice,kcs:kce)) ! reference density
-        
-        allocate(cL_ref  (     nPointsOnEdge,ics:ice,kcs:kce)) ! sound speed
-        allocate(cR_ref  (     nPointsOnEdge,ics:ice,kcs:kce)) ! sound speed
-        allocate(cB_ref  (     nPointsOnEdge,ics:ice,kcs:kce)) ! sound speed
-        allocate(cT_ref  (     nPointsOnEdge,ics:ice,kcs:kce)) ! sound speed
         
         allocate(PC_ref(              ics:ice,kcs:kce))
         allocate(PL_ref(nPointsOnEdge,ics:ice,kcs:kce))
@@ -298,67 +268,23 @@
                                  qC(iVar  ,:,:)*recdV)
         enddo
         
-        qL_ref = qL
-        qR_ref = qR
-        qB_ref = qB
-        qT_ref = qT
-      
-        ! Fill outside boundary
-        ! left boundary
-        qR_ref(:,:,ids-1,kds:kde) = qL_ref(:,:,ids,kds:kde)
-        sqrtGR(  :,ids-1,kds:kde) = sqrtGL(  :,ids,kds:kde)
-        G13R  (  :,ids-1,kds:kde) = G13L  (  :,ids,kds:kde)
-        
-        ! right boundary
-        qL_ref(:,:,ide+1,kds:kde) = qR_ref(:,:,ide,kds:kde)
-        sqrtGL(  :,ide+1,kds:kde) = sqrtGR(  :,ide,kds:kde)
-        G13L  (  :,ide+1,kds:kde) = G13R  (  :,ide,kds:kde)
-        
-        ! bottom boundary
-        qT_ref(:,:,ids:ide,kds-1) = qB_ref(:,:,ids:ide,kds)
-        sqrtGT(  :,ids:ide,kds-1) = sqrtGB(  :,ids:ide,kds)
-        G13T  (  :,ids:ide,kds-1) = G13B  (  :,ids:ide,kds)
-        
-        ! top boundary
-        qB_ref(:,:,ids:ide,kde+1) = qT_ref(:,:,ids:ide,kde)
-        sqrtGB(  :,ids:ide,kde+1) = sqrtGT(  :,ids:ide,kde)
-        G13B  (  :,ids:ide,kde+1) = G13T  (  :,ids:ide,kde)
-        
         !$OMP PARALLEL DO PRIVATE(i,iPOE)
-        do k = kds-1,kde+1
-          do i = ids-1,ide+1
+        do k = kds,kde
+          do i = ids,ide
             do iPOE = 1,nPointsOnEdge
-              rhoL_ref(iPOE,i,k) = ( qL_ref(1,iPOE,i,k) + qL_ref(5,iPOE,i,k) ) / sqrtGL(iPOE,i,k)
-              rhoR_ref(iPOE,i,k) = ( qR_ref(1,iPOE,i,k) + qR_ref(5,iPOE,i,k) ) / sqrtGR(iPOE,i,k)
-              rhoB_ref(iPOE,i,k) = ( qB_ref(1,iPOE,i,k) + qB_ref(5,iPOE,i,k) ) / sqrtGB(iPOE,i,k)
-              rhoT_ref(iPOE,i,k) = ( qT_ref(1,iPOE,i,k) + qT_ref(5,iPOE,i,k) ) / sqrtGT(iPOE,i,k)
-              
-              cL_ref(iPOE,i,k) = calc_sound_speed_x(sqrtGL(iPOE,i,k)               ,qL_ref(:,iPOE,i,k))
-              cR_ref(iPOE,i,k) = calc_sound_speed_x(sqrtGR(iPOE,i,k)               ,qR_ref(:,iPOE,i,k))
-              cB_ref(iPOE,i,k) = calc_sound_speed_z(sqrtGB(iPOE,i,k),G13B(iPOE,i,k),qB_ref(:,iPOE,i,k)) * sqrtGB(iPOE,i,k) ! unit: m/s
-              cT_ref(iPOE,i,k) = calc_sound_speed_z(sqrtGT(iPOE,i,k),G13T(iPOE,i,k),qT_ref(:,iPOE,i,k)) * sqrtGT(iPOE,i,k) ! unit: m/s
-          
-              PL_ref(iPOE,i,k) = calc_pressure(sqrtGL(iPOE,i,k),qL_ref(:,iPOE,i,k))
-              PR_ref(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR_ref(:,iPOE,i,k))
-              PB_ref(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB_ref(:,iPOE,i,k))
-              PT_ref(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT_ref(:,iPOE,i,k))
+              PL_ref(iPOE,i,k) = calc_pressure(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k))
+              PR_ref(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k))
+              PB_ref(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB(:,iPOE,i,k))
+              PT_ref(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT(:,iPOE,i,k))
               
               ! Reset pressure at domain boundary for limiting oscillation
-              if(k<=kds)then
-                PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kds),ref%q(:,i,kds))
-                PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
+              if(k==kds.or.k==kde)then
+                PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,k),ref%q(:,i,k))
+                PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)!calc_pressure(sqrtGC(i,k),ref%q(:,i,k))
               endif
-              if(k>=kde)then
-                PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kde),ref%q(:,i,kde))
-                PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
-              endif
-              if(i<=ids)then
-                PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ids,k),ref%q(:,ids,k))
-                PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
-              endif
-              if(i>=ide)then
-                PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ide,k),ref%q(:,ide,k))
-                PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
+              if(i==ids.or.i==ide)then
+                PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,k),ref%q(:,i,k))
+                PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)!calc_pressure(sqrtGC(i,k),ref%q(:,i,k))
               endif
             enddo
           enddo
@@ -411,6 +337,35 @@
           enddo
         endif
         
+        ! Calculate functions
+        !$OMP PARALLEL DO PRIVATE(i,iPOE)
+        do k = kds,kde
+          do i = ids,ide
+            do iPOE = 1,nPointsOnEdge
+              PL(iPOE,i,k) = calc_pressure(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k))
+              PR(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k))
+              PB(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB(:,iPOE,i,k))
+              PT(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT(:,iPOE,i,k))
+              
+              ! Reset pressure at domain boundary for limiting oscillation
+              if(k==kds.or.k==kde)then
+                PB(iPOE,i,k) = calc_pressure(sqrtGC(i,k),qC(:,i,k))
+                PT(iPOE,i,k) = PB(iPOE,i,k)!calc_pressure(sqrtGC(i,k),qC(:,i,k))
+              endif
+              if(i==ids.or.i==ide)then
+                PL(iPOE,i,k) = calc_pressure(sqrtGC(i,k),qC(:,i,k))
+                PR(iPOE,i,k) = PL(iPOE,i,k)!calc_pressure(sqrtGC(i,k),qC(:,i,k))
+              endif
+              
+              FL(:,iPOE,i,k) = calc_F(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k),PL(iPOE,i,k))
+              FR(:,iPOE,i,k) = calc_F(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k),PR(iPOE,i,k))
+              HB(:,iPOE,i,k) = calc_H(sqrtGB(iPOE,i,k),G13B(iPOE,i,k),qB(:,iPOE,i,k),PB(iPOE,i,k),PB_ref(iPOE,i,k))
+              HT(:,iPOE,i,k) = calc_H(sqrtGT(iPOE,i,k),G13T(iPOE,i,k),qT(:,iPOE,i,k),PT(iPOE,i,k),PT_ref(iPOE,i,k))
+            enddo
+          enddo
+        enddo
+        !$OMP END PARALLEL DO
+        
         ! Fill outside boundary
         ! left boundary
         qR(:,:,ids-1,kds:kde) = qL(:,:,ids,kds:kde)
@@ -427,112 +382,78 @@
         ! top boundary
         qB(:,:,ids:ide,kde+1) = qT(:,:,ids:ide,kde)
         HB(:,:,ids:ide,kde+1) = HT(:,:,ids:ide,kde)
-      
-        ! Calculate functions X
-        !$OMP PARALLEL DO PRIVATE(i,iPOE)
-        do k = kds,kde
-          do i = ids,ide
-            do iPOE = 1,nPointsOnEdge
-              PL(iPOE,i,k) = calc_pressure(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k))
-              PR(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k))
-            enddo
-          enddo
-        enddo
-        !$OMP END PARALLEL DO
-        do k = kds,kde
-          do iPOE = 1,nPointsOnEdge
-            i = ide + 1
-            PL(iPOE,i,k) = calc_pressure(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k))
-            i = ids - 1
-            PR(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k))
-          enddo
-        enddo
         
-        ! Calculate functions Z
-        !$OMP PARALLEL DO PRIVATE(i,iPOE)
+        rho_p = ( qC   (1,ids:ide,kds:kde) + qC   (5,ids:ide,kds:kde) &
+                - ref%q(1,ids:ide,kds:kde) - ref%q(5,ids:ide,kds:kde) ) / sqrtGC(ids:ide,kds:kde)
+        
+        !where(abs(rho_p)<=1.E-13)rho_p=0.
+        
+        src = 0
+        src(3,ids:ide,kds:kde) = src(3,ids:ide,kds:kde) - sqrtGC(ids:ide,kds:kde) * rho_p(ids:ide,kds:kde) * gravity
+        
+        ! Calculate eigenvalues x-dir
+        !$OMP PARALLEL DO PRIVATE(i)
         do k = kds,kde
           do i = ids,ide
-            do iPOE = 1,nPointsOnEdge
-              PB(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB(:,iPOE,i,k))
-              PT(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT(:,iPOE,i,k))
-            enddo
+            eig_x(i,k) = calc_eigenvalue_x(sqrtGC(i,k),qC(:,i,k))
           enddo
         enddo
         !$OMP END PARALLEL DO
+        
+        ! Calculate eigenvalues z-dir
+        !$OMP PARALLEL DO PRIVATE(k)
         do i = ids,ide
-          do iPOE = 1,nPointsOnEdge
-            k = kde + 1
-            PB(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB(:,iPOE,i,k))
-            k = kds - 1
-            PT(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT(:,iPOE,i,k))
-          enddo
-        enddo
-        
-        !$OMP PARALLEL DO PRIVATE(i,iPOE)
-        do k = kds-1,kde+1
-          do i = ids-1,ide+1
-            do iPOE = 1,nPointsOnEdge
-              ! Reset pressure at domain boundary for limiting oscillation
-              if(k<=kds)then
-                PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kds),ref%q(:,i,kds))
-                PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
-              endif
-              if(k>=kde)then
-                PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kde),ref%q(:,i,kde))
-                PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
-              endif
-              if(i<=ids)then
-                PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ids,k),ref%q(:,ids,k))
-                PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
-              endif
-              if(i>=ide)then
-                PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ide,k),ref%q(:,ide,k))
-                PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
-              endif
-            enddo
+          do k = kds,kde
+            eig_z(i,k) = calc_eigenvalue_z(sqrtGC(i,k),G13C(i,k),qC(:,i,k))
           enddo
         enddo
         !$OMP END PARALLEL DO
-        
-        !$OMP PARALLEL DO PRIVATE(i,im1,iPOE,iVar)
+
+        ! calc x flux
+        !$OMP PARALLEL DO PRIVATE(i,im1,maxeigen_x,iVar,iPOE)
         do k = kds,kde
           do i = ids,ide+1
-            do iPOE = 1,nPointsOnEdge
-              im1 = i - 1
-              FeP(:,iPOE,i,k) = calc_F(sqrtGR(iPOE,im1,k),sqrtGL(iPOE,i,k),qR(:,iPOE,im1,k),qL(:,iPOE,i,k),pR(iPOE,im1,k),pL(iPOE,i,k))
-            enddo
+            im1 = i - 1
+            
+            maxeigen_x = max(eig_x(i,k),eig_x(im1,k))
+            !maxeigen_x = max(eig_x(i,k),eig_x(im1,k),eig_x(i,k+1),eig_x(i,k-1),eig_x(im1,k+1),eig_x(im1,k-1))
+            
             do iVar = 1,nVar
+              do iPOE = 1,nPointsOnEdge
+                if(abs(FL(iVar,iPOE,i,k) + FR(iVar,iPOE,im1,k))<=1.E-15)then
+                  FeP(iVar,iPOE,i,k) = 0
+                else
+                  FeP(iVar,iPOE,i,k) = 0.5 * ( FL(iVar,iPOE,i,k) + FR(iVar,iPOE,im1,k) - maxeigen_x * ( qL(iVar,iPOE,i,k) - qR(iVar,iPOE,im1,k) ) )
+                endif
+              enddo
               Fe(iVar,i,k) = Gaussian_quadrature_1d(FeP(iVar,:,i,k))
             enddo
           enddo
         enddo
         !$OMP END PARALLEL DO
         
-        !$OMP PARALLEL DO PRIVATE(k,km1,iPOE,iVar)
+        ! calc z flux
+        !$OMP PARALLEL DO PRIVATE(k,km1,maxeigen_z,iVar,iPOE)
         do i = ids,ide
           do k = kds,kde+1
-            do iPOE = 1,nPointsOnEdge
-              km1 = k - 1
-              HeP(:,iPOE,i,k) = calc_H(sqrtGT  (  iPOE,i,km1),sqrtGB  (  iPOE,i,k),G13T  (iPOE,i,km1),G13B  (iPOE,i,k),&
-                                       qT      (:,iPOE,i,km1),qB      (:,iPOE,i,k),pT    (iPOE,i,km1),pB    (iPOE,i,k),&
-                                       rhoT_ref(  iPOE,i,km1),rhoB_ref(  iPOE,i,k),cT_ref(iPOE,i,km1),cB_ref(iPOE,i,k),&
-                                       pT_ref  (  iPOE,i,km1),pB_ref  (  iPOE,i,k))
-            enddo
+            km1 = k - 1
+            
+            maxeigen_z = max(eig_z(i,k),eig_z(i,km1))
+            !maxeigen_z = max(eig_z(i,k),eig_z(i,km1),eig_z(i+1,k),eig_z(i-1,k),eig_z(i+1,km1),eig_z(i-1,km1))
+            
             do iVar = 1,nVar
+              do iPOE = 1,nPointsOnEdge
+                if(abs(HB(iVar,iPOE,i,k) + HT(iVar,iPOE,i,km1))<=1.E-15)then
+                  HeP(iVar,iPOE,i,k) = 0
+                else
+                  HeP(iVar,iPOE,i,k) = 0.5 * ( HB(iVar,iPOE,i,k) + HT(iVar,iPOE,i,km1) - maxeigen_z * ( qB(iVar,iPOE,i,k) - qT(iVar,iPOE,i,km1) ) )
+                endif
+              enddo
               He(iVar,i,k) = Gaussian_quadrature_1d(HeP(iVar,:,i,k))
             enddo
           enddo
         enddo
         !$OMP END PARALLEL DO
-        
-        !rho_p = ( qC   (1,ids:ide,kds:kde) + qC   (5,ids:ide,kds:kde) &
-        !        - ref%q(1,ids:ide,kds:kde) - ref%q(5,ids:ide,kds:kde) ) / sqrtGC(ids:ide,kds:kde)
-        rho_p = ( qC   (1,ids:ide,kds:kde) + qC   (5,ids:ide,kds:kde) ) / sqrtGC(ids:ide,kds:kde)
-        
-        where(abs(rho_p)<=1.E-13)rho_p=0.
-        
-        src = 0
-        src(3,ids:ide,kds:kde) = src(3,ids:ide,kds:kde) - sqrtGC(ids:ide,kds:kde) * rho_p(ids:ide,kds:kde) * gravity
         
         ! Calculate tend
         !$OMP PARALLEL DO PRIVATE(i,ip1,kp1,iVar)
@@ -631,96 +552,11 @@
         
       end function calc_pressure
       
-      function calc_F(sqrtGL,sqrtGR,qL,qR,pL,pR)
-        real(r_kind) :: calc_F(nVar)
-        real(r_kind) :: sqrtGL
-        real(r_kind) :: sqrtGR
-        real(r_kind) :: qL(nVar)
-        real(r_kind) :: qR(nVar)
-        real(r_kind) :: pL      ! pressure
-        real(r_kind) :: pR      ! pressure
-        
-        real(r_kind) rhoL
-        real(r_kind) rhoR
-        
-        real(r_kind) uL
-        real(r_kind) uR
-        
-        real(r_kind) cL
-        real(r_kind) cR
-        
-        real(r_kind) m
-        real(r_kind) p ! sqrtG * p
-        
-        rhoL = ( qL(1) + qL(5) ) / sqrtGL
-        rhoR = ( qR(1) + qR(5) ) / sqrtGR
-        uL   = qL(2) / ( qL(1) + qL(5) )
-        uR   = qR(2) / ( qR(1) + qR(5) )
-        cL   = calc_sound_speed_x(sqrtGL,qL)
-        cR   = calc_sound_speed_x(sqrtGR,qR)
-        
-        call AUSM_up_x(m,p,sqrtGL,sqrtGR,rhoL,rhoR,uL,uR,pL,pR,cL,cR)
-        
-        calc_F = 0.5 * m * ( qL + qR - sign(1.,m) * ( qR - qL ) )
-        calc_F(2) = calc_F(2) + p
-        
-      end function calc_F
-      
-      function calc_H(sqrtGL,sqrtGR,G13L,G13R,qL,qR,pL,pR,rhoL_ref,rhoR_ref,cL_ref,cR_ref,pL_ref,pR_ref)
-        real(r_kind) :: calc_H(nVar)
-        real(r_kind) :: sqrtGL
-        real(r_kind) :: sqrtGR
-        real(r_kind) :: G13L
-        real(r_kind) :: G13R
-        real(r_kind) :: qL(nVar)
-        real(r_kind) :: qR(nVar)
-        real(r_kind) :: pL        ! pressure
-        real(r_kind) :: pR        ! pressure
-        real(r_kind) :: rhoL_ref  ! reference density
-        real(r_kind) :: rhoR_ref  ! reference density
-        real(r_kind) :: cL_ref    ! reference sound speed
-        real(r_kind) :: cR_ref    ! reference sound speed
-        real(r_kind) :: pL_ref    ! reference pressure
-        real(r_kind) :: pR_ref    ! reference pressure
-      
-        real(r_kind) :: pL_pert ! pressure  perturbation
-        real(r_kind) :: pR_pert ! pressure  perturbation
-        
-        
-        real(r_kind) rhoL
-        real(r_kind) rhoR
-        
-        real(r_kind) uL
-        real(r_kind) uR
-        
-        real(r_kind) cL
-        real(r_kind) cR
-        
-        real(r_kind) m
-        real(r_kind) p      ! sqrtG * G13 * p
-        real(r_kind) p_pert ! p - p_ref
-        
-        rhoL = ( qL(1) + qL(5) ) / sqrtGL
-        rhoR = ( qR(1) + qR(5) ) / sqrtGR
-        uL   = ( qL(3) + sqrtGL * G13L * qL(2) ) / ( qL(1) + qL(5) ) ! a sqrtG has been multipled here
-        uR   = ( qR(3) + sqrtGR * G13R * qR(2) ) / ( qR(1) + qR(5) ) ! a sqrtG has been multipled here
-        cL   = calc_sound_speed_z(sqrtGL,G13L,qL) * sqrtGL
-        cR   = calc_sound_speed_z(sqrtGR,G13R,qR) * sqrtGR
-        
-        call AUSM_up_z(m, p, p_pert,                                                  &
-                       sqrtGL, sqrtGR, G13L, G13R, rhoL, rhoR, uL, uR, cL, cR, pL, pR,&
-                       rhoL_ref, rhoR_ref, cL_ref, cR_ref, pL_ref, pR_ref)
-        
-        calc_H = 0.5 * m * ( qL + qR - sign(1.,m) * ( qR - qL ) )
-        calc_H(2) = calc_H(2) + p
-        calc_H(3) = calc_H(3) + p_pert
-        
-      end function calc_H
-      
-      function calc_sound_speed_x(sqrtG,q)
-        real(r_kind) :: calc_sound_speed_x
-        real(r_kind) :: sqrtG
-        real(r_kind) :: q(nVar)
+      function calc_F(sqrtG,q,p)
+        real(r_kind),dimension(5) :: calc_F
+        real(r_kind)              :: sqrtG
+        real(r_kind),dimension(5) :: q(5)
+        real(r_kind)              :: p      ! pressure
         
         real(r_kind) w1
         real(r_kind) w2
@@ -728,10 +564,84 @@
         real(r_kind) w4
         real(r_kind) w5
         
-        real(r_kind) coef1,coef2
+        real(r_kind) sqrtGrho
+        real(r_kind) u
+        
+        w1 = q(1)
+        w2 = q(2)
+        w3 = q(3)
+        w4 = q(4)
+        w5 = q(5)
+        
+        sqrtGrho = w1 + w5
+        u        = w2 / sqrtGrho
+        
+        calc_F(1) = w1 * u
+        calc_F(2) = w2 * u + sqrtG * p
+        calc_F(3) = w3 * u
+        calc_F(4) = w4 * u
+        calc_F(5) = w5 * u
+        
+      end function calc_F
+      
+      function calc_H(sqrtG,G13,q,p,p_ref)
+        real(r_kind),dimension(5) :: calc_H
+        real(r_kind)              :: sqrtG
+        real(r_kind)              :: G13
+        real(r_kind),dimension(5) :: q(5)
+        real(r_kind)              :: p      ! pressure
+        real(r_kind)              :: p_ref  ! reference pressure
+        
+        real(r_kind)              :: p_pert ! pressure  perturbation
+        
+        real(r_kind) w1
+        real(r_kind) w2
+        real(r_kind) w3
+        real(r_kind) w4
+        real(r_kind) w5
+        real(r_kind) ww
+        
+        real(r_kind) sqrtGrho
+        real(r_kind) u
+        real(r_kind) w
+        
+        w1 = q(1)
+        w2 = q(2)
+        w3 = q(3)
+        w4 = q(4)
+        w5 = q(5)
+        
+        sqrtGrho = w1 + w5
+        u        = w2 / sqrtGrho
+        w        = w3 / sqrtGrho
+        p_pert   = p - p_ref
+        
+        ww = w / sqrtG + G13 * u
+        
+        calc_H(1) = w1 * ww
+        calc_H(2) = w2 * ww + sqrtG * G13 * p
+        calc_H(3) = w3 * ww + p_pert
+        calc_H(4) = w4 * ww
+        calc_H(5) = w5 * ww
+        
+      end function calc_H
+      
+      function calc_eigenvalue_x(sqrtG,q)
+        real(r_kind) :: calc_eigenvalue_x
+        real(r_kind) :: sqrtG
+        real(r_kind) :: q(5)
+        real(r_kind) :: eig(5)
+        
+        real(r_kind) w1
+        real(r_kind) w2
+        real(r_kind) w3
+        real(r_kind) w4
+        real(r_kind) w5
+        
+        real(r_kind) coef1,coef2,coef3
         
         if(any(q==FillValue).or.sqrtG==FillValue)then
-          calc_sound_speed_x = 0
+          eig = 0
         else
           w1 = q(1)
           w2 = q(2)
@@ -739,23 +649,34 @@
           w4 = q(4)
           w5 = q(5)
           
-          coef1 = sqrt( p0*sqrtG*w1**2*w4**2*(w1 + w5)**3*(cpd*w1 + cpv*w5)*&
+          coef1 = cvd**2*w1**3*w2*w4*(w1 + w5)*(w1 + w5 + eq*w5) + &
+                2.*cvd*cvv*w1**2*w2*w4*w5*(w1 + w5)*(w1 + w5 + eq*w5) + &
+                cvv**2*w1*w2*w4*w5**2*(w1 + w5)*(w1 + w5 + eq*w5)
+          
+          coef2 = sqrt( p0*sqrtG*w1**2*w4**2*(w1 + w5)**3*(cpd*w1 + cpv*w5)*&
                 (cvd*w1 + cvv*w5)**3*(w1 + w5 + &
                 eq*w5)**2*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))**&
                 ((cpd*w1 + cpv*w5)/(cvd*w1 + cvv*w5)) )
           
-          coef2 = w1*w4*(w1 + w5)**2*(cvd*w1 + cvv*w5)**2*(w1 + w5 + eq*w5)
+          coef3 = w1*w4*(w1 + w5)**2*(cvd*w1 + cvv*w5)**2*(w1 + w5 + eq*w5)
           
-          calc_sound_speed_x = coef1 / coef2
+          eig(1) = w2 / ( w1 + w5 )
+          eig(2) = eig(1)
+          eig(3) = eig(1)
+          eig(4) = ( coef1 - coef2 ) / coef3
+          eig(5) = ( coef1 + coef2 ) / coef3
         endif
         
-      end function calc_sound_speed_x
+        calc_eigenvalue_x = maxval(abs(eig))
+        
+      end function calc_eigenvalue_x
       
-      function calc_sound_speed_z(sqrtG,G13,q)
-        real(r_kind) :: calc_sound_speed_z
+      function calc_eigenvalue_z(sqrtG,G13,q)
+        real(r_kind) :: calc_eigenvalue_z
         real(r_kind) :: sqrtG
         real(r_kind) :: G13
-        real(r_kind) :: q(nVar)
+        real(r_kind) :: q(5)
+        real(r_kind) :: eig(5)
         
         real(r_kind) w1
         real(r_kind) w2
@@ -763,10 +684,16 @@
         real(r_kind) w4
         real(r_kind) w5
         
-        real(r_kind) coef1,coef2
+        real(r_kind) sqrtGrho
+        real(r_kind) u
+        real(r_kind) w
+        
+        real(r_kind) drhoetadt
+        
+        real(r_kind) coef1,coef2,coef3
         
         if(any(q==FillValue))then
-          calc_sound_speed_z = 0
+          eig = 0
         else
           w1 = q(1)
           w2 = q(2)
@@ -774,186 +701,33 @@
           w4 = q(4)
           w5 = q(5)
           
-          coef1 = sqrt( p0*sqrtG*(1 + G13**2*sqrtG**2)*w1**2*                    &
+          !sqrtGrho = w1 + w5
+          !u        = w2 / sqrtGrho
+          !w        = w3 / sqrtGrho
+          
+          coef1 = cvd**2*w1**3*(G13*sqrtG*w2 + w3)*w4*(w1 + w5)*(w1 + w5 + eq*w5) + &
+                2.*cvd*cvv*w1**2*(G13*sqrtG*w2 + w3)*w4*                            &
+                w5*(w1 + w5)*(w1 + w5 + eq*w5) +                                    &
+                cvv**2*w1*(G13*sqrtG*w2 + w3)*w4*w5**2*(w1 + w5)*(w1 + w5 + eq*w5)
+          
+          coef2 = sqrt( p0*sqrtG*(1 + G13**2*sqrtG**2)*w1**2*                    &
                 w4**2*(w1 + w5)**3*(cpd*w1 + cpv*w5)*(cvd*w1 + cvv*w5)**3*       &
                 (w1 + w5 + eq*w5)**2*((Rd*w4*(w1 + w5 + eq*w5))/(p0*sqrtG*w1))** &
                 ((cpd*w1 + cpv*w5)/(cvd*w1 + cvv*w5)) )
           
-          coef2 = sqrtG*w1*w4*(w1 + w5)**2*(cvd*w1 + cvv*w5)**2*(w1 + w5 + eq*w5)
+          coef3 = sqrtG*w1*w4*(w1 + w5)**2*(cvd*w1 + cvv*w5)**2*(w1 + w5 + eq*w5)
           
-          calc_sound_speed_z = coef1 / coef2
+          drhoetadt = (G13*sqrtG*w2 + w3)/(sqrtG*w1 + sqrtG*w5)
+          
+          eig(1) = drhoetadt
+          eig(2) = drhoetadt
+          eig(3) = drhoetadt
+          eig(4) = ( coef1 - coef2 ) / coef3
+          eig(5) = ( coef1 + coef2 ) / coef3
         endif
         
-      end function calc_sound_speed_z
-      
-      subroutine AUSM_up_x(m,p,sqrtGL,sqrtGR,rhoL,rhoR,uL,uR,pL,pR,cL,cR)
-        real(r_kind),intent(out) :: m
-        real(r_kind),intent(out) :: p
-        real(r_kind),intent(in ) :: sqrtGL
-        real(r_kind),intent(in ) :: sqrtGR
-        real(r_kind),intent(in ) :: rhoL
-        real(r_kind),intent(in ) :: rhoR
-        real(r_kind),intent(in ) :: uL
-        real(r_kind),intent(in ) :: uR
-        real(r_kind),intent(in ) :: pL
-        real(r_kind),intent(in ) :: pR
-        real(r_kind),intent(in ) :: cL ! Sound speed
-        real(r_kind),intent(in ) :: cR ! Sound speed
+        calc_eigenvalue_z = maxval(abs(eig))
         
-        real(r_kind),parameter :: Ku    = 0.75
-        real(r_kind),parameter :: Kp    = 0.25
-        real(r_kind),parameter :: sigma = 1.
-        real(r_kind),parameter :: sp    = 1.
-        real(r_kind),parameter :: sn    = -1.
-        
-        real(r_kind) :: rho
-        real(r_kind) :: a
-        real(r_kind) :: ML
-        real(r_kind) :: MR
-        real(r_kind) :: Mbar2
-        real(r_kind) :: Mh
-        
-        rho = 0.5 * ( rhoL + rhoR )
-        a   = 0.5 * ( cL + cR )
-        
-        ML = uL / a
-        MR = uR / a
-        
-        Mbar2 = ( uL**2 + uR**2 ) / ( 2. * a**2 )
-        
-        Mh = M4( ML, sp ) + M4( MR, sn ) - Kp * max( 1. - sigma * Mbar2, 0. ) * ( PR - PL ) / ( rho * a**2 )
-        m  = a * Mh
-        
-        p = P5(ML,sp) * sqrtGL * PL + P5(MR,sn) * sqrtGR * PR - Ku * P5(ML,sp) * P5(MR,sn) * ( sqrtGL * rhoL + sqrtGR * rhoR ) * a * ( uR - uL )
-        
-      end subroutine AUSM_up_x
-      
-      subroutine AUSM_up_z(m, p, p_pert,                                                  & ! output
-                           sqrtGL, sqrtGR, G13L, G13R, rhoL, rhoR, uL, uR, cL, cR, pL, pR,& ! input state
-                           rhoL_ref, rhoR_ref, cL_ref, cR_ref, pL_ref, pR_ref)              ! input reference state
-        real(r_kind),intent(out) :: m
-        real(r_kind),intent(out) :: p
-        real(r_kind),intent(out) :: p_pert
-        real(r_kind),intent(in ) :: sqrtGL
-        real(r_kind),intent(in ) :: sqrtGR
-        real(r_kind),intent(in ) :: G13L
-        real(r_kind),intent(in ) :: G13R
-        real(r_kind),intent(in ) :: rhoL
-        real(r_kind),intent(in ) :: rhoR
-        real(r_kind),intent(in ) :: uL
-        real(r_kind),intent(in ) :: uR
-        real(r_kind),intent(in ) :: cL       ! Sound speed
-        real(r_kind),intent(in ) :: cR       ! Sound speed
-        real(r_kind),intent(in ) :: pL
-        real(r_kind),intent(in ) :: pR
-        real(r_kind),intent(in ) :: rhoL_ref ! reference state
-        real(r_kind),intent(in ) :: rhoR_ref ! reference state
-        real(r_kind),intent(in ) :: cL_ref   ! reference state
-        real(r_kind),intent(in ) :: cR_ref   ! reference state
-        real(r_kind),intent(in ) :: pL_ref   ! reference state
-        real(r_kind),intent(in ) :: pR_ref   ! reference state
-        
-        real(r_kind),parameter :: Ku    = 0.75
-        real(r_kind),parameter :: Kp    = 0.25
-        real(r_kind),parameter :: sigma = 1.
-        real(r_kind),parameter :: sp    = 1.
-        real(r_kind),parameter :: sn    = -1.
-        
-        real(r_kind) :: rho
-        real(r_kind) :: a
-        real(r_kind) :: ML
-        real(r_kind) :: MR
-        real(r_kind) :: Mbar2
-        real(r_kind) :: Mh
-        
-        real(r_kind) :: rho_ref
-        real(r_kind) :: a_ref
-        
-        real(r_kind) :: pL_pert
-        real(r_kind) :: pR_pert
-        
-        real(r_kind) :: p_diff
-        
-        real(r_kind) :: coefL
-        real(r_kind) :: coefR
-        
-        rho = 0.5 * ( rhoL + rhoR )
-        a   = 0.5 * ( cL + cR )
-        
-        rho_ref = 0.5 * ( rhoL_ref + rhoR_ref )
-        a_ref   = 0.5 * ( cL_ref + cR_ref )
-        
-        pL_pert = pL - pL_ref
-        pR_pert = pR - pR_ref
-        
-        ML = uL / a
-        MR = uR / a
-        
-        Mbar2 = ( uL**2 + uR**2 ) / ( 2. * a**2 )
-        
-        !if( pL_pert/pL_ref<1.e-13 .and. pR_pert/pR_ref<1.e-13 )then
-        !  p_diff = 0
-        !else
-        !  p_diff = PR - PL
-        !endif
-        
-        p_diff = PR - PL
-        
-        Mh     = M4( ML, sp ) + M4( MR, sn ) - Kp * max( 1. - sigma * Mbar2, 0. ) * p_diff / ( rho * a**2 )
-        m      = 0.5 * ( cL / sqrtGL + cR / sqrtGR ) * Mh
-        
-        coefL = sqrtGL * G13L
-        coefR = sqrtGR * G13R
-        
-        p = P5(ML,sp) * coefL * PL + P5(MR,sn) * coefR * PR &
-          - Ku * P5(ML,sp) * P5(MR,sn) * ( coefL * rhoL + coefR * rhoR ) * a * ( uR - uL )
-        
-        !p_pert = P5(ML,sp) * pL_pert + P5(MR,sn) * pR_pert &
-        !       - 2. * Ku * P5(ML,sp) * P5(MR,sn) * ( rho * a - rho_ref * a_ref  ) * ( uR - uL )
-        p_pert = P5(ML,sp) * pL + P5(MR,sn) * pR &
-               - 2. * Ku * P5(ML,sp) * P5(MR,sn) * rho * a * ( uR - uL )
-        
-        !if( abs(2.*p_pert/(pL+pR)) < 1.e-13 )p_pert = 0
-        
-      end subroutine AUSM_up_z
-      
-      function M2(M,signal)
-        real(r_kind) :: M2
-        real(r_kind) :: M
-        real(r_kind) :: signal ! must be 1 or -1
-        
-        M2 = signal * 0.25 * ( M + signal )**2
-        
-      end function M2
-      
-      function M4(M,signal)
-        real(r_kind) :: M4
-        real(r_kind) :: M
-        real(r_kind) :: signal ! must be 1 or -1
-        
-        real(r_kind),parameter :: beta  = 0.125
-        
-        if(abs(M)>=1)then
-          M4 = 0.5 * ( M + signal * abs(M) )
-        else
-          M4 = M2( M, signal ) * ( 1. - signal * 16. * beta * M2( M, -signal ) )
-        endif
-        
-      end function M4
-      
-      function P5(M,signal)
-        real(r_kind) :: P5
-        real(r_kind) :: M
-        real(r_kind) :: signal ! must be 1 or -1
-        
-        real(r_kind),parameter :: alpha = 0.1875
-        
-        if(abs(M)>=1)then
-          P5 = 0.5 * ( 1. + signal * sign(1.,M) )
-        else
-          P5 = M2( M, signal ) * ( ( 2. * signal - M ) - signal * 16.*alpha * M * M2( M, -signal ) )
-        endif
-        
-      end function P5
+      end function calc_eigenvalue_z
     end module spatial_operators_mod
 
