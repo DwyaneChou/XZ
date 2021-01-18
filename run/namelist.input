@@ -27,7 +27,7 @@ m_coef                = 2
 /
 
 &reconstruction
-recPolyDegree = 2, ! reconstruction polynomial degree
-stencil_width = 3, ! Choose from odds, 3, 5, 7, 9
+recPolyDegree = 4, ! reconstruction polynomial degree
+stencil_width = 5, ! Choose from odds, 3, 5, 7, 9
 /
 

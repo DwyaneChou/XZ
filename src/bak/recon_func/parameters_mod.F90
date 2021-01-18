@@ -4,10 +4,10 @@ module parameters_mod
   
   ! Namelist parameters
   ! time_settings
-  integer(i_kind) :: run_days
-  integer(i_kind) :: run_hours
-  integer(i_kind) :: run_minutes
-  integer(i_kind) :: run_seconds
+  integer         :: run_days
+  integer         :: run_hours
+  integer         :: run_minutes
+  integer         :: run_seconds
   real   (r_kind) :: dt               ! time step
   real   (r_kind) :: history_interval ! output interval in seconds
   real            :: IRK_residual
@@ -15,7 +15,7 @@ module parameters_mod
   character*200 :: integral_scheme
   
   ! Case select
-  integer(i_kind) :: case_num
+  integer :: case_num
   
   ! Domain
   real   (r_kind) :: dx        !  grid space in x-direction
@@ -29,14 +29,6 @@ module parameters_mod
   
   integer(i_kind) :: vertical_distribution ! 1 for even, 2 for atan function
   integer(i_kind) :: vertical_coordinate   ! 1 for Gal-Chen, 2 for Klemp 2011
-  
-  integer(i_kind), parameter :: nEdgesOnCell      = 4
-  integer(i_kind), parameter :: nPointsOnEdge     = 5
-  integer(i_kind), parameter :: nQuadPointsOnCell = nPointsOnEdge**2 !n Quadrature Points On Cell
-  
-  ! Reconstruction
-  integer(i_kind) :: recPolyDegree = 4 ! reconstruction polynomial degree
-  integer(i_kind) :: stencil_width = 5 ! Choose from odds, 3, 5, 7, 9
   
   integer(i_kind) :: nIntegralSubSteps ! number of integral substeps in temporal integration scheme
   integer(i_kind) :: nsteps            ! total integral steps
@@ -53,10 +45,11 @@ module parameters_mod
   integer(i_kind) :: kds, kde
   integer(i_kind) :: ics, ice
   integer(i_kind) :: kcs, kce
-      
-  integer(i_kind) :: ibs,ibe ! WLS-ENO reconstruction indies
-  integer(i_kind) :: kbs,kbe ! WLS-ENO reconstruction indies
-  integer(i_kind) :: recBdy  ! WLS-ENO reconstruction boundary width
+  integer(i_kind) :: ies, iee
+  integer(i_kind) :: kes, kee
+  
+  integer(i_kind) :: nx_ext
+  integer(i_kind) :: nz_ext
   
   namelist /time_settings/ dt               ,&
                            run_days         ,&
@@ -78,18 +71,14 @@ module parameters_mod
                     vertical_distribution,&
                     vertical_coordinate
   
-  namelist /reconstruction/ recPolyDegree,&
-                            stencil_width
-  
   contains
   
   subroutine readNamelist
     
     open(1, file = 'namelist.input',status='old')
-    read(1, nml  = time_settings )
-    read(1, nml  = case_select   )
-    read(1, nml  = domain        )
-    read(1, nml  = reconstruction)
+    read(1, nml  = time_settings)
+    read(1, nml  = case_select  )
+    read(1, nml  = domain       )
     close(1)
     
   end subroutine readNamelist
@@ -174,7 +163,6 @@ module parameters_mod
     else
       stop 'Unknow case_num'
     endif
-    print*,''
     
     ids = 1
     ide = ( x_max - x_min ) / dx
@@ -185,26 +173,18 @@ module parameters_mod
     ice = ide + extPts
     kcs = kds - extPts
     kce = kde + extPts
-    
-    recBdy = ( stencil_width - 1 ) / 2
-    ibs    = ids + recBdy
-    ibe    = ide - recBdy
-    kbs    = kds + recBdy
-    kbe    = kde - recBdy
       
     nx = ide - ids + 1
     
-    nsteps = total_run_time / dt
+    nx_ext = ice - ics + 1
+    nz_ext = kce - kcs + 1
     
-    print*,'ids = ',ids
-    print*,'ide = ',ide
-    print*,'kds = ',kds
-    print*,'kde = ',kde
-    print*,'ics = ',ics
-    print*,'ice = ',ice
-    print*,'kcs = ',kcs
-    print*,'kce = ',kce
-    print*,''
+    ies = ics * 2 - 1
+    iee = ice * 2 + 1
+    kes = kcs * 2 - 1
+    kee = kce * 2 + 1
+    
+    nsteps = total_run_time / dt
     
   end subroutine initParameters
   

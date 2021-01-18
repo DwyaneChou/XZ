@@ -92,8 +92,6 @@
     contains
       subroutine init_spatial_operator
         integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE
-        integer(i_kind) :: ibs,ibe,kbs,kbe
-        integer(i_kind) :: recBdy
         integer(i_kind) :: iRec,kRec
         
         allocate(iCenCell  (ids:ide,kds:kde))
@@ -175,11 +173,6 @@
         ! set reconstruction cells on each stencil
         print*,'Set reconstruction cells on each stencil'
         print*,''
-        recBdy = ( stencil_width - 1 ) / 2
-        ibs    = ids + recBdy
-        ibe    = ide - recBdy
-        kbs    = kds + recBdy
-        kbe    = kde - recBdy
         ! x-dir
         do k = kds,kde
           ! middle
@@ -343,23 +336,23 @@
               PB_ref(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB_ref(:,iPOE,i,k))
               PT_ref(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT_ref(:,iPOE,i,k))
               
-              ! Reset pressure at domain boundary for limiting oscillation
-              if(k<=kds)then
-                PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kds),ref%q(:,i,kds))
-                PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
-              endif
-              if(k>=kde)then
-                PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kde),ref%q(:,i,kde))
-                PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
-              endif
-              if(i<=ids)then
-                PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ids,k),ref%q(:,ids,k))
-                PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
-              endif
-              if(i>=ide)then
-                PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ide,k),ref%q(:,ide,k))
-                PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
-              endif
+              !! Reset pressure at domain boundary for limiting oscillation
+              !if(k<=kds)then
+              !  PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kds),ref%q(:,i,kds))
+              !  PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
+              !endif
+              !if(k>=kde)then
+              !  PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kde),ref%q(:,i,kde))
+              !  PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
+              !endif
+              !if(i<=ids)then
+              !  PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ids,k),ref%q(:,ids,k))
+              !  PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
+              !endif
+              !if(i>=ide)then
+              !  PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ide,k),ref%q(:,ide,k))
+              !  PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
+              !endif
             enddo
           enddo
         enddo
@@ -468,31 +461,31 @@
           enddo
         enddo
         
-        !$OMP PARALLEL DO PRIVATE(i,iPOE)
-        do k = kds-1,kde+1
-          do i = ids-1,ide+1
-            do iPOE = 1,nPointsOnEdge
-              ! Reset pressure at domain boundary for limiting oscillation
-              if(k<=kds)then
-                PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kds),ref%q(:,i,kds))
-                PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
-              endif
-              if(k>=kde)then
-                PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kde),ref%q(:,i,kde))
-                PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
-              endif
-              if(i<=ids)then
-                PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ids,k),ref%q(:,ids,k))
-                PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
-              endif
-              if(i>=ide)then
-                PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ide,k),ref%q(:,ide,k))
-                PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
-              endif
-            enddo
-          enddo
-        enddo
-        !$OMP END PARALLEL DO
+        !!$OMP PARALLEL DO PRIVATE(i,iPOE)
+        !do k = kds-1,kde+1
+        !  do i = ids-1,ide+1
+        !    do iPOE = 1,nPointsOnEdge
+        !      ! Reset pressure at domain boundary for limiting oscillation
+        !      if(k<=kds)then
+        !        PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kds),ref%q(:,i,kds))
+        !        PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
+        !      endif
+        !      if(k>=kde)then
+        !        PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kde),ref%q(:,i,kde))
+        !        PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
+        !      endif
+        !      if(i<=ids)then
+        !        PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ids,k),ref%q(:,ids,k))
+        !        PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
+        !      endif
+        !      if(i>=ide)then
+        !        PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ide,k),ref%q(:,ide,k))
+        !        PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
+        !      endif
+        !    enddo
+        !  enddo
+        !enddo
+        !!$OMP END PARALLEL DO
         
         !$OMP PARALLEL DO PRIVATE(i,im1,iPOE,iVar)
         do k = kds,kde
@@ -569,8 +562,10 @@
         h = dx
         
         !$OMP PARALLEL DO PRIVATE(i,j,kR,iR,iRec,kRec,iC,u,A,polyCoef)
-        do k = kds,kde
-          do i = ids,ide
+        !do k = kds,kde
+        !  do i = ids,ide
+        do k = kbs,kbe
+          do i = ibs,ibe
             ! Set variable for reconstruction
             do kR = 1,stencil_width
               do iR = 1,stencil_width
@@ -594,7 +589,76 @@
         enddo
         !$OMP END PARALLEL DO
         
+        ! bottom
+        call reconstruct_bdy(ids,ide,kds,kbs-1,qL,qR,qB,qT,qC)
+        ! top
+        call reconstruct_bdy(ids,ide,kbe+1,kde,qL,qR,qB,qT,qC)
+        ! left
+        call reconstruct_bdy(ids,ibs-1,kbs,kbe,qL,qR,qB,qT,qC)
+        ! right
+        call reconstruct_bdy(ibe+1,ide,kbs,kbe,qL,qR,qB,qT,qC)
+        
       end subroutine reconstruct_field
+      
+      ! reconstruct boundary by weno
+      subroutine reconstruct_bdy(is,ie,ks,ke,qL,qR,qB,qT,qC)
+        integer(i_kind)                                          , intent(in ) :: is
+        integer(i_kind)                                          , intent(in ) :: ie
+        integer(i_kind)                                          , intent(in ) :: ks
+        integer(i_kind)                                          , intent(in ) :: ke
+        real   (r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce), intent(out) :: qL
+        real   (r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce), intent(out) :: qR
+        real   (r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce), intent(out) :: qB
+        real   (r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce), intent(out) :: qT
+        real   (r_kind), dimension(              ics:ice,kcs:kce), intent(in ) :: qC
+        
+        real   (r_kind) :: q_weno(5)
+        integer(i_kind) :: dir
+        
+        integer(i_kind) :: i,k
+      
+        integer(i_kind) :: ip1,im1
+        integer(i_kind) :: kp1,km1
+        integer(i_kind) :: ip2,im2
+        integer(i_kind) :: kp2,km2
+        
+        !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,q_weno,dir)
+        do k = ks,ke
+          kp1 = k + 1
+          km1 = k - 1
+          kp2 = k + 2
+          km2 = k - 2
+          do i = is,ie
+            ip1 = i + 1
+            im1 = i - 1
+            ip2 = i + 2
+            im2 = i - 2
+            
+            ! x-dir
+            q_weno = qC(im2:ip2,k)
+            
+            dir = -1
+            call WENO_limiter(qL(1,i,k),q_weno,dir)
+            dir = 1
+            call WENO_limiter(qR(1,i,k),q_weno,dir)
+            
+            ! z-dir
+            q_weno = qC(i,km2:kp2)
+            
+            dir = -1
+            call WENO_limiter(qB(1,i,k),q_weno,dir)
+            dir = 1
+            call WENO_limiter(qT(1,i,k),q_weno,dir)
+          
+            qL(2:nPointsOnEdge,i,k) = qL(1,i,k)
+            qR(2:nPointsOnEdge,i,k) = qR(1,i,k)
+            qB(2:nPointsOnEdge,i,k) = qB(1,i,k)
+            qT(2:nPointsOnEdge,i,k) = qT(1,i,k)
+          enddo
+        enddo
+        !$OMP END PARALLEL DO
+      
+      end subroutine reconstruct_bdy
       
       function calc_pressure(sqrtG,q)
         real(r_kind) calc_pressure
