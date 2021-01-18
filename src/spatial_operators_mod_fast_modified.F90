@@ -393,19 +393,15 @@ contains
       qB(3,:,:,kds) = 0
       qT(3,:,:,kde) = 0
     elseif(case_num==2)then
-      !$OMP PARALLEL DO PRIVATE(iPOE)
+      !$OMP PARALLEL DO PRIVATE(i,iPOE)
       do k = kds,kde
-        do iPOE = 1,nPointsOnEdge
-          qL(2,iPOE,ids,k) = ref%q(2,ids,k)
-          qR(2,iPOE,ide,k) = ref%q(2,ide,k)
-        enddo
-      enddo
-      !$OMP END PARALLEL DO
-      !$OMP PARALLEL DO PRIVATE(iPOE)
-      do i = ids,ide
-        do iPOE = 1,nPointsOnEdge
-          qB(3,iPOE,i,kds) = -sqrtGB(iPOE,i,kds) * G13B(iPOE,i,kds) * qB(2,iPOE,i,kds)
-          qT(3,iPOE,i,kde) = -sqrtGT(iPOE,i,kde) * G13T(iPOE,i,kde) * qT(2,iPOE,i,kde)
+        do i = ids,ide
+          do iPOE = 1,nPointsOnEdge
+            qL(2,iPOE,i,k) = ref%q(2,i,k)
+            qR(2,iPOE,i,k) = ref%q(2,i,k)
+            qB(3,iPOE,i,k) = -sqrtGB(iPOE,i,k) * G13B(iPOE,i,k) * qB(2,iPOE,i,k)
+            qT(3,iPOE,i,k) = -sqrtGT(iPOE,i,k) * G13T(iPOE,i,k) * qT(2,iPOE,i,k)
+          enddo
         enddo
       enddo
       !$OMP END PARALLEL DO

@@ -25,22 +25,10 @@ module stat_mod
     end subroutine init_stat
 
     subroutine copyStat(stat_out,stat_in)
-      type(stat_field),intent(inout) :: stat_out
-      type(stat_field),intent(in   ) :: stat_in
+      type(stat_field),intent(out) :: stat_out
+      type(stat_field),intent(in ) :: stat_in
     
-      integer :: iVar,i,k
-      
-      !stat_out%q  = stat_in%q
-
-      !$OMP PARALLEL DO PRIVATE(i,iVar)
-      do k = kcs,kce
-        do i = ics,ice
-          do iVar = 1,nVar
-            stat_out%q(iVar,i,k)  = stat_in%q(iVar,i,k)
-          enddo
-        enddo
-      enddo
-      !$OMP END PARALLEL DO
+      stat_out%q  = stat_in%q
     end subroutine copyStat
 end module stat_mod
     

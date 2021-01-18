@@ -160,18 +160,7 @@ module temporal_mod
       type(tend_field), intent(in   ) :: tend
       real(r_kind)    , intent(in   ) :: inc_t
       
-      integer(i_kind) :: iVar,i,k
-
-      !$OMP PARALLEL DO PRIVATE(i,iVar)
-      do k = kds,kde
-        do i = ids,ide
-          do iVar = 1,nVar
-            stat_new%q(iVar,i,k) = stat_old%q(iVar,i,k) + inc_t * tend%q(iVar,i,k)
-          enddo
-        enddo
-      enddo
-      !$OMP END PARALLEL DO
-
+      stat_new%q = stat_old%q + inc_t * tend%q
     end subroutine update_stat
     
     subroutine update_stat_RK3_TVD_1(stat_new, stat_old,stat1, tend)
@@ -179,18 +168,9 @@ module temporal_mod
       type(stat_field), intent(in   ) :: stat_old
       type(stat_field), intent(in   ) :: stat1
       type(tend_field), intent(in   ) :: tend
-
-      integer(i_kind) :: iVar,i,k
       
-      !$OMP PARALLEL DO PRIVATE(i,iVar)
-      do k = kds,kde
-        do i = ids,ide
-          do iVar = 1,nVar
-            stat_new%q(iVar,i,k) = 0.75 * stat_old%q(iVar,i,k) + 0.25 * stat1%q(iVar,i,k) + 0.25 * dt * tend%q(iVar,i,k)
-          enddo
-        enddo
-      enddo
-      !$OMP END PARALLEL DO
+      stat_new%q = 0.75 * stat_old%q + 0.25 * stat1%q + 0.25 * dt * tend%q
+      
     end subroutine update_stat_RK3_TVD_1
     
     subroutine update_stat_RK3_TVD_2(stat_new, stat_old,stat2, tend)
@@ -201,17 +181,7 @@ module temporal_mod
       
       real(r_kind),dimension(3),parameter :: weight = [1./3., 2./3., 2./3.]
       
-      integer(i_kind) :: iVar,i,k
-      
-      !$OMP PARALLEL DO PRIVATE(i,iVar)
-      do k = kds,kde
-        do i = ids,ide
-          do iVar = 1,nVar
-            stat_new%q(iVar,i,k) = weight(1) * stat_old%q(iVar,i,k) + weight(2) * stat2%q(iVar,i,k) + weight(3) * dt * tend%q(iVar,i,k)
-          enddo
-        enddo
-      enddo
-      !$OMP END PARALLEL DO
+      stat_new%q = weight(1) * stat_old%q + weight(2) * stat2%q + weight(3) * dt * tend%q
     end subroutine update_stat_RK3_TVD_2
     
     subroutine update_stat_IRK2_1(stat_new, stat_old, tend1, tend2)
