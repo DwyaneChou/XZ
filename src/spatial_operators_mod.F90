@@ -428,7 +428,7 @@ contains
     qB(:,:,ids:ide,kde+1) = qT(:,:,ids:ide,kde)
     HB(:,:,ids:ide,kde+1) = HT(:,:,ids:ide,kde)
   
-    ! Calculate functions X
+    ! Calculate pressure X
     !$OMP PARALLEL DO PRIVATE(i,iPOE)
     do k = kds,kde
       do i = ids,ide
@@ -450,7 +450,7 @@ contains
     enddo
     !$OMP END PARALLEL DO
     
-    ! Calculate functions Z
+    ! Calculate pressure Z
     !$OMP PARALLEL DO PRIVATE(i,iPOE)
     do k = kds,kde
       do i = ids,ide
@@ -472,6 +472,7 @@ contains
     enddo
     !$OMP END PARALLEL DO
     
+    ! Calculate x directional flux on each points on edge
     !$OMP PARALLEL DO PRIVATE(i,im1,iPOE,iVar)
     do k = kds,kde
       do i = ids,ide+1
@@ -482,6 +483,7 @@ contains
       enddo
     enddo
     !$OMP END PARALLEL DO
+    ! Calculate x directional flux on edges
     !$OMP PARALLEL DO PRIVATE(i,iVar)
     do k = kds,kde
       do i = ids,ide+1
@@ -492,6 +494,7 @@ contains
     enddo
     !$OMP END PARALLEL DO
     
+    ! Calculate z directional flux on each points on edge
     !$OMP PARALLEL DO PRIVATE(k,km1,iPOE,iVar)
     do i = ids,ide
       do k = kds,kde+1
@@ -505,6 +508,7 @@ contains
       enddo
     enddo
     !$OMP END PARALLEL DO
+    ! Calculate z directional flux on edges
     !$OMP PARALLEL DO PRIVATE(k,iVar)
     do i = ids,ide
       do k = kds,kde+1
@@ -895,9 +899,9 @@ contains
       c4 = c1 + eq*w5
       c5 = p0*sqrtG
       
-      coef1 = sqrt( c5*(1 + G13**2*sqrtG**2)*w1**2*                    &
-            w4**2*c1**3*c2*c3**3*       &
-            c4**2*((Rd*w4*c4)/(c5*w1))** &
+      coef1 = sqrt( c5*(1. + G13**2*sqrtG**2)*w1**2* &
+            w4**2*c1**3*c2*c3**3*                    &
+            c4**2*((Rd*w4*c4)/(c5*w1))**             &
             (c2/c3) )
       
       coef2 = sqrtG*w1*w4*c1**2*c3**2*c4

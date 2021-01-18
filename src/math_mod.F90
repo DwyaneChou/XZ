@@ -213,5 +213,100 @@
     RETURN
     END SUBROUTINE BRINV
     
+    ! Gaussian quadrature from http://bbs.fcode.cn/thread-219-1-1.html, http://fcode.cn/algorithm-73-1.html
+    Subroutine Gaussian_Legendre(n, p, w)
+      Integer(i_kind),intent(in ) :: n
+      Real   (r_kind),intent(out) :: p(n), w(n)
+      
+      Real   (r16   ) :: fn(n), ak(n)
+      Real   (r16   ) :: m
+      !定义数组,大小n由module开始声明。    
+      Integer(i_kind) :: i, j
+      j = 0 !赋值控制循环变量的初值           
+      m = -1.000001 !设置计算域[-1，1] 的下限，即代替-1 
+      Do i = 1, 200000 !这个循环次数应该是由步长0.00001决 定,计算方法：200000=2/0.000001     
+        If (legendreP(m,n)*legendreP(m+0.00001,n)<0) Then !从下限处开始往上逐步累加，
+          !由步长0.00001说明最多求解10^5个解
+          j = j + 1 !记录这是第几个解
+          fn(j) = bis(m, m+0.00001, n)
+          !调用二分法求解程序在分好的一小段上求解，
+          !将解存储在fn（j）
+          ak(j) = 2.0_r_kind/(n*dLegendreP1(fn(j),n)*dLegendrePn(fn(j),n)) !高斯点的权重
+          !Write (*, *) '高斯点序号', j
+          !Write (*, *) '高斯点', fn(j)
+          !Write (*, *) '高斯点权重', ak(j)
+          p(j) = fn(j)
+          w(j) = ak(j)
+        End If
+        m = m + 0.00001 !执行完一次判断m向前推进一步
+      End Do
+    End Subroutine Gaussian_Legendre
+    
+    Real(r16) Function legendreP(x,n) !定义Legendre函数
+      Real   (r16   ),intent(in ) :: x
+      Integer(i_kind),intent(in ) :: n
+      
+      Real   (r16   ) :: a(n) !a(n)代表n阶勒让德多项式
+      Integer(i_kind) :: i
+      a(1) = x !1阶勒让德多项式
+      a(2) = 1.5_r_kind*(x**2) - 0.5_r_kind !2阶勒让德多项式
+      Do i = 3, n
+        a(i) = (2*i-1)*x*a(i-1)/i - (i-1)*a(i-2)/i
+        !利用递推关系产生n阶勒让德多项式
+      End Do
+      legendreP = a(n) !生成的n阶勒让德多项式   
+    End Function legendreP
+    
+    Real(r16) Function dLegendreP1(x,n)!生成的（n-1）阶勒让德多项式  
+      Real   (r16   ),intent(in ) :: x
+      Integer(i_kind),intent(in ) :: n   
+      
+      Real   (r16   ) :: a(n) !a(n-1)代表（n-1）阶勒让德多项式
+      Integer :: i
+      a(1) = x
+      a(2) = 1.5_r_kind*x**2 - 0.5_r_kind
+      Do i = 3, n - 1
+        a(i) = (2*i-1)*x*a(i-1)/i - (i-1)*a(i-2)/i
+      End Do
+      dLegendreP1 = a(n-1) 
+    End Function dLegendreP1
+    
+    Real (r16) Function dLegendrePn(x,n)!生成n阶勒让德多项式的导数表达式
+      Real   (r16   ),intent(in ) :: x
+      Integer(i_kind),intent(in ) :: n
+      
+      Real   (r16   ) :: a(n)
+      Integer :: i
+      a(1) = x
+      a(2) = 1.5_r_kind*x**2 - 0.5_r_kind
+      Do i = 3, n
+        a(i) = (2*i-1)*x*a(i-1)/i - (i-1)*a(i-2)/i
+      End Do
+      dLegendrePn = n*a(n-1)/(1-x**2) - n*x*a(n)/(1-x**2)
+      
+    End Function dLegendrePn
+    
+    Real (r16) Function bis(a_in, b_in,n) !二分法求解函数的解
+      Real   (r16   ), intent(in ) :: a_in, b_in
+      integer(i_kind), intent(in ) :: n
+      
+      Real   (r16   )  :: a, b
+      Real   (r16   ) :: c
+      !a,b是传递进来的划分好的有一个解存在的区间
+      a = a_in
+      b = b_in
+      
+      Do
+        c = (a+b)/2.0_r_kind
+        If (legendreP(c,n)*legendreP(a,n)<0) Then
+          b = c
+        Else
+          a = c
+        End If
+        If ((b-a)<1.e-16) exit 
+      End Do
+      bis = c!bis即是利用二分法求得的解
+    End Function bis
+    
     end module math_mod
     

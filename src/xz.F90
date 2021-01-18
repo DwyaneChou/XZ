@@ -64,6 +64,12 @@
           call SSPRK(stat(new),stat(old))
         endif
         
+        if(any(isnan(stat(new)%q(1,ids:ide,kds:kde))))then
+          print*,'Nan appears at i k: ',maxloc(stat(new)%q(1,ids:ide,kds:kde),isnan(stat(new)%q(1,ids:ide,kds:kde)))
+          print*,'after ',it,' steps'
+          stop 'Model blow up, maybe smaller dt would help'
+        endif
+        
         if( mod( it, output_interval )==0 .and. ( it >= output_interval ) )then
           total_mass = sum(stat(new)%q(1,ids:ide,kds:kde))!calc_total_mass     (stat(new))
           

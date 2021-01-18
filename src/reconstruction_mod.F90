@@ -2,11 +2,12 @@
       use constants_mod
       use parameters_mod
       use qr_solver_mod
+      use math_mod
       implicit none
       
-      real   (r_kind), dimension(nPointsOnEdge    ) :: quad_pos_1d
-      real   (r_kind), dimension(nPointsOnEdge    ) :: quad_wts_1d
-      real   (r_kind), dimension(nQuadPointsOnCell) :: quad_wts_2d
+      real   (r_kind), dimension(:), allocatable :: quad_pos_1d
+      real   (r_kind), dimension(:), allocatable :: quad_wts_1d
+      real   (r_kind), dimension(:), allocatable :: quad_wts_2d
       
       integer(i_kind) :: nRecCells
       
@@ -23,21 +24,31 @@
       subroutine init_reconstruction
         integer(i_kind) :: i,j,k
         
-        real(r_kind), dimension(nPointsOnEdge,1            ) :: quad_wts_tmp_1d
-        real(r_kind), dimension(nPointsOnEdge,nPointsOnEdge) :: quad_wts_tmp_2d
+        real(r_kind), dimension(:,:), allocatable :: quad_wts_tmp_1d
+        real(r_kind), dimension(:,:), allocatable :: quad_wts_tmp_2d
         
-        quad_pos_1d = (/-0.90617984593866399279762687829939,&
-                        -0.53846931010568309103631442070021,&
-                         0.                                ,&
-                         0.53846931010568309103631442070021,&
-                         0.90617984593866399279762687829939/)
-        quad_pos_1d = ( quad_pos_1d + 1. ) / 2.
+        allocate(quad_pos_1d(nPointsOnEdge    ))
+        allocate(quad_wts_1d(nPointsOnEdge    ))
+        allocate(quad_wts_2d(nQuadPointsOnCell))
         
-        quad_wts_1d = (/0.23692688505618908751426404071992,&
-	                    0.47862867049936646804129151483564,&
-	                    0.56888888888888888888888888888889,&
-	                    0.47862867049936646804129151483564,&
-	                    0.23692688505618908751426404071992/)
+        allocate(quad_wts_tmp_1d(nPointsOnEdge,1            ))
+        allocate(quad_wts_tmp_2d(nPointsOnEdge,nPointsOnEdge))
+        
+        call Gaussian_Legendre(nPointsOnEdge, quad_pos_1d, quad_wts_1d)
+        
+        !quad_pos_1d = (/-0.90617984593866399279762687829939,&
+        !                -0.53846931010568309103631442070021,&
+        !                 0.                                ,&
+        !                 0.53846931010568309103631442070021,&
+        !                 0.90617984593866399279762687829939/)
+        !quad_pos_1d = ( quad_pos_1d + 1. ) / 2.
+        !
+        !quad_wts_1d = (/0.23692688505618908751426404071992,&
+	    !                0.47862867049936646804129151483564,&
+	    !                0.56888888888888888888888888888889,&
+	    !                0.47862867049936646804129151483564,&
+	    !                0.23692688505618908751426404071992/)
+        
         quad_wts_1d  = quad_wts_1d / 2.
         
         quad_wts_tmp_1d(:,1) = quad_wts_1d
