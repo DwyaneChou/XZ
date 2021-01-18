@@ -4,7 +4,7 @@ run_days         = 0
 run_hours        = 0
 run_minutes      = 0
 run_seconds      = 6 !3000 for case 1, 36000 for case 2, 900 for case 3
-dt               = 0.1
+dt               = 0.15
 history_interval = 6
 integral_scheme  = 'RK3_TVD' ! Choose from 'RK3', 'RK4', 'SSPRK', 'RK3_TVD', 'PC2', 'IRK2'
 IRK_residual     = 1.E-5
@@ -27,8 +27,8 @@ m_coef                = 2
 /
 
 &reconstruction
-recPolyDegree = 6, ! reconstruction polynomial degree
-stencil_width = 7, ! Choose from odds, 3, 5, 7, 9
-nPointsOnEdge = 3
+recPolyDegree = 4, ! reconstruction polynomial degree
+stencil_width = 5, ! Choose from odds, 3, 5, 7, 9
+nPointsOnEdge = 2
 /
 
