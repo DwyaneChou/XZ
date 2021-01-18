@@ -85,9 +85,10 @@
       real(r_kind), dimension(:,:,:), allocatable :: PR_ref! Reconstructed P_ref_(i+1/2,k)
       real(r_kind), dimension(:,:,:), allocatable :: PB_ref! Reconstructed P_ref_(i,k-1/2)
       real(r_kind), dimension(:,:,:), allocatable :: PT_ref! Reconstructed P_ref_(i,k+1/2)
-  
-      real(r_kind), dimension(:,:), allocatable :: eig_x
-      real(r_kind), dimension(:,:), allocatable :: eig_z
+      
+      real(r_kind), dimension(:,:), allocatable :: relax_coef ! Relax coefficient of Rayleigh damping
+      
+      real(r_kind), dimension(:,:,:), allocatable :: q_diff ! u wind, for viscosity terms only
       
     contains
       subroutine init_spatial_operator
@@ -160,13 +161,12 @@
         allocate(PR_ref(nPointsOnEdge,ics:ice,kcs:kce))
         allocate(PB_ref(nPointsOnEdge,ics:ice,kcs:kce))
         allocate(PT_ref(nPointsOnEdge,ics:ice,kcs:kce))
-      
-        allocate(eig_x(ics:ice,kcs:kce))
-        allocate(eig_z(ics:ice,kcs:kce))
+        
+        allocate(relax_coef(ics:ice,kcs:kce))
+        
+        allocate(q_diff(nVar,ics:ice,kcs:kce))
       
         src   = 0
-        eig_x = 0
-        eig_z = 0
         
         dV = dx * deta
         
@@ -335,28 +335,13 @@
               PR_ref(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR_ref(:,iPOE,i,k))
               PB_ref(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB_ref(:,iPOE,i,k))
               PT_ref(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT_ref(:,iPOE,i,k))
-              
-              !! Reset pressure at domain boundary for limiting oscillation
-              !if(k<=kds)then
-              !  PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kds),ref%q(:,i,kds))
-              !  PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
-              !endif
-              !if(k>=kde)then
-              !  PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kde),ref%q(:,i,kde))
-              !  PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
-              !endif
-              !if(i<=ids)then
-              !  PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ids,k),ref%q(:,ids,k))
-              !  PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
-              !endif
-              !if(i>=ide)then
-              !  PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ide,k),ref%q(:,ide,k))
-              !  PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
-              !endif
             enddo
           enddo
         enddo
         !$OMP END PARALLEL DO
+      
+        ! Calculate Rayleigh damping coef
+        call Rayleigh_coef(relax_coef)
         
         ! Fill out qC
         qC = FillValue
@@ -376,6 +361,9 @@
         integer(i_kind) kp1,km1
         integer(i_kind) ip2,im2
         integer(i_kind) kp2,km2
+      
+        ! Attension stat is changed here!
+        if(case_num==2)call Rayleigh_damping(stat%q,ref%q)
         
         ! copy stat
         qC(:,ids:ide,kds:kde) = stat%q(:,ids:ide,kds:kde)
@@ -432,6 +420,7 @@
           enddo
         enddo
         !$OMP END PARALLEL DO
+        !$OMP PARALLEL DO PRIVATE(iPOE,i)
         do k = kds,kde
           do iPOE = 1,nPointsOnEdge
             i = ide + 1
@@ -440,6 +429,7 @@
             PR(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k))
           enddo
         enddo
+        !$OMP END PARALLEL DO
         
         ! Calculate functions Z
         !$OMP PARALLEL DO PRIVATE(i,iPOE)
@@ -452,6 +442,7 @@
           enddo
         enddo
         !$OMP END PARALLEL DO
+        !$OMP PARALLEL DO PRIVATE(k,iPOE)
         do i = ids,ide
           do iPOE = 1,nPointsOnEdge
             k = kde + 1
@@ -460,32 +451,7 @@
             PT(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT(:,iPOE,i,k))
           enddo
         enddo
-        
-        !!$OMP PARALLEL DO PRIVATE(i,iPOE)
-        !do k = kds-1,kde+1
-        !  do i = ids-1,ide+1
-        !    do iPOE = 1,nPointsOnEdge
-        !      ! Reset pressure at domain boundary for limiting oscillation
-        !      if(k<=kds)then
-        !        PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kds),ref%q(:,i,kds))
-        !        PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
-        !      endif
-        !      if(k>=kde)then
-        !        PB_ref(iPOE,i,k) = calc_pressure(sqrtGC(i,kde),ref%q(:,i,kde))
-        !        PT_ref(iPOE,i,k) = PB_ref(iPOE,i,k)
-        !      endif
-        !      if(i<=ids)then
-        !        PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ids,k),ref%q(:,ids,k))
-        !        PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
-        !      endif
-        !      if(i>=ide)then
-        !        PL_ref(iPOE,i,k) = calc_pressure(sqrtGC(ide,k),ref%q(:,ide,k))
-        !        PR_ref(iPOE,i,k) = PL_ref(iPOE,i,k)
-        !      endif
-        !    enddo
-        !  enddo
-        !enddo
-        !!$OMP END PARALLEL DO
+        !$OMP END PARALLEL DO
         
         !$OMP PARALLEL DO PRIVATE(i,im1,iPOE,iVar)
         do k = kds,kde
@@ -526,6 +492,29 @@
         
         src = 0
         src(3,ids:ide,kds:kde) = src(3,ids:ide,kds:kde) - sqrtGC(ids:ide,kds:kde) * rho_p(ids:ide,kds:kde) * gravity
+      
+        ! Viscosity terms for Density Current case only
+        if(case_num==3)then
+          do iVar = 2,4
+            q_diff(iVar,ids:ide,kds:kde) = qC(iVar,ids:ide,kds:kde) / qC(1,ids:ide,kds:kde)
+            
+            q_diff(iVar,ids:ide,kds-1) = q_diff(iVar,ids:ide,kds)
+            q_diff(iVar,ids:ide,kde+1) = q_diff(iVar,ids:ide,kde)
+            q_diff(iVar,ids-1,kds:kde) = q_diff(iVar,ids,kds:kde)
+            q_diff(iVar,ide+1,kds:kde) = q_diff(iVar,ide,kds:kde)
+          enddo
+          
+          !$OMP PARALLEL DO PRIVATE(i,iVar)
+          do k = kds,kde
+            do i = ids,ide
+              do iVar = 2,4
+                src(iVar,i,k) = src(iVar,i,k) + viscosity_coef * qC(1,i,k) * ( ( q_diff(iVar,i+1,k) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i-1,k) ) / dx  **2 &
+                                                                             + ( q_diff(iVar,i,k+1) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i,k-1) ) / deta**2 / sqrtGC(i,k)**2 )
+              enddo
+            enddo
+          enddo
+          !$OMP END PARALLEL DO
+        endif
         
         ! Calculate tend
         !$OMP PARALLEL DO PRIVATE(i,ip1,kp1,iVar)
@@ -1019,5 +1008,80 @@
         endif
         
       end function P5
+      
+      subroutine Rayleigh_damping(q,q_ref)
+        real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: q
+        real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
+        
+        integer(i_kind), parameter :: vs = 1
+        integer(i_kind), parameter :: ve = 5
+        
+        integer i,k,iVar
+        
+        do iVar = vs,ve
+          q(iVar,ids:ide,kds:kde) = q(iVar,ids:ide,kds:kde) - relax_coef(ids:ide,kds:kde) * ( q(iVar,ids:ide,kds:kde) - q_ref(iVar,ids:ide,kds:kde) )
+        enddo
+      end subroutine Rayleigh_damping
+      
+      ! Rayleigh damping ( Wong and Stull, MWR, 2015 )
+      subroutine Rayleigh_coef(mu)
+        real(r_kind), dimension(ics:ice,kcs:kce), intent(out) :: mu
+        
+        real(r_kind), dimension(ics:ice,kcs:kce) :: muT
+        real(r_kind), dimension(ics:ice,kcs:kce) :: muL
+        real(r_kind), dimension(ics:ice,kcs:kce) :: muR
+        
+        real(r_kind), parameter :: topSpongeThickness   = 9000   ! 12000 for "best" result
+        real(r_kind), parameter :: leftSpongeThickness  = 10000  ! 10000 for "best" result
+        real(r_kind), parameter :: rightSpongeThickness = 10000  ! 10000 for "best" result
+        
+        real(r_kind), parameter :: mu_max_top = 0.2
+        real(r_kind), parameter :: mu_max_lat = 0.2
+        
+        real(r_kind) zd, zt
+        
+        integer i,k
+        
+        muT = 0
+        muL = 0
+        MuR = 0
+        
+        ! Top
+        zt = z_max
+        zd = zt - topSpongeThickness
+        where( zC > zd )
+          !muT = mu_max_top * sin( pi / 2. * ( zC - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+          muT = mu_max_top * ( ( zC - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
+        elsewhere
+          muT = 0.
+        endwhere
+        
+        ! Left
+        zt = -x_min
+        zd = zt - leftSpongeThickness
+        where( abs(xC) > zd )
+          !muT = mu_max_lat * sin( pi / 2. * ( abs(xC) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+          muT = mu_max_lat * ( ( abs(xC) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
+        elsewhere
+          muL = 0.
+        endwhere
+        
+        ! Right
+        zt = x_max
+        zd = zt - rightSpongeThickness
+        where( xC > zd )
+          !muT = mu_max_lat * sin( pi / 2. * ( abs(xC) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+          muT = mu_max_lat * ( ( abs(xC) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
+        elsewhere
+          muR = 0.
+        endwhere
+        
+        do k = kds,kde
+          do i = ids,ide
+            mu(i,k) = max( muT(i,k), muL(i,k), muR(i,k) )
+          enddo
+        enddo
+      
+      end subroutine Rayleigh_coef
     end module spatial_operators_mod
 
