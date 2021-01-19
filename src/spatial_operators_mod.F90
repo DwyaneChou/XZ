@@ -388,10 +388,10 @@ contains
     ! Boundary Condition
     ! Fill boundary
     if(case_num==1.or.case_num==3)then
-      qL(2,:,ids,:) = 0
-      qR(2,:,ide,:) = 0
-      qB(3,:,:,kds) = 0
-      qT(3,:,:,kde) = 0
+      qL(2,:,ids,kds:kde) = 0
+      qR(2,:,ide,kds:kde) = 0
+      qB(3,:,ids:ide,kds) = 0
+      qT(3,:,ids:ide,kde) = 0
     elseif(case_num==2)then
       !$OMP PARALLEL DO PRIVATE(iPOE)
       do k = kds,kde
