@@ -243,25 +243,47 @@
         
         beta = coefA**2 * 13. / 12. + coefB**2 * 0.25
         
-        ! WENO-Z
-        tau40 = abs( beta(1) - beta(2) )
-        tau41 = abs( beta(2) - beta(3) )
-        tau5  = abs( beta(3) - beta(1) )
+        !! WENO-Z
+        !tau40 = abs( beta(1) - beta(2) )
+        !tau41 = abs( beta(2) - beta(3) )
+        !tau5  = abs( beta(3) - beta(1) )
+        !
+        !if( tau40<=minval(beta) .and. tau41>minval(beta) )then
+        !  omega = [1./3.,2./3.,0.]
+        !elseif( tau40>minval(beta) .and. tau41<minval(beta) )then
+        !  omega = [0.,2./3.,1./3.]
+        !else
+        !  alpha = weno_coef * ( 1. + tau5 / ( eps + beta ) )
+        !  omega = alpha / sum(alpha)
+        !endif
+        !! WENO-Z
+        !
+        !!! origin WENO
+        !!alpha = weno_coef / ( eps + beta )**2
+        !!omega = alpha / sum(alpha)
+        !!! origin WENO
         
-        if( tau40<=minval(beta) .and. tau41>minval(beta) )then
-          omega = [1./3.,2./3.,0.]
-        elseif( tau40>minval(beta) .and. tau41<minval(beta) )then
-          omega = [0.,2./3.,1./3.]
+        if(.not.any(Q==FillValue))then
+          ! WENO-Z
+          tau40 = abs( beta(1) - beta(2) )
+          tau41 = abs( beta(2) - beta(3) )
+          tau5  = abs( beta(3) - beta(1) )
+          
+          if( tau40<=minval(beta) .and. tau41>minval(beta) )then
+            omega = [1./3.,2./3.,0.]
+          elseif( tau40>minval(beta) .and. tau41<minval(beta) )then
+            omega = [0.,2./3.,1./3.]
+          else
+            alpha = weno_coef * ( 1. + tau5 / ( eps + beta ) )
+            omega = alpha / sum(alpha)
+          endif
+          ! WENO-Z
         else
-          alpha = weno_coef * ( 1. + tau5 / ( eps + beta ) )
+          ! origin WENO
+          alpha = weno_coef / ( eps + beta )**2
           omega = alpha / sum(alpha)
+          ! origin WENO
         endif
-        ! WENO-Z
-        
-        !! origin WENO
-        !alpha = weno_coef / ( eps + beta )**2
-        !omega = alpha / sum(alpha)
-        !! origin WENO
         
         Qrec = dot_product( stencil, omega )
         
