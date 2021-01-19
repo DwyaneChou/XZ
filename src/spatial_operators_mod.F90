@@ -884,7 +884,7 @@ contains
 
     real(r_kind) c1,c2,c3,c4,c5
     
-    if(any(q==FillValue))then
+    if(any(q==FillValue).or.sqrtG==FillValue)then
       calc_sound_speed_z = 0
     else
       w1 = q(1)

@@ -18,10 +18,11 @@ module stat_mod
       
       do iT = -nIntegralSubSteps, 1
         allocate(stat(iT)%q (nVar,ics:ice,kcs:kce))
+        stat(iT)%q = FillValue
       enddo
       
       allocate(ref%q (nVar,ics:ice,kcs:kce))
-      
+      ref%q = FillValue
     end subroutine init_stat
 
     subroutine copyStat(stat_out,stat_in)

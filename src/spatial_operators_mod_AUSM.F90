@@ -684,17 +684,17 @@ contains
         q_weno = qC(im2:ip2,k)
         
         dir = -1
-        call WENO_limiter(qL(1,i,k),q_weno,dir)
+        call WENO5(qL(1,i,k),q_weno,dir)
         dir = 1
-        call WENO_limiter(qR(1,i,k),q_weno,dir)
+        call WENO5(qR(1,i,k),q_weno,dir)
         
         ! z-dir
         q_weno = qC(i,km2:kp2)
         
         dir = -1
-        call WENO_limiter(qB(1,i,k),q_weno,dir)
+        call WENO5(qB(1,i,k),q_weno,dir)
         dir = 1
-        call WENO_limiter(qT(1,i,k),q_weno,dir)
+        call WENO5(qT(1,i,k),q_weno,dir)
       
         qL(2:nPointsOnEdge,i,k) = qL(1,i,k)
         qR(2:nPointsOnEdge,i,k) = qR(1,i,k)
@@ -949,7 +949,8 @@ contains
     Mh = M4( ML, sp ) + M4( MR, sn ) - Kp * max( 1. - sigma * Mbar2, 0. ) * ( PR - PL ) / ( rho * a**2 )
     m  = a * Mh
     
-    p = P5(ML,sp) * sqrtGL * PL + P5(MR,sn) * sqrtGR * PR - Ku * P5(ML,sp) * P5(MR,sn) * ( sqrtGL * rhoL + sqrtGR * rhoR ) * a * ( uR - uL )
+    !p = P5(ML,sp) * sqrtGL * PL + P5(MR,sn) * sqrtGR * PR - Ku * P5(ML,sp) * P5(MR,sn) * ( sqrtGL * rhoL + sqrtGR * rhoR ) * a * ( uR - uL )
+    p = P5(ML,sp) * sqrtGL * PL + P5(MR,sn) * sqrtGR * PR - Ku * P5(ML,sp) * P5(MR,sn) * ( rhoL + rhoR ) * a * ( sqrtGR * uR - sqrtGL * uL )
     
   end subroutine AUSM_up_x
   
@@ -1030,8 +1031,11 @@ contains
     coefL = sqrtGL * G13L
     coefR = sqrtGR * G13R
     
+    !p = P5(ML,sp) * coefL * PL + P5(MR,sn) * coefR * PR &
+    !  - Ku * P5(ML,sp) * P5(MR,sn) * ( coefL * rhoL + coefR * rhoR ) * a * ( uR - uL )
+    
     p = P5(ML,sp) * coefL * PL + P5(MR,sn) * coefR * PR &
-      - Ku * P5(ML,sp) * P5(MR,sn) * ( coefL * rhoL + coefR * rhoR ) * a * ( uR - uL )
+      - Ku * P5(ML,sp) * P5(MR,sn) * ( rhoL + rhoR ) * a * ( coefL * uR - coefR * uL )
     
     !p_pert = P5(ML,sp) * pL_pert + P5(MR,sn) * pR_pert &
     !       - 2. * Ku * P5(ML,sp) * P5(MR,sn) * ( rho * a - rho_ref * a_ref  ) * ( uR - uL )

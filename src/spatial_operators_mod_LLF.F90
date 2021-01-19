@@ -253,6 +253,15 @@
         call calc_polynomial_matrix(recPolyDegree,nPointsOnEdge,nRecTerms,xB*recdx,etaB*recdeta,recMatrixB)
         call calc_polynomial_matrix(recPolyDegree,nPointsOnEdge,nRecTerms,xT*recdx,etaT*recdeta,recMatrixT)
         
+        sqrtGL = FillValue
+        sqrtGR = FillValue
+        sqrtGB = FillValue
+        sqrtGT = FillValue
+        G13L   = FillValue
+        G13R   = FillValue
+        G13B   = FillValue
+        G13T   = FillValue
+        
         ! Reconstruct metric function
         call reconstruct_field(sqrtGL,&
                                sqrtGR,&
@@ -421,16 +430,21 @@
             im1 = i - 1
             
             maxeigen_x = max(eig_x(i,k),eig_x(im1,k))
-            !maxeigen_x = max(eig_x(i,k),eig_x(im1,k),eig_x(i,k+1),eig_x(i,k-1),eig_x(im1,k+1),eig_x(im1,k-1))
+            maxeigen_x = max(eig_x(i,k),eig_x(im1,k),eig_x(i,k+1),eig_x(i,k-1),eig_x(im1,k+1),eig_x(im1,k-1))
             
-            do iVar = 1,nVar
-              do iPOE = 1,nPointsOnEdge
+            do iPOE = 1,nPointsOnEdge
+              !maxeigen_x = max(calc_eigenvalue_x(sqrtGL(iPOE,i  ,k),qL(:,iPOE,i  ,k)),&
+              !                 calc_eigenvalue_x(sqrtGR(iPOE,im1,k),qR(:,iPOE,im1,k)))
+              do iVar = 1,nVar
                 if(abs(FL(iVar,iPOE,i,k) + FR(iVar,iPOE,im1,k))<=1.E-15)then
                   FeP(iVar,iPOE,i,k) = 0
                 else
                   FeP(iVar,iPOE,i,k) = 0.5 * ( FL(iVar,iPOE,i,k) + FR(iVar,iPOE,im1,k) - maxeigen_x * ( qL(iVar,iPOE,i,k) - qR(iVar,iPOE,im1,k) ) )
                 endif
               enddo
+            enddo
+            
+            do iVar = 1,nVar
               Fe(iVar,i,k) = Gaussian_quadrature_1d(FeP(iVar,:,i,k))
             enddo
           enddo
@@ -443,17 +457,22 @@
           do k = kds,kde+1
             km1 = k - 1
             
-            maxeigen_z = max(eig_z(i,k),eig_z(i,km1))
+            !maxeigen_z = max(eig_z(i,k),eig_z(i,km1))
             !maxeigen_z = max(eig_z(i,k),eig_z(i,km1),eig_z(i+1,k),eig_z(i-1,k),eig_z(i+1,km1),eig_z(i-1,km1))
             
-            do iVar = 1,nVar
-              do iPOE = 1,nPointsOnEdge
+            do iPOE = 1,nPointsOnEdge
+              !maxeigen_z = max(calc_eigenvalue_z(sqrtGB(iPOE,i,k  ),G13B(iPOE,i,k  ),qB(:,iPOE,i,k  )),&
+              !                 calc_eigenvalue_z(sqrtGT(iPOE,i,km1),G13T(iPOE,i,km1),qT(:,iPOE,i,km1)))
+              do iVar = 1,nVar
                 if(abs(HB(iVar,iPOE,i,k) + HT(iVar,iPOE,i,km1))<=1.E-15)then
                   HeP(iVar,iPOE,i,k) = 0
                 else
                   HeP(iVar,iPOE,i,k) = 0.5 * ( HB(iVar,iPOE,i,k) + HT(iVar,iPOE,i,km1) - maxeigen_z * ( qB(iVar,iPOE,i,k) - qT(iVar,iPOE,i,km1) ) )
                 endif
               enddo
+            enddo
+            
+            do iVar = 1,nVar
               He(iVar,i,k) = Gaussian_quadrature_1d(HeP(iVar,:,i,k))
             enddo
           enddo
@@ -621,17 +640,17 @@
             q_weno = qC(im2:ip2,k)
             
             dir = -1
-            call WENO_limiter(qL(1,i,k),q_weno,dir)
+            call WENO5(qL(1,i,k),q_weno,dir)
             dir = 1
-            call WENO_limiter(qR(1,i,k),q_weno,dir)
+            call WENO5(qR(1,i,k),q_weno,dir)
             
             ! z-dir
             q_weno = qC(i,km2:kp2)
             
             dir = -1
-            call WENO_limiter(qB(1,i,k),q_weno,dir)
+            call WENO5(qB(1,i,k),q_weno,dir)
             dir = 1
-            call WENO_limiter(qT(1,i,k),q_weno,dir)
+            call WENO5(qT(1,i,k),q_weno,dir)
           
             qL(2:nPointsOnEdge,i,k) = qL(1,i,k)
             qR(2:nPointsOnEdge,i,k) = qR(1,i,k)
@@ -827,7 +846,7 @@
 
         real(r_kind) c1,c2,c3,c4,c5
         
-        if(any(q==FillValue))then
+        if(any(q==FillValue).or.sqrtG==FillValue)then
           eig = 0
         else
           w1 = q(1)
