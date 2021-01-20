@@ -15,8 +15,8 @@ case_num = 2, ! Choose from 1, 2, 3
 /
 
 &domain
-dx                    = 125! 100, 200 for case 1, 250 for case 2, 100 for case3
-nz                    = 200! 100,  50 for case 1, 100 for case 2, 64  for case3
+dx                    = 250! 100, 200 for case 1, 250 for case 2, 100 for case3
+nz                    = 100! 100,  50 for case 1, 100 for case 2, 64  for case3
 x_max                 = 100000.
 x_min                 = 0.
 z_max                 = 60000.
@@ -27,7 +27,7 @@ m_coef                = 2
 /
 
 &reconstruction
-recPolyDegree = 4, ! reconstruction polynomial degree
+refPolyDegree = 4, ! reconstruction polynomial degree
 stencil_width = 5, ! Choose from odds, 3, 5, 7, 9
 nPointsOnEdge = 3
 /

@@ -949,8 +949,7 @@ contains
     Mh = M4( ML, sp ) + M4( MR, sn ) - Kp * max( 1. - sigma * Mbar2, 0. ) * ( PR - PL ) / ( rho * a**2 )
     m  = a * Mh
     
-    !p = P5(ML,sp) * sqrtGL * PL + P5(MR,sn) * sqrtGR * PR - Ku * P5(ML,sp) * P5(MR,sn) * ( sqrtGL * rhoL + sqrtGR * rhoR ) * a * ( uR - uL )
-    p = P5(ML,sp) * sqrtGL * PL + P5(MR,sn) * sqrtGR * PR - Ku * P5(ML,sp) * P5(MR,sn) * ( rhoL + rhoR ) * a * ( sqrtGR * uR - sqrtGL * uL )
+    p = P5(ML,sp) * sqrtGL * PL + P5(MR,sn) * sqrtGR * PR - Ku * P5(ML,sp) * P5(MR,sn) * ( sqrtGL * rhoL + sqrtGR * rhoR ) * a * ( uR - uL )
     
   end subroutine AUSM_up_x
   
@@ -1006,11 +1005,11 @@ contains
     rho = 0.5 * ( rhoL + rhoR )
     a   = 0.5 * ( cL + cR )
     
-    rho_ref = 0.5 * ( rhoL_ref + rhoR_ref )
-    a_ref   = 0.5 * ( cL_ref + cR_ref )
+    !rho_ref = 0.5 * ( rhoL_ref + rhoR_ref )
+    !a_ref   = 0.5 * ( cL_ref + cR_ref )
     
-    pL_pert = pL - pL_ref
-    pR_pert = pR - pR_ref
+    !pL_pert = pL - pL_ref
+    !pR_pert = pR - pR_ref
     
     ML = uL / a
     MR = uR / a
@@ -1031,11 +1030,8 @@ contains
     coefL = sqrtGL * G13L
     coefR = sqrtGR * G13R
     
-    !p = P5(ML,sp) * coefL * PL + P5(MR,sn) * coefR * PR &
-    !  - Ku * P5(ML,sp) * P5(MR,sn) * ( coefL * rhoL + coefR * rhoR ) * a * ( uR - uL )
-    
     p = P5(ML,sp) * coefL * PL + P5(MR,sn) * coefR * PR &
-      - Ku * P5(ML,sp) * P5(MR,sn) * ( rhoL + rhoR ) * a * ( coefL * uR - coefR * uL )
+      - Ku * P5(ML,sp) * P5(MR,sn) * ( coefL * rhoL + coefR * rhoR ) * a * ( uR - uL )
     
     !p_pert = P5(ML,sp) * pL_pert + P5(MR,sn) * pR_pert &
     !       - 2. * Ku * P5(ML,sp) * P5(MR,sn) * ( rho * a - rho_ref * a_ref  ) * ( uR - uL )

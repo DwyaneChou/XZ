@@ -9,9 +9,13 @@
       real   (r_kind), dimension(:), allocatable :: quad_wts_1d
       real   (r_kind), dimension(:), allocatable :: quad_wts_2d
       
-      integer(i_kind) :: nRecCells
+      integer(i_kind) :: maxRecCells
+      integer(i_kind) :: maxRecTerms
       
-      integer(i_kind) :: nRecTerms
+      integer(i_kind),dimension(:,:), allocatable :: nRecCells
+      integer(i_kind),dimension(:,:), allocatable :: nRecTerms
+      
+      integer(i_kind),dimension(:,:), allocatable :: locPolyDegree ! degree of local reconstruction polynomial
       
       real   (r_kind), dimension(:,:,:,:), allocatable :: polyCoordCoef
       
@@ -63,17 +67,22 @@
           enddo
         enddo
         
-        nRecCells = stencil_width**2
-        nRecTerms = (recPolyDegree+1) * (recPolyDegree+2) / 2
+        maxRecCells = stencil_width**2
+        maxRecTerms = (recPolyDegree+1) * (recPolyDegree+2) / 2
         
         ! Check known and unknown values
-        if(nRecCells<nRecTerms)then
-          print*,'Error! nRecCells<nRecTerms, nRecCells =',nRecCells,' nRecTerm =',nRecTerms
+        if(maxRecCells<maxRecTerms)then
+          print*,'Error! maxRecCells<maxRecTerms, maxRecCells =',maxRecCells,' nRecTerm =',maxRecTerms
           print*,'Choose larger stencil_width or smaller recPolyDegree'
           stop
         endif
         
-        allocate( polyCoordCoef(nRecCells,nRecTerms,ids:ide,kds:kde) )
+        allocate(nRecCells(ids:ide,kds:kde))
+        allocate(nRecTerms(ids:ide,kds:kde))
+        
+        allocate(locPolyDegree(ids:ide,kds:kde))
+        
+        allocate( polyCoordCoef(maxRecCells,maxRecTerms,ids:ide,kds:kde) )
         
       end subroutine init_reconstruction
       
