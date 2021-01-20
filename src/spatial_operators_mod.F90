@@ -12,20 +12,20 @@ module spatial_operators_mod
   
   public init_spatial_operator,spatial_operator
   
+  logical, dimension(:,:), allocatable :: inDomain
+  
   integer(i_kind), dimension(:,:), allocatable :: iCenCell ! center cell index on reconstruction stencil
   
-  integer(i_kind), dimension(:,:,:,:), allocatable :: iRecCell ! x index of reconstruction cells
-  integer(i_kind), dimension(:,:,:,:), allocatable :: kRecCell ! k index of reconstruction cells
+  integer(i_kind), dimension(:,:,:), allocatable :: iRecCell ! x index of reconstruction cells
+  integer(i_kind), dimension(:,:,:), allocatable :: kRecCell ! k index of reconstruction cells
   
-  real   (r_kind), dimension(:,:,:,:,:), allocatable :: xRel   ! relative x coordinate of reconstruction cells
-  real   (r_kind), dimension(:,:,:,:,:), allocatable :: etaRel ! relative eta coordinate of reconstruction cells
+  real   (r_kind), dimension(:,:,:,:), allocatable :: xRel   ! relative x coordinate of reconstruction cells
+  real   (r_kind), dimension(:,:,:,:), allocatable :: etaRel ! relative eta coordinate of reconstruction cells
   
-  real   (r_kind), dimension(:,:,:), allocatable :: disCenter ! distance between adjacent cells and center cell on stencil
-  
-  real   (r_kind), dimension(:,:), allocatable :: recMatrixL
-  real   (r_kind), dimension(:,:), allocatable :: recMatrixR
-  real   (r_kind), dimension(:,:), allocatable :: recMatrixB
-  real   (r_kind), dimension(:,:), allocatable :: recMatrixT
+  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixL
+  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixR
+  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixB
+  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixT
   
   real   (r_kind) :: dV
   
@@ -95,20 +95,20 @@ contains
     integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE
     integer(i_kind) :: iRec,kRec
     
+    allocate(inDomain  (ics:ice,kcs:kce))
+    
     allocate(iCenCell  (ids:ide,kds:kde))
     
-    allocate(iRecCell  (stencil_width,stencil_width,ids:ide,kds:kde))
-    allocate(kRecCell  (stencil_width,stencil_width,ids:ide,kds:kde))
+    allocate(iRecCell  (maxRecCells,ids:ide,kds:kde))
+    allocate(kRecCell  (maxRecCells,ids:ide,kds:kde))
     
-    allocate(xRel  (4,stencil_width,stencil_width,ids:ide,kds:kde))
-    allocate(etaRel(4,stencil_width,stencil_width,ids:ide,kds:kde))
+    allocate(xRel  (4,maxRecCells,ids:ide,kds:kde))
+    allocate(etaRel(4,maxRecCells,ids:ide,kds:kde))
     
-    allocate(disCenter(nRecCells,ids:ide,kds:kde))
-    
-    allocate(recMatrixL(nPointsOnEdge,nRecTerms))
-    allocate(recMatrixR(nPointsOnEdge,nRecTerms))
-    allocate(recMatrixB(nPointsOnEdge,nRecTerms))
-    allocate(recMatrixT(nPointsOnEdge,nRecTerms))
+    allocate(recMatrixL(nPointsOnEdge,maxRecTerms,ids:ide,kds:kde))
+    allocate(recMatrixR(nPointsOnEdge,maxRecTerms,ids:ide,kds:kde))
+    allocate(recMatrixB(nPointsOnEdge,maxRecTerms,ids:ide,kds:kde))
+    allocate(recMatrixT(nPointsOnEdge,maxRecTerms,ids:ide,kds:kde))
     
     allocate(qC(nVar,              ics:ice,kcs:kce))
     allocate(qL(nVar,nPointsOnEdge,ics:ice,kcs:kce))
@@ -173,59 +173,29 @@ contains
     ! set reconstruction cells on each stencil
     print*,'Set reconstruction cells on each stencil'
     print*,''
-    ! x-dir
+    inDomain(ics:ice,kcs:kce) = .false. 
+    inDomain(ids:ide,kds:kde) = .true.
     do k = kds,kde
-      ! middle
-      do i = ibs,ibe
-        do kR = 1,stencil_width
-          do iR = 1,stencil_width
-            iRecCell(iR,kR,i,k) = iR + i - 1 - recBdy
-          enddo
-        enddo            
-      enddo
-      ! left
-      do i = ids,ibs-1
-        do kR = 1,stencil_width
-          do iR = 1,stencil_width
-            iRecCell(iR,kR,i,k) = ids - 1 + iR
+      do i = ids,ide
+        j = 0
+        do kRec = 1,stencil_width
+          do iRec = 1,stencil_width
+            if(inDomain(i-recBdy+iRec-1,k-recBdy+kRec-1))then
+              j = j + 1
+              iRecCell(j,i,k) = i-recBdy+iRec-1
+              kRecCell(j,i,k) = k-recBdy+kRec-1
+            endif
           enddo
         enddo
-      enddo
-      ! right
-      do i = ibe+1,ide
-        do kR = 1,stencil_width
-          do iR = 1,stencil_width
-            iRecCell(iR,kR,i,k) = ide - stencil_width + iR
-          enddo
-        enddo
-      enddo
-    enddo
-    
-    ! z-dir
-    do i = ids,ide
-      ! middle
-      do k = kbs,kbe
-        do kR = 1,stencil_width
-          do iR = 1,stencil_width
-            kRecCell(iR,kR,i,k) = kR + k - 1 - recBdy
-          enddo
-        enddo            
-      enddo
-      ! bottom
-      do k = kds,kbs-1
-        do kR = 1,stencil_width
-          do iR = 1,stencil_width
-            kRecCell(iR,kR,i,k) = kds - 1 + kR
-          enddo
-        enddo
-      enddo
-      ! top
-      do k = kbe+1,kde
-        do kR = 1,stencil_width
-          do iR = 1,stencil_width
-            kRecCell(iR,kR,i,k) = kde - stencil_width  + kR
-          enddo
-        enddo
+        nRecCells(i,k) = j
+          
+        if( nRecCells(i,k) >= 3           ) locPolyDegree(i,k) = 1
+        if( nRecCells(i,k) >= 9           ) locPolyDegree(i,k) = 2
+        if( nRecCells(i,k) >= 15          ) locPolyDegree(i,k) = 2
+        if( nRecCells(i,k) >= 25          ) locPolyDegree(i,k) = 4
+        if( nRecCells(i,k) == maxRecCells ) locPolyDegree(i,k) = recPolyDegree
+        
+        nRecTerms(i,k) = ( locPolyDegree(i,k) + 1 ) * ( locPolyDegree(i,k) + 2 ) / 2
       enddo
     enddo
     
@@ -240,33 +210,26 @@ contains
     
     do k = kds,kde
       do i = ids,ide
-        j = 0 ! Reset cell number on stencil
-        do kR = 1,stencil_width
-          do iR = 1,stencil_width
-            iRec = iRecCell(iR,kR,i,k)
-            kRec = kRecCell(iR,kR,i,k)
-            
-            j = j + 1
-            
-            if(iRec==i.and.kRec==k)iCenCell(i,k) = j
-            
-            xRel  (:,iR,kR,i,k) = ( xCorner  (:,iRec,kRec) - xCenter  (i,k) ) * recdx
-            etaRel(:,iR,kR,i,k) = ( etaCorner(:,iRec,kRec) - etaCenter(i,k) ) * recdeta
-            
-            disCenter(j,i,k) = sqrt( ( xCenter(iRec,kRec) - xCenter(i,k) )**2 + ( etaCenter(iRec,kRec) - etaCenter(i,k) )**2 )
-            
-            call calc_polynomial_square_integration(recPolyDegree,xRel  (1,iR,kR,i,k),xRel  (2,iR,kR,i,k),&
-                                                                  etaRel(1,iR,kR,i,k),etaRel(4,iR,kR,i,k),polyCoordCoef(j,:,i,k))
-          enddo
+        do j = 1,nRecCells(i,k)
+          iRec = iRecCell(j,i,k)
+          kRec = kRecCell(j,i,k)
+          
+          if(iRec==i.and.kRec==k)iCenCell(i,k) = j
+          
+          xRel  (:,j,i,k) = ( xCorner  (:,iRec,kRec) - xCenter  (i,k) ) * recdx
+          etaRel(:,j,i,k) = ( etaCorner(:,iRec,kRec) - etaCenter(i,k) ) * recdeta
+          
+          call calc_polynomial_square_integration(locPolyDegree(i,k),xRel  (1,j,i,k),xRel  (2,j,i,k),&
+                                                                     etaRel(1,j,i,k),etaRel(4,j,i,k),polyCoordCoef(j,:,i,k))
         enddo
+    
+        ! Calculate reconstruction matrix on edge
+        call calc_polynomial_matrix(locPolyDegree(i,k),nPointsOnEdge,nRecTerms(i,k),xL*recdx,etaL*recdeta,recMatrixL(:,1:nRecTerms(i,k),i,k))
+        call calc_polynomial_matrix(locPolyDegree(i,k),nPointsOnEdge,nRecTerms(i,k),xR*recdx,etaR*recdeta,recMatrixR(:,1:nRecTerms(i,k),i,k))
+        call calc_polynomial_matrix(locPolyDegree(i,k),nPointsOnEdge,nRecTerms(i,k),xB*recdx,etaB*recdeta,recMatrixB(:,1:nRecTerms(i,k),i,k))
+        call calc_polynomial_matrix(locPolyDegree(i,k),nPointsOnEdge,nRecTerms(i,k),xT*recdx,etaT*recdeta,recMatrixT(:,1:nRecTerms(i,k),i,k))
       enddo
     enddo
-    
-    ! Calculate reconstruction matrix on edge
-    call calc_polynomial_matrix(recPolyDegree,nPointsOnEdge,nRecTerms,xL*recdx,etaL*recdeta,recMatrixL)
-    call calc_polynomial_matrix(recPolyDegree,nPointsOnEdge,nRecTerms,xR*recdx,etaR*recdeta,recMatrixR)
-    call calc_polynomial_matrix(recPolyDegree,nPointsOnEdge,nRecTerms,xB*recdx,etaB*recdeta,recMatrixB)
-    call calc_polynomial_matrix(recPolyDegree,nPointsOnEdge,nRecTerms,xT*recdx,etaT*recdeta,recMatrixT)
     
     ! Reconstruct metric function
     call reconstruct_field(sqrtGL,&
@@ -592,119 +555,44 @@ contains
     real(r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce),intent(out) :: qT
     real(r_kind), dimension(              ics:ice,kcs:kce),intent(in ) :: qC
   
-    integer(i_kind) :: i,j,k,iR,kR
+    integer(i_kind) :: i,j,k
     integer(i_kind) :: iRec,kRec
     integer(i_kind) :: ic
     integer(i_kind) :: m,n
     
-    real(r_kind), dimension(nRecCells          ) :: u
-    real(r_kind)                                 :: h
-    real(r_kind), dimension(nRecCells,nRecTerms) :: A
-    real(r_kind), dimension(          nRecTerms) :: polyCoef
-    
-    m = nRecCells
-    n = nRecTerms
+    real(r_kind)                                     :: h
+    real(r_kind), dimension(maxRecCells            ) :: u
+    real(r_kind), dimension(maxRecCells,maxRecTerms) :: A
+    real(r_kind), dimension(            maxRecTerms) :: polyCoef
     
     h = dx
     
-    !$OMP PARALLEL DO PRIVATE(i,j,kR,iR,iRec,kRec,iC,u,A,polyCoef)
-    !do k = kds,kde
-    !  do i = ids,ide
-    do k = kbs,kbe
-      do i = ibs,ibe
+    !$OMP PARALLEL DO PRIVATE(i,j,m,n,iRec,kRec,iC,u,A,polyCoef)
+    do k = kds,kde
+      do i = ids,ide
+        m = nRecCells(i,k)
+        n = nRecTerms(i,k)
         ! Set variable for reconstruction
-        do kR = 1,stencil_width
-          do iR = 1,stencil_width
-            iRec = iRecCell(iR,kR,i,k)
-            kRec = kRecCell(iR,kR,i,k)
-            
-            j = stencil_width * ( kR - 1 ) + iR
-            u(j  ) = qC(iRec,kRec)
-            A(j,:) = polyCoordCoef(j,:,i,k)
-          enddo
+        do j = 1,m
+          iRec = iRecCell(j,i,k)
+          kRec = kRecCell(j,i,k)
+          
+          u(j    ) = qC(iRec,kRec)
+          A(j,1:n) = polyCoordCoef(j,1:n,i,k)
         enddo
         ic = iCenCell(i,k)
         
-        polyCoef = WLS_ENO(A,u,h,m,n,ic)
+        polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic)
         
-        qL(:,i,k) = matmul(recMatrixL,polyCoef)
-        qR(:,i,k) = matmul(recMatrixR,polyCoef)
-        qB(:,i,k) = matmul(recMatrixB,polyCoef)
-        qT(:,i,k) = matmul(recMatrixT,polyCoef)
+        qL(:,i,k) = matmul(recMatrixL(:,1:n,i,k),polyCoef(1:n))
+        qR(:,i,k) = matmul(recMatrixR(:,1:n,i,k),polyCoef(1:n))
+        qB(:,i,k) = matmul(recMatrixB(:,1:n,i,k),polyCoef(1:n))
+        qT(:,i,k) = matmul(recMatrixT(:,1:n,i,k),polyCoef(1:n))
       enddo
     enddo
     !$OMP END PARALLEL DO
-    
-    ! bottom
-    call reconstruct_bdy(ids,ide,kds,kbs-1,qL,qR,qB,qT,qC)
-    ! top
-    call reconstruct_bdy(ids,ide,kbe+1,kde,qL,qR,qB,qT,qC)
-    ! left
-    call reconstruct_bdy(ids,ibs-1,kbs,kbe,qL,qR,qB,qT,qC)
-    ! right
-    call reconstruct_bdy(ibe+1,ide,kbs,kbe,qL,qR,qB,qT,qC)
     
   end subroutine reconstruct_field
-  
-  ! reconstruct boundary by weno
-  subroutine reconstruct_bdy(is,ie,ks,ke,qL,qR,qB,qT,qC)
-    integer(i_kind)                                          , intent(in ) :: is
-    integer(i_kind)                                          , intent(in ) :: ie
-    integer(i_kind)                                          , intent(in ) :: ks
-    integer(i_kind)                                          , intent(in ) :: ke
-    real   (r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce), intent(out) :: qL
-    real   (r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce), intent(out) :: qR
-    real   (r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce), intent(out) :: qB
-    real   (r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce), intent(out) :: qT
-    real   (r_kind), dimension(              ics:ice,kcs:kce), intent(in ) :: qC
-    
-    real   (r_kind) :: q_weno(5)
-    integer(i_kind) :: dir
-    
-    integer(i_kind) :: i,k
-  
-    integer(i_kind) :: ip1,im1
-    integer(i_kind) :: kp1,km1
-    integer(i_kind) :: ip2,im2
-    integer(i_kind) :: kp2,km2
-    
-    !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,q_weno,dir)
-    do k = ks,ke
-      kp1 = k + 1
-      km1 = k - 1
-      kp2 = k + 2
-      km2 = k - 2
-      do i = is,ie
-        ip1 = i + 1
-        im1 = i - 1
-        ip2 = i + 2
-        im2 = i - 2
-        
-        ! x-dir
-        q_weno = qC(im2:ip2,k)
-        
-        dir = -1
-        call WENO5(qL(1,i,k),q_weno,dir)
-        dir = 1
-        call WENO5(qR(1,i,k),q_weno,dir)
-        
-        ! z-dir
-        q_weno = qC(i,km2:kp2)
-        
-        dir = -1
-        call WENO5(qB(1,i,k),q_weno,dir)
-        dir = 1
-        call WENO5(qT(1,i,k),q_weno,dir)
-      
-        qL(2:nPointsOnEdge,i,k) = qL(1,i,k)
-        qR(2:nPointsOnEdge,i,k) = qR(1,i,k)
-        qB(2:nPointsOnEdge,i,k) = qB(1,i,k)
-        qT(2:nPointsOnEdge,i,k) = qT(1,i,k)
-      enddo
-    enddo
-    !$OMP END PARALLEL DO
-  
-  end subroutine reconstruct_bdy
   
   function calc_pressure(sqrtG,q)
     real(r_kind) calc_pressure
