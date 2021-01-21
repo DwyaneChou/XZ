@@ -56,4 +56,4 @@ colormap(jet)
 % 
 % % output picture
 % title([varname,' at ',num2str((it-1)*history_interval),' second(s)'])
-print(gcf,'-r600','-dpng',[pic_path,'\',varname,'_',num2str(it-1,'%.4d'),'.png']);
+% print(gcf,'-r600','-dpng',[pic_path,'\',varname,'_',num2str(it-1,'%.4d'),'.png']);

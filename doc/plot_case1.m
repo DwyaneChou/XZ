@@ -43,7 +43,7 @@ var = ncread(ncfile,varname,[1,1,it],[Inf,Inf,1]);
 
 disp(['Plotting time ',num2str(it),'/',num2str(nt)])
 % figure('visible','off')
-
+figure
 if strcmp(varname,'u')||strcmp(varname,'w')
     var_p = var;
     var_n = var;

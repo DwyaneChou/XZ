@@ -647,6 +647,9 @@ contains
     real(r_kind) :: pL      ! pressure
     real(r_kind) :: pR      ! pressure
     
+    real(r_kind) sqrtGrhoL
+    real(r_kind) sqrtGrhoR
+    
     real(r_kind) rhoL
     real(r_kind) rhoR
     
@@ -659,10 +662,13 @@ contains
     real(r_kind) m
     real(r_kind) p ! sqrtG * p
     
-    rhoL = ( qL(1) + qL(5) ) / sqrtGL
-    rhoR = ( qR(1) + qR(5) ) / sqrtGR
-    uL   = qL(2) / ( qL(1) + qL(5) )
-    uR   = qR(2) / ( qR(1) + qR(5) )
+    sqrtGrhoL = qL(1) + qL(5)
+    sqrtGrhoR = qR(1) + qR(5)
+    
+    rhoL = sqrtGrhoL / sqrtGL
+    rhoR = sqrtGrhoR / sqrtGR
+    uL   = qL(2) / sqrtGrhoL
+    uR   = qR(2) / sqrtGrhoR
     cL   = calc_sound_speed_x(sqrtGL,qL)
     cR   = calc_sound_speed_x(sqrtGR,qR)
     
@@ -693,6 +699,8 @@ contains
     real(r_kind) :: pL_pert ! pressure  perturbation
     real(r_kind) :: pR_pert ! pressure  perturbation
     
+    real(r_kind) sqrtGrhoL
+    real(r_kind) sqrtGrhoR
     
     real(r_kind) rhoL
     real(r_kind) rhoR
@@ -707,10 +715,13 @@ contains
     real(r_kind) p      ! sqrtG * G13 * p
     real(r_kind) p_pert ! p - p_ref
     
-    rhoL = ( qL(1) + qL(5) ) / sqrtGL
-    rhoR = ( qR(1) + qR(5) ) / sqrtGR
-    uL   = ( qL(3) + sqrtGL * G13L * qL(2) ) / ( qL(1) + qL(5) ) ! a sqrtG has been multipled here
-    uR   = ( qR(3) + sqrtGR * G13R * qR(2) ) / ( qR(1) + qR(5) ) ! a sqrtG has been multipled here
+    sqrtGrhoL = qL(1) + qL(5)
+    sqrtGrhoR = qR(1) + qR(5)
+    
+    rhoL = sqrtGrhoL / sqrtGL
+    rhoR = sqrtGrhoR / sqrtGR
+    uL   = ( qL(3) + sqrtGL * G13L * qL(2) ) / sqrtGrhoL ! a sqrtG has been multipled here
+    uR   = ( qR(3) + sqrtGR * G13R * qR(2) ) / sqrtGrhoR ! a sqrtG has been multipled here
     cL   = calc_sound_speed_z(sqrtGL,G13L,qL) * sqrtGL
     cR   = calc_sound_speed_z(sqrtGR,G13R,qR) * sqrtGR
     
@@ -835,6 +846,9 @@ contains
     real(r_kind) :: Mbar2
     real(r_kind) :: Mh
     
+    real(r_kind) :: P5MLsp
+    real(r_kind) :: P5MRsn
+    
     rho = 0.5 * ( rhoL + rhoR )
     a   = 0.5 * ( cL + cR )
     
@@ -846,7 +860,10 @@ contains
     Mh = M4( ML, sp ) + M4( MR, sn ) - Kp * max( 1. - sigma * Mbar2, 0. ) * ( PR - PL ) / ( rho * a**2 )
     m  = a * Mh
     
-    p = P5(ML,sp) * sqrtGL * PL + P5(MR,sn) * sqrtGR * PR - Ku * P5(ML,sp) * P5(MR,sn) * ( sqrtGL * rhoL + sqrtGR * rhoR ) * a * ( uR - uL )
+    P5MLsp = P5(ML,sp)
+    P5MRsn = P5(MR,sn)
+    
+    p = P5MLsp * sqrtGL * PL + P5MRsn * sqrtGR * PR - Ku * P5MLsp * P5MRsn * ( sqrtGL * rhoL + sqrtGR * rhoR ) * a * ( uR - uL )
     
   end subroutine AUSM_up_x
   
@@ -854,8 +871,8 @@ contains
                        sqrtGL, sqrtGR, G13L, G13R, rhoL, rhoR, uL, uR, cL, cR, pL, pR,& ! input state
                        rhoL_ref, rhoR_ref, cL_ref, cR_ref, pL_ref, pR_ref)              ! input reference state
     real(r_kind),intent(out) :: m
-    real(r_kind),intent(out) :: p
-    real(r_kind),intent(out) :: p_pert
+    real(r_kind),intent(out) :: p        ! Actully sqrtG * G13 * p
+    real(r_kind),intent(out) :: p_pert   ! Actully p
     real(r_kind),intent(in ) :: sqrtGL
     real(r_kind),intent(in ) :: sqrtGR
     real(r_kind),intent(in ) :: G13L
@@ -899,6 +916,9 @@ contains
     real(r_kind) :: coefL
     real(r_kind) :: coefR
     
+    real(r_kind) :: P5MLsp
+    real(r_kind) :: P5MRsn
+    
     rho = 0.5 * ( rhoL + rhoR )
     a   = 0.5 * ( cL + cR )
     
@@ -912,6 +932,9 @@ contains
     MR = uR / a
     
     Mbar2 = ( uL**2 + uR**2 ) / ( 2. * a**2 )
+    
+    P5MLsp = P5(ML,sp)
+    P5MRsn = P5(MR,sn)
     
     !if( pL_pert/pL_ref<1.e-13 .and. pR_pert/pR_ref<1.e-13 )then
     !  p_diff = 0
@@ -927,13 +950,13 @@ contains
     coefL = sqrtGL * G13L
     coefR = sqrtGR * G13R
     
-    p = P5(ML,sp) * coefL * PL + P5(MR,sn) * coefR * PR &
-      - Ku * P5(ML,sp) * P5(MR,sn) * ( coefL * rhoL + coefR * rhoR ) * a * ( uR - uL )
+    p = P5MLsp * coefL * PL + P5MRsn * coefR * PR &
+      - Ku * P5MLsp * P5MRsn * ( coefL * rhoL + coefR * rhoR ) * a * ( uR - uL )
     
-    !p_pert = P5(ML,sp) * pL_pert + P5(MR,sn) * pR_pert &
-    !       - 2. * Ku * P5(ML,sp) * P5(MR,sn) * ( rho * a - rho_ref * a_ref  ) * ( uR - uL )
-    p_pert = P5(ML,sp) * pL + P5(MR,sn) * pR &
-           - 2. * Ku * P5(ML,sp) * P5(MR,sn) * rho * a * ( uR - uL )
+    !p_pert = P5MLsp * pL_pert + P5MRsn * pR_pert &
+    !       - 2. * Ku * P5MLsp * P5MRsn * ( rho * a - rho_ref * a_ref  ) * ( uR - uL )
+    p_pert = P5MLsp * PL + P5MRsn * PR &
+           - 2. * Ku * P5MLsp * P5MRsn * rho * a * ( uR - uL )
     
     !if( abs(2.*p_pert/(pL+pR)) < 1.e-13 )p_pert = 0
     

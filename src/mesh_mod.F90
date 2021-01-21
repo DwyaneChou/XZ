@@ -197,8 +197,7 @@
             do i = ics,ice
               do j = 1,nQuadPointsOnCell
                 dzdeta(j,i,k) = 1. - zs(j,i,k) * cosh( ( H - eta(j,i,k) ) / s ) / ( s * sinh( H / s ) )
-                detadx(j,i,k) = -sinh( ( z_max - eta(j,i,k) ) / s ) / sinh( z_max / s ) &
-                             / ( 1. - zs(j,i,k) / s * cosh( ( z_max - eta(j,i,k) ) / s ) / sinh( z_max / s ) ) * dzsdx(j,i,k)
+                detadx(j,i,k) = -dzsdx(j,i,k)*sinh((H-eta(j,i,k))/s)/sinh(H/s) / dzdeta(j,i,k)
                 
                 z(j,i,k) = eta(j,i,k) + zs(j,i,k) * sinh( ( H - eta(j,i,k) ) / s ) / sinh( H / s )
               enddo
