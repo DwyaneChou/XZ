@@ -146,16 +146,6 @@
         
         call qr_solver(WA,Wu,WLS_ENO,M,N)
         
-        !if(abs(WLS_ENO(1)-1.)>1.e-15)then
-        !  print*,W
-        !  print*,''
-        !  !print*,u
-        !  !print*,''
-        !  print*,A
-        !  print*,''
-        !  print*,WLS_ENO
-        !endif
-        
       end function WLS_ENO
       
       subroutine WENO_limiter(Qrec,Q,dir)

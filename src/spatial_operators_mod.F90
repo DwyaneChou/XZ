@@ -208,6 +208,7 @@ contains
     recdeta = 1. / ( deta * recCoef )
     recdV   = 1. / ( recCoef**2 )
     
+    !$OMP PARALLEL DO PRIVATE(i,j,iRec,kRec)
     do k = kds,kde
       do i = ids,ide
         do j = 1,nRecCells(i,k)
@@ -230,6 +231,7 @@ contains
         call calc_polynomial_matrix(locPolyDegree(i,k),nPointsOnEdge,nRecTerms(i,k),xT*recdx,etaT*recdeta,recMatrixT(:,1:nRecTerms(i,k),i,k))
       enddo
     enddo
+    !$OMP END PARALLEL DO
     
     ! Reconstruct metric function
     call reconstruct_field(sqrtGL,&
@@ -375,21 +377,29 @@ contains
     endif
     
     ! Fill outside boundary
-    ! left boundary
-    qR(:,:,ids-1,kds:kde) = qL(:,:,ids,kds:kde)
-    FR(:,:,ids-1,kds:kde) = FL(:,:,ids,kds:kde)
+    !$OMP PARALLEL DO
+    do k = kds,kde
+      ! left boundary
+      qR(:,:,ids-1,k) = qL(:,:,ids,k)
+      FR(:,:,ids-1,k) = FL(:,:,ids,k)
+      
+      ! right boundary
+      qL(:,:,ide+1,k) = qR(:,:,ide,k)
+      FL(:,:,ide+1,k) = FR(:,:,ide,k)
+    enddo
+    !$OMP END PARALLEL DO
     
-    ! right boundary
-    qL(:,:,ide+1,kds:kde) = qR(:,:,ide,kds:kde)
-    FL(:,:,ide+1,kds:kde) = FR(:,:,ide,kds:kde)
-    
-    ! bottom boundary
-    qT(:,:,ids:ide,kds-1) = qB(:,:,ids:ide,kds)
-    HT(:,:,ids:ide,kds-1) = HB(:,:,ids:ide,kds)
-    
-    ! top boundary
-    qB(:,:,ids:ide,kde+1) = qT(:,:,ids:ide,kde)
-    HB(:,:,ids:ide,kde+1) = HT(:,:,ids:ide,kde)
+    !$OMP PARALLEL DO
+    do i = ids,ide
+      ! bottom boundary
+      qT(:,:,i,kds-1) = qB(:,:,i,kds)
+      HT(:,:,i,kds-1) = HB(:,:,i,kds)
+      
+      ! top boundary
+      qB(:,:,i,kde+1) = qT(:,:,i,kde)
+      HB(:,:,i,kde+1) = HT(:,:,i,kde)
+    enddo
+    !$OMP END PARALLEL DO
   
     ! Calculate pressure X
     !$OMP PARALLEL DO PRIVATE(i,iPOE)
@@ -484,6 +494,7 @@ contains
     
     !rho_p = ( qC   (1,ids:ide,kds:kde) + qC   (5,ids:ide,kds:kde) &
     !        - ref%q(1,ids:ide,kds:kde) - ref%q(5,ids:ide,kds:kde) ) / sqrtGC(ids:ide,kds:kde)
+    !where(abs(rho_p)<=1.E-13)rho_p=0.
     !$OMP PARALLEL DO PRIVATE(i)
     do k = kds,kde
       do i = ids,ide
@@ -491,8 +502,6 @@ contains
       enddo
     enddo
     !$OMP END PARALLEL DO
-    
-    !where(abs(rho_p)<=1.E-13)rho_p=0.
     
     !$OMP PARALLEL DO PRIVATE(i,iVar)
     do k = kds,kde
