@@ -11,9 +11,9 @@
       real(r_kind), dimension(:,:,:), allocatable :: etaCorner ! 1: low left, 2: low right, 3: up right, 4:  up left
       real(r_kind), dimension(:,:,:), allocatable :: zCorner   ! 1: low left, 2: low right, 3: up right, 4:  up left
       
-      real(r_kind), dimension(:,:,:), allocatable :: x   ! x coordinate of Quadrature Points
-      real(r_kind), dimension(:,:,:), allocatable :: eta ! eta coordinate of Quadrature Points
-      real(r_kind), dimension(:,:,:), allocatable :: z   ! z coordinate of Quadrature Points
+      real(r_kind), dimension(:,:,:), allocatable :: x   ! x coordinate of Points on cell
+      real(r_kind), dimension(:,:,:), allocatable :: eta ! eta coordinate of Points on cell
+      real(r_kind), dimension(:,:,:), allocatable :: z   ! z coordinate of Points on cell
       
       real   (r_kind), dimension(:), allocatable :: xL
       real   (r_kind), dimension(:), allocatable :: xR
@@ -25,7 +25,7 @@
       real   (r_kind), dimension(:), allocatable :: etaB
       real   (r_kind), dimension(:), allocatable :: etaT
       
-      real(r_kind), dimension(:,:,:), allocatable :: zs ! topography on Quadrature Points
+      real(r_kind), dimension(:,:,:), allocatable :: zs ! topography on Points on cell
       
       real(r_kind), dimension(:,:,:), allocatable :: sqrtG ! sqrtG on Quadrature Points
       real(r_kind), dimension(:,:,:), allocatable :: G13   ! G13 on Quadrature Points

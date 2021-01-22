@@ -35,8 +35,9 @@ module parameters_mod
   ! Reconstruction
   integer(i_kind) :: recPolyDegree     = 4 ! reconstruction polynomial degree
   integer(i_kind) :: stencil_width     = 5 ! Choose from odds, 3, 5, 7, 9
-  integer(i_kind) :: nPointsOnEdge     = 5
+  integer(i_kind) :: nPointsOnEdge     = 3
   integer(i_kind) :: nQuadPointsOnCell = 25 !n Quadrature Points On Cell
+  integer(i_kind) :: nPointsOnCell     = 37 !n Points On Cell
   
   integer(i_kind) :: nIntegralSubSteps ! number of integral substeps in temporal integration scheme
   integer(i_kind) :: nsteps            ! total integral steps
@@ -198,6 +199,7 @@ module parameters_mod
     nsteps = total_run_time / dt
     
     nQuadPointsOnCell = nPointsOnEdge**2
+    nPointsOnCell     = nQuadPointsOnCell + nPointsOnEdge * nEdgesOnCell
     
     print*,'ids = ',ids
     print*,'ide = ',ide
