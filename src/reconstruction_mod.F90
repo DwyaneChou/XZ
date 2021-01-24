@@ -129,6 +129,10 @@
         real(r_kind), dimension(m  ) :: W ! weights on each cells
         real(r_kind), dimension(m  ) :: beta
         
+        !  For LAPACK only
+        real   (r_kind), dimension(m+n) :: work
+        integer(i_kind) :: INFO
+        
         integer(i_kind) :: i,j,k
         
         do j = 1,m
@@ -144,8 +148,12 @@
           Wu(j  ) = W(j) * u(j  )
         enddo
         
+        ! Solver by Tsinghua
         call qr_solver(WA,Wu,WLS_ENO,M,N)
         
+        !! Solver by LAPACK DGELS
+        !call DGELS( 'N', M, N, 1, WA, M, Wu, M, WORK, M+N, INFO )
+        !WLS_ENO = Wu
       end function WLS_ENO
       
       subroutine WENO_limiter(Qrec,Q,dir)

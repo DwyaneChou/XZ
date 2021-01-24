@@ -1,5 +1,6 @@
     module qr_solver_mod
     use constants_mod
+    implicit none
     !----------------------------------------module coment
     !  Version     :  V1.0    
     !  Coded by    :  syz 
@@ -44,11 +45,11 @@
         implicit real(r_kind)(a-z)
         
         integer(i_kind)::M,N
-        real(r_kind)::A(M,N),Q(M,N),R(N,N)
-        real(r_kind)::b(M)
-        real(r_kind)::QT(N,M)  !Q的转置矩阵
-        real(r_kind)::QTb(N)   !Q'b
-        real(r_kind)::x(N)
+        real   (r_kind)::A(M,N),Q(M,N),R(N,N)
+        real   (r_kind)::b(M)
+        real   (r_kind)::QT(N,M)  !Q的转置矩阵
+        real   (r_kind)::QTb(N)   !Q'b
+        real   (r_kind)::x(N)
          
         call gram_dec(A,Q,R,M,N)
         

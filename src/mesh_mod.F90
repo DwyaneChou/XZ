@@ -55,6 +55,17 @@
       ! For detadx ( G13 )
       real(r_kind), dimension(:,:,:), allocatable :: dzsdx
       real(r_kind), dimension(:,:,:), allocatable :: detadx
+      
+      ! For calculate analytical metric term
+      real(r_kind), dimension(:,:,:,:), allocatable :: x_ext     ! (nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde) &
+      real(r_kind), dimension(:,:,:,:), allocatable :: eta_ext   ! edge index: 1 for bottom
+      real(r_kind), dimension(:,:,:,:), allocatable :: z_ext     !             2 for right
+      real(r_kind), dimension(:,:,:,:), allocatable :: zs_ext    !             3 for top
+      real(r_kind), dimension(:,:,:,:), allocatable :: sqrtG_ext !             4 for left
+      real(r_kind), dimension(:,:,:,:), allocatable :: G13_ext
+      real(r_kind), dimension(:,:,:,:), allocatable :: dzdeta_ext
+      real(r_kind), dimension(:,:,:,:), allocatable :: dzsdx_ext
+      real(r_kind), dimension(:,:,:,:), allocatable :: detadx_ext
     contains
     
       subroutine init_mesh
@@ -113,6 +124,17 @@
         allocate(dzsdx  (nQuadPointsOnCell,ics:ice,kcs:kce))
         allocate(detadx (nQuadPointsOnCell,ics:ice,kcs:kce))
         
+        ! For calculate analytical metric term
+        allocate(x_ext     (nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde))
+        allocate(eta_ext   (nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde))
+        allocate(z_ext     (nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde))
+        allocate(zs_ext    (nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde))
+        allocate(sqrtG_ext (nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde))
+        allocate(G13_ext   (nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde))
+        allocate(dzdeta_ext(nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde))
+        allocate(dzsdx_ext (nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde))
+        allocate(detadx_ext(nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde))
+        
         deta = ( z_max - z_min ) / nz
         
         do k = kcs,kce
@@ -160,6 +182,19 @@
           etaR(jQP) = etaL(jQP)
         enddo
         
+        do k = kds,kde
+          do i = ids,ide
+            x_ext  (:,1,i,k) = xCenter  (i,k) + xB
+            x_ext  (:,2,i,k) = xCenter  (i,k) + xR
+            x_ext  (:,3,i,k) = xCenter  (i,k) + xT
+            x_ext  (:,4,i,k) = xCenter  (i,k) + xL
+            eta_ext(:,1,i,k) = etaCenter(i,k) + etaB
+            eta_ext(:,2,i,k) = etaCenter(i,k) + etaR
+            eta_ext(:,3,i,k) = etaCenter(i,k) + etaT
+            eta_ext(:,4,i,k) = etaCenter(i,k) + etaL
+          enddo
+        enddo
+        
       end subroutine init_mesh
       
       subroutine init_vertical_coordinate
@@ -174,16 +209,13 @@
         
         if( vertical_coordinate == 1 )then
           ! Gal-Chen, 1975
-          do k = kcs,kce
-            do i = ics,ice
-              do j = 1,nQuadPointsOnCell
-                dzdeta(j,i,k) = ( z_max - zs(j,i,k) ) / z_max
-                detadx(j,i,k) = ( eta(j,i,k) - z_max ) / ( z_max - zs(j,i,k) ) * dzsdx(j,i,k)
-                
-                z(j,i,k) = ( z_max - zs(j,i,k) ) / z_max * eta(j,i,k)  + zs(j,i,k)
-              enddo
-            enddo
-          enddo
+          dzdeta = ( z_max - zs ) / z_max
+          detadx = ( eta - z_max ) / ( z_max - zs ) * dzsdx
+          z      = ( z_max - zs ) / z_max * eta + zs
+          
+          dzdeta_ext = ( z_max - zs_ext ) / z_max
+          detadx_ext = ( eta_ext - z_max ) / ( z_max - zs_ext ) * dzsdx_ext
+          z_ext      = ( z_max - zs_ext ) / z_max * eta_ext + zs_ext
         elseif( vertical_coordinate == 2 )then
           ! Schar, 2002
           H = z_max - z_min
@@ -193,27 +225,21 @@
             s = H / exp(1.)
           endif
           
-          do k = kcs,kce
-            do i = ics,ice
-              do j = 1,nQuadPointsOnCell
-                dzdeta(j,i,k) = 1. - zs(j,i,k) * cosh( ( H - eta(j,i,k) ) / s ) / ( s * sinh( H / s ) )
-                detadx(j,i,k) = -dzsdx(j,i,k)*sinh((H-eta(j,i,k))/s)/sinh(H/s) / dzdeta(j,i,k)
-                
-                z(j,i,k) = eta(j,i,k) + zs(j,i,k) * sinh( ( H - eta(j,i,k) ) / s ) / sinh( H / s )
-              enddo
-            enddo
-          enddo
+          dzdeta = 1. - zs * cosh( ( H - eta ) / s ) / ( s * sinh( H / s ) )
+          detadx = -dzsdx*sinh((H-eta)/s)/sinh(H/s) / dzdeta
+          z      = eta + zs * sinh( ( H - eta ) / s ) / sinh( H / s )
+          
+          dzdeta_ext = 1. - zs_ext * cosh( ( H - eta_ext ) / s ) / ( s * sinh( H / s ) )
+          detadx_ext = -dzsdx_ext*sinh((H-eta_ext)/s)/sinh(H/s) / dzdeta_ext
+          z_ext      = eta_ext + zs_ext * sinh( ( H - eta_ext ) / s ) / sinh( H / s )
         endif
         
         ! Reconstruct mertric tensor by analytical value
-        do k = kcs,kce
-          do i = ics,ice
-            do j = 1,nQuadPointsOnCell
-              sqrtG(j,i,k) = dzdeta(j,i,k)
-              G13  (j,i,k) = detadx(j,i,k)
-            enddo
-          enddo
-        enddo
+        sqrtG = dzdeta
+        G13   = detadx
+        
+        sqrtG_ext = dzdeta_ext
+        G13_ext   = detadx_ext
         
         ! Calculate cell value
         do k = kcs,kce
