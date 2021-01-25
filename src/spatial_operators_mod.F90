@@ -180,61 +180,107 @@ contains
     print*,''
     inDomain(ics:ice,kcs:kce) = .false. 
     inDomain(ids:ide,kds:kde) = .true.
+    !! Scheme 1
+    !do k = kds,kde
+    !  do i = ids,ide
+    !    j = 0
+    !    do kRec = 1,stencil_width
+    !      do iRec = 1,stencil_width
+    !        if(inDomain(i-recBdy+iRec-1,k-recBdy+kRec-1))then
+    !          j = j + 1
+    !          iRecCell(j,i,k) = i-recBdy+iRec-1
+    !          kRecCell(j,i,k) = k-recBdy+kRec-1
+    !        endif
+    !      enddo
+    !    enddo
+    !    nRecCells(i,k) = j
+    !      
+    !    if( nRecCells(i,k) >= 3           ) locPolyDegree(i,k) = 1
+    !    if( nRecCells(i,k) >= 9           ) locPolyDegree(i,k) = 2
+    !    if( nRecCells(i,k) >= 16          ) locPolyDegree(i,k) = 3
+    !    if( nRecCells(i,k) >= 25          ) locPolyDegree(i,k) = 4
+    !    if( nRecCells(i,k) == maxRecCells ) locPolyDegree(i,k) = recPolyDegree
+    !  enddo
+    !enddo
+    !
+    !do i = ibs,ibe
+    !  ! special treatment on low boundary
+    !  k = kds
+    !  iRecCell(11,i,k) = i - 1
+    !  kRecCell(11,i,k) = k + 2
+    !  iRecCell(12,i,k) = i
+    !  kRecCell(12,i,k) = k + 2
+    !  iRecCell(13,i,k) = i + 1
+    !  kRecCell(13,i,k) = k + 2
+    !  iRecCell(14,i,k) = i
+    !  kRecCell(14,i,k) = k + 3
+    !  
+    !  nRecCells    (i,k) = 14
+    !  locPolyDegree(i,k) = 3
+    !  
+    !  k = kds + 1
+    !  iRecCell(16,i,k) = i - 1
+    !  kRecCell(16,i,k) = k + 2
+    !  iRecCell(17,i,k) = i
+    !  kRecCell(17,i,k) = k + 2
+    !  iRecCell(18,i,k) = i + 1
+    !  kRecCell(18,i,k) = k + 2
+    !  iRecCell(19,i,k) = i - 1
+    !  kRecCell(19,i,k) = k + 3
+    !  iRecCell(20,i,k) = i
+    !  kRecCell(20,i,k) = k + 3
+    !  iRecCell(21,i,k) = i + 1
+    !  kRecCell(21,i,k) = k + 3
+    !  
+    !  nRecCells    (i,k) = 21
+    !  locPolyDegree(i,k) = 3
+    !enddo
+    
+    !! Scheme 2
+    !do i = ibs,ibe
+    !  do k = kds,kds+1
     do k = kds,kde
       do i = ids,ide
         j = 0
-        do kRec = 1,stencil_width
-          do iRec = 1,stencil_width
-            if(inDomain(i-recBdy+iRec-1,k-recBdy+kRec-1))then
-              j = j + 1
-              iRecCell(j,i,k) = i-recBdy+iRec-1
-              kRecCell(j,i,k) = k-recBdy+kRec-1
+        do kRec = -recBdy,recBdy
+          do iRec = -recBdy,recBdy
+            if(abs(iRec)+abs(kRec)<=recBdy)then
+              if(inDomain(i+iRec,k+kRec))then
+                j = j + 1
+                iRecCell(j,i,k) = i + iRec
+                kRecCell(j,i,k) = k + kRec
+              endif
             endif
           enddo
         enddo
         nRecCells(i,k) = j
-          
-        if( nRecCells(i,k) >= 3           ) locPolyDegree(i,k) = 1
-        if( nRecCells(i,k) >= 9           ) locPolyDegree(i,k) = 2
-        if( nRecCells(i,k) >= 16          ) locPolyDegree(i,k) = 3
-        if( nRecCells(i,k) >= 25          ) locPolyDegree(i,k) = 4
-        if( nRecCells(i,k) == maxRecCells ) locPolyDegree(i,k) = recPolyDegree
+        if(nRecCells(i,k)>6 )locPolyDegree(i,k) = 2
+        if(nRecCells(i,k)>10)locPolyDegree(i,k) = 3
+        if(nRecCells(i,k)>16)locPolyDegree(i,k) = 4
+        if(nRecCells(i,k)>21)locPolyDegree(i,k) = 5
+        !print*,k,i,j,locPolyDegree(i,k)
       enddo
     enddo
-    
-    do i = ibs,ibe
-      ! special treatment on low boundary
-      k = kds
-      iRecCell(11,i,k) = i - 1
-      kRecCell(11,i,k) = k + 2
-      iRecCell(12,i,k) = i
-      kRecCell(12,i,k) = k + 2
-      iRecCell(13,i,k) = i + 1
-      kRecCell(13,i,k) = k + 2
-      iRecCell(14,i,k) = i
-      kRecCell(14,i,k) = k + 3
-      
-      nRecCells    (i,k) = 14
-      locPolyDegree(i,k) = 3
-      
-      k = kds + 1
-      iRecCell(16,i,k) = i - 1
-      kRecCell(16,i,k) = k + 2
-      iRecCell(17,i,k) = i
-      kRecCell(17,i,k) = k + 2
-      iRecCell(18,i,k) = i + 1
-      kRecCell(18,i,k) = k + 2
-      iRecCell(19,i,k) = i - 1
-      kRecCell(19,i,k) = k + 3
-      iRecCell(20,i,k) = i
-      kRecCell(20,i,k) = k + 3
-      iRecCell(21,i,k) = i + 1
-      kRecCell(21,i,k) = k + 3
-      
-      nRecCells    (i,k) = 21
-      locPolyDegree(i,k) = 3
-    enddo
-    
+
+    !! special treatment on low boundary
+    !do i = ids+recBdy,ide-recBdy
+    !  k = kds
+    !  j = 17
+    !  iRecCell     (j,i,k) = i
+    !  kRecCell     (j,i,k) = k + 4
+    !  j = 18
+    !  iRecCell     (j,i,k) = i - 1
+    !  kRecCell     (j,i,k) = k + 3
+    !  j = 19
+    !  iRecCell     (j,i,k) = i + 1
+    !  kRecCell     (j,i,k) = k + 3
+    !  
+    !  nRecCells    (  i,k) = j
+    !  locPolyDegree(  i,k) = 4
+    !  
+    !  !k = kds + 1
+    !enddo
+
     do k = kds,kde
       do i = ids,ide
         nRecTerms(i,k) = ( locPolyDegree(i,k) + 1 ) * ( locPolyDegree(i,k) + 2 ) / 2
