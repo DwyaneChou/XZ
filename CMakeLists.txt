@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.0.0 FATAL_ERROR)
 project(xz LANGUAGES Fortran)
 
 if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
-  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Ofast -r8 -parallel")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Ofast -r8 -qopenmp -parallel -xBROADWELL -axBROADWELL -arch BROADWELL -mcpu=BROADWELL -m64")
   if (CMAKE_BUILD_TYPE MATCHES DEBUG)
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -gdwarf -Og -traceback -check all")
   endif ()
