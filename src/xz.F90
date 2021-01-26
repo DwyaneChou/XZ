@@ -21,8 +21,6 @@
       
       integer :: output_idx, total_output_num
       
-      real(r_kind), parameter :: timer_coef = 1.e9
-      
       character(8 ) :: date_timer
       character(10) :: timeStart,timeEnd
       
