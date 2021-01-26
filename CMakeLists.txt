@@ -39,17 +39,17 @@ else ()
   endif ()
 endif ()
 
-if (DEFINED ENV{LAPACK_ROOT})
-  include_directories("$ENV{LAPACK_ROOT}")
-  link_directories("$ENV{LAPACK_ROOT}")
-  set(LAPACK_LINKER_FLAGS "-llapack")
-else ()
-  find_package(LAPACK)
-  if (NOT LAPACK_FOUND)
-    message(DEBUG "Unable to find LAPACK library, use internal routines.")
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DNOLAPACK")
-  endif ()
-endif ()
+#if (DEFINED ENV{LAPACK_ROOT})
+#  include_directories("$ENV{LAPACK_ROOT}")
+#  link_directories("$ENV{LAPACK_ROOT}")
+#  set(LAPACK_LINKER_FLAGS "-llapack")
+#else ()
+#  find_package(LAPACK)
+#  if (NOT LAPACK_FOUND)
+#    message(DEBUG "Unable to find LAPACK library, use internal routines.")
+#    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DNOLAPACK")
+#  endif ()
+#endif ()
 
 set(source_files
   src/xz.F90
@@ -69,7 +69,7 @@ set(source_files
 )
 
 add_library(xz ${source_files})
-target_link_libraries(xz netcdf netcdff ${LAPACK_LIBRARIES})
+target_link_libraries(xz netcdf netcdff -mkl)# ${LAPACK_LIBRARIES}
 
 add_executable(xz.exe src/xz.F90)
 target_link_libraries(xz.exe xz)

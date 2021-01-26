@@ -50,14 +50,21 @@
         real   (r_kind)::QT(N,M)  !Q的转置矩阵
         real   (r_kind)::QTb(N)   !Q'b
         real   (r_kind)::x(N)
-         
+        
+        !  For LAPACK only
+        real   (r_kind), dimension(m+n) :: work
+        real   (r_kind), dimension(n  ) :: tau
+        integer(i_kind) :: INFO
+        
+        integer i,j
+        
         call gram_dec(A,Q,R,M,N)
         
         QT=transpose(Q)
         QTb=matmul(QT,b)  !  Rx=Q'b
         
         call uptri(R,QTb,x,N) !回带
-      
+        
       end subroutine qr_solver
       
       subroutine gram_dec(A,Q,R,M,N)
