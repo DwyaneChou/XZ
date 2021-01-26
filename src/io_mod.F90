@@ -136,8 +136,8 @@ module io_mod
     end subroutine history_init
     
     subroutine history_write_stat(stat,time_slot_num)
-      type(stat_field), intent(inout) :: stat
-      integer         , intent(in   ) :: time_slot_num
+      type(stat_field), intent(in) :: stat
+      integer         , intent(in) :: time_slot_num
       
       integer status
       integer ncid
@@ -161,12 +161,12 @@ module io_mod
       real(r_kind), dimension(nx,nz) :: u
       real(r_kind), dimension(nx,nz) :: w
       real(r_kind), dimension(nx,nz) :: theta
-      real(r_kind), dimension(nx,nz) :: q     !±ÈÊª
-      real(r_kind), dimension(nx,nz) :: gamma !»ìºÏ±È
+      real(r_kind), dimension(nx,nz) :: q     !ï¿½ï¿½Êª
+      real(r_kind), dimension(nx,nz) :: gamma !ï¿½ï¿½Ï±ï¿½
       real(r_kind), dimension(nx,nz) :: T
       real(r_kind), dimension(nx,nz) :: p
       real(r_kind), dimension(nx,nz) :: kappa
-      real(r_kind), dimension(nx,nz) :: Ra ! ±ÈÆøÌå³£Êý
+      real(r_kind), dimension(nx,nz) :: Ra ! ï¿½ï¿½ï¿½ï¿½ï¿½å³£ï¿½ï¿½
       real(r_kind), dimension(nx,nz) :: Cp
       real(r_kind), dimension(nx,nz) :: Cv
       
