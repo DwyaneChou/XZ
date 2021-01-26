@@ -4,10 +4,10 @@ clear
 ncfile    = '..\run\output_xz_2.nc';
 % ncfile    = '..\run\output_xz_2_3pts.nc';
 pic_path  = '.\';
-varname   = 'w';
+varname   = 'u';
 
 time_start = 1;
-time_end   = 301;
+time_end   = 501;
 
 it = time_end;
 
@@ -20,8 +20,8 @@ if strcmp(varname,'u')
     min_value = 8;
     dc = 0.2;
 elseif strcmp(varname,'w')
-    max_value = -2;
-    min_value = 2;
+    max_value = 2;
+    min_value = -2;
     dc = 0.05;
 end
 TextList = min_value:dc:max_value;
@@ -42,7 +42,7 @@ if strcmp(varname,'u')||strcmp(varname,'w')
     % plt = contour(x,z,var,'LevelStep',0.05,'ShowText','on','TextList',TextList,'LineStyle','-','LineWidth',2);
     xlim([-10000,10000])
     ylim([0,10000])
-%     set(plt,'Clim',[min_value,max_value])
+    set(gca,'Clim',[min_value,max_value])
 end
 colormap(jet)
 

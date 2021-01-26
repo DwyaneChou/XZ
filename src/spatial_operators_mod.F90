@@ -266,12 +266,12 @@ contains
     do k = kds,kds+1
       do i = ibs,ibe
         j = 0
-        do kRec = 1,stencil_width
-          do iRec = 1,stencil_width
-            if(inDomain(i-recBdy+iRec-1,k-recBdy+kRec-1))then
+        do kRec = 1,5 ! stencil_width=5
+          do iRec = 1,5
+            if(inDomain(i-2+iRec-1,k-2+kRec-1))then! recBdy=2
               j = j + 1
-              iRecCell(j,i,k) = i-recBdy+iRec-1
-              kRecCell(j,i,k) = k-recBdy+kRec-1
+              iRecCell(j,i,k) = i-2+iRec-1
+              kRecCell(j,i,k) = k-2+kRec-1
             endif
           enddo
         enddo
@@ -645,12 +645,12 @@ contains
     !$OMP PARALLEL DO PRIVATE(i)
     do k = kds,kde
       do i = ids,ide
-        !rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) - ref%q(1,i,k) - ref%q(5,i,k) ) / sqrtGC(i,k)  ! hydrostatic
-        rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) ) / sqrtGC(i,k)  ! nonhydrostatic
+        rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) - ref%q(1,i,k) - ref%q(5,i,k) ) / sqrtGC(i,k)  ! hydrostatic
+        !rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) ) / sqrtGC(i,k)  ! nonhydrostatic
       enddo
     enddo
     !$OMP END PARALLEL DO
-    !where(abs(rho_p)<=1.E-13)rho_p=0.
+    where(abs(rho_p)<=1.E-13)rho_p=0.! hydrostatic
     
     !$OMP PARALLEL DO PRIVATE(i,iVar)
     do k = kds,kde
@@ -1073,9 +1073,9 @@ contains
       - Ku * P5MLsp * P5MRsn * ( coefL * rhoL + coefR * rhoR ) * a * ( uR - uL )
     
     p_pert = P5MLsp * pL + P5MRsn * pR - 2. * Ku * P5MLsp * P5MRsn * ( rho * a ) * ( uR - uL ) ! pressure
-    !p_pert = p_pert - p_ref ! pressure perturbation
+    p_pert = p_pert - p_ref ! pressure perturbation, hydrostatic
     
-    !if( abs(p_pert/p_ref) < 1.e-14 )p_pert = 0
+    if( abs(p_pert/p_ref) < 1.e-14 )p_pert = 0! hydrostatic
     
   end subroutine AUSM_up_z
 
