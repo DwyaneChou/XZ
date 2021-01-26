@@ -47,8 +47,9 @@
       total_output_num = nsteps * dt / history_interval
       output_interval  = nint( history_interval / dt )
       
-      if( abs( history_interval / dt - int(history_interval / dt) ) > tolerance )then
+      if( abs( history_interval / dt - int(history_interval / dt) ) > 1.e-14 )then
         print*,'history_interval divides dt must be integer'
+        print*,abs( history_interval / dt - int(history_interval / dt) )
         stop
       endif
       
