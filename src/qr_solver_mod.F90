@@ -50,6 +50,9 @@
         real   (r_kind)::QT(N,M)  !Q的转置矩阵
         real   (r_kind)::QTb(N)   !Q'b
         real   (r_kind)::x(N)
+        real   (r_kind)::AT (N,M)
+        real   (r_kind)::ATA(N,N)
+        real   (r_kind)::ATb(N)
         
         !  For LAPACK only
         real   (r_kind), dimension(m+n) :: work
@@ -58,12 +61,19 @@
         
         integer i,j
         
+        ! Modified Gram-Schmidt
         call gram_dec(A,Q,R,M,N)
         
         QT=transpose(Q)
         QTb=matmul(QT,b)  !  Rx=Q'b
         
         call uptri(R,QTb,x,N) !回带
+        
+        !! Cholesky QR(factorization)
+        !AT  = transpose(A)
+        !ATA = matmul( AT, A )
+        !ATb = matmul( AT, b )
+        !call chol_eq(ATA,ATb,x,N)
         
       end subroutine qr_solver
       
@@ -99,12 +109,12 @@
         
         real(r_kind)::vec_temp(M)
         
-        R(1,1)=sqrt(dot_product(a(:,1),a(:,1)))
-        Q(:,1)=a(:,1)/R(1,1)
+        R(1,1)=sqrt(dot_product(A(:,1),A(:,1)))
+        Q(:,1)=A(:,1)/R(1,1)
         
         do k=2,N
           do j=1,k-1
-            R(j,k)=dot_product(Q(:,j),A(:,k))   
+            R(j,k)=dot_product(Q(:,j),A(:,k))
           end do
           
           vec_temp=A(:,k)
@@ -118,6 +128,65 @@
         end do
        
       end subroutine gram_dec
+      
+      subroutine chol_eq(A,b,x,N)
+        !---------------------------------subroutine  comment
+        !  Version   :  V1.0    
+        !  Coded by  :  syz 
+        !  Date      :  
+        !-----------------------------------------------------
+        !  Purpose   :  用cholesky分解方法解方程
+        !    
+        !-----------------------------------------------------
+        integer(i_kind)N
+        real   (r_kind)::A(N,N),b(N),x(N)
+        real   (r_kind)::L(N,N),y(N),LT(N,N)!LT 为L的转置矩阵
+        
+        integer(i_kind)i,j
+        
+        call chol(A,L,N)
+        
+        call downtri(L,b,y,N)
+        
+        LT = transpose(L)
+        
+        call uptri(LT,y,x,N)  !这一步已经算出了x
+      
+      end subroutine chol_eq
+      
+      subroutine  chol(A,L,N)
+        !---------------------------------subroutine  comment
+        !  Version   :  V1.0    
+        !  Coded by  :  syz 
+        !  Date      :  
+        !-----------------------------------------------------
+        !  Purpose   :  Cholesky分解子程序
+        !-----------------------------------------------------  
+        integer(i_kind):: N
+        real   (r_kind):: A(N,N),L(N,N)
+        real   (r_kind):: s
+        integer(i_kind):: i,j,k
+        
+        L = 0
+        
+        L(1,1) = sqrt(A(1,1))
+        
+        L(2:,1) = A(2:,1) / L(1,1)
+        
+        do j=2,N
+          s = dot_product(L(j,1:j-1),L(j,1:j-1))
+          
+          L(j,j) = sqrt( A(j,j) - s )
+          
+          !注意i范围
+          do i=j+1,N
+            s = dot_product(L(i,1:j-1),L(j,1:j-1))
+            
+            L(i,j) = ( A(i,j) - s ) / L(j,j)
+          end do
+        end do 
+      
+      end subroutine chol
       
       subroutine uptri(A,b,x,N)
         !---------------------------------subroutine  comment
@@ -138,26 +207,38 @@
         !  Common parameters  :
         !
         !----------------------------------------------------
+        integer(i_kind):: N
+        real   (r_kind):: A(N,N),b(N),x(N)
+        integer(i_kind):: i,j,k
         
-        implicit real(r_kind)(a-z)
-        
-        integer(i_kind)::i,j,k,N
-        
-        real(r_kind)::A(N,N),b(N),x(N)
-        
-        x(N)=b(N)/A(N,N)
+        x(N) = b(N) / A(N,N)
         
         !回带部分
         do i=n-1,1,-1
-          x(i)=b(i)
-          
-          do j=i+1,N
-            x(i)=x(i)-a(i,j)*x(j)
-          end do
-          
-          x(i)=x(i)/A(i,i)
+          x(i) = ( b(i) - dot_product( A(i,i+1:N), x(i+1:N)) ) / A(i,i)
         end do
       end subroutine uptri
-    
+      
+      subroutine downtri(A,b,x,N)
+        !---------------------------------subroutine  comment
+        !  Version   :  V1.0    
+        !  Coded by  :  syz 
+        !  Date      :  2010-4-9
+        !-----------------------------------------------------
+        !  Purpose   :  下三角方程组的回带方法
+        !                 Ax=b
+        !-----------------------------------------------------
+        integer(i_kind):: N
+        real   (r_kind):: A(N,N),b(N),x(N)
+        integer(i_kind):: i,j,k
+        
+        x(1) = b(1) / a(1,1)
+        
+        do k=2,N
+          x(k) = ( b(k) - dot_product( A(k,1:k-1), x(1:k-1)) ) / A(k,k)
+        end do
+      
+      end subroutine downtri
+      
     end module qr_solver_mod
     

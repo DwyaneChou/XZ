@@ -3,7 +3,8 @@ cmake_minimum_required(VERSION 3.0.0 FATAL_ERROR)
 project(xz LANGUAGES Fortran)
 
 if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
-  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Ofast -r8 -qopenmp -parallel -xBROADWELL -axBROADWELL -arch BROADWELL -mcpu=BROADWELL -m64")
+  #set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -qopenmp -r8 -mkl -xBROADWELL -axBROADWELL -arch BROADWELL -mcpu=BROADWELL -m64 -parallel -par-threshold100 -par-num-threads=8 -par-runtime-control3 -mssse3 -msse4 -mavx -pad -qopt-mem-layout-trans=3 -vec-threshold8")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -qopenmp -parallel -m64 -r8 -mkl -xBROADWELL -axBROADWELL -arch BROADWELL -mcpu=BROADWELL")
   if (CMAKE_BUILD_TYPE MATCHES DEBUG)
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -gdwarf -Og -traceback -check all")
   endif ()
@@ -69,7 +70,7 @@ set(source_files
 )
 
 add_library(xz ${source_files})
-target_link_libraries(xz netcdf netcdff -mkl)# ${LAPACK_LIBRARIES}
+target_link_libraries(xz netcdf netcdff ${LAPACK_LIBRARIES})
 
 add_executable(xz.exe src/xz.F90)
 target_link_libraries(xz.exe xz)
