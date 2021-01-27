@@ -23,7 +23,7 @@
     
     contains
     
-      subroutine qr_solver(A,b,x,M,N)
+      subroutine qr_solver(M,N,A,b,x,x0)
         !---------------------------------subroutine  comment
         !  Version   :  V1.0    
         !  Coded by  :  syz 
@@ -42,17 +42,21 @@
         !       1.       即求解 超定方程组  Ax=b    其中 A(M,N)  M>N    
         !       2.
         !----------------------------------------------------
-        implicit real(r_kind)(a-z)
+        integer(i_kind)           :: M,N
+        real   (r_kind)           :: A (M,N)
+        real   (r_kind)           :: b (M)
+        real   (r_kind)           :: x (N)
+        real   (r_kind) ,optional :: x0(N)
         
-        integer(i_kind)::M,N
-        real   (r_kind)::A(M,N),Q(M,N),R(N,N)
-        real   (r_kind)::b(M)
-        real   (r_kind)::QT(N,M)  !Q的转置矩阵
-        real   (r_kind)::QTb(N)   !Q'b
-        real   (r_kind)::x(N)
-        real   (r_kind)::AT (N,M)
-        real   (r_kind)::ATA(N,N)
-        real   (r_kind)::ATb(N)
+        real   (r_kind) ::Q(M,N)
+        real   (r_kind) ::R(N,N)
+        real   (r_kind) ::QT(N,M)  !Q的转置矩阵
+        real   (r_kind) ::QTb(N)   !Q'b
+        real   (r_kind) ::AT (N,M)
+        real   (r_kind) ::ATA(N,N)
+        real   (r_kind) ::ATb(N)
+        
+        real   (r_kind) ::x0CG(N)
         
         !  For LAPACK only
         real   (r_kind), dimension(m+n) :: work
@@ -74,6 +78,17 @@
         !ATA = matmul( AT, A )
         !ATb = matmul( AT, b )
         !call chol_eq(ATA,ATb,x,N)
+        
+        !! Conjugate Gradient Method
+        !AT  = transpose(A)
+        !ATA = matmul( AT, A )
+        !ATb = matmul( AT, b )
+        !if(present(x0))then
+        !  x0CG = x0
+        !else
+        !  x0CG = 1.
+        !endif
+        !call CG(ATA,ATb,x,x0CG,N)
         
       end subroutine qr_solver
       
@@ -239,6 +254,66 @@
         end do
       
       end subroutine downtri
+      
+      subroutine CG(A,b,x,x0,N)
+        !---------------------------------subroutine  comment
+        !  Version   :  V1.0    
+        !  Coded by  :  syz 
+        !  Date      :  
+        !-----------------------------------------------------
+        !  Purpose   :  共轭梯度法(Conjugate Gradient Method)
+        !               用于计算方程 AX=b
+        !-----------------------------------------------------
+        !  Input  parameters  :
+        !       1.  A,b 意义即  AX=b
+        !       2.  x0迭代初值
+        !       3.  N 方程的维数
+        !  Output parameters  :
+        !       1. x 方程的解
+        !       2.
+        !  Common parameters  :
+        !
+        !----------------------------------------------------
+        
+        integer(i_kind)::N
+        real   (r_kind)::A(N,N),b(N),x(N),x0(N)
+        
+        real   (r_kind)::r0(N),r1(N),p0(N),p1(N),x1(N),x2(N)
+        
+        integer::i,j,k
+        
+        integer(i_kind), parameter :: IMAX = 200    ! max iter number
+        real   (r_kind), parameter :: tol  = 1.e-14 ! error tolerence
+        
+        real(r_kind) alpha, beta
+        real(r_kind) r0r0
+        real(r_kind) Ap0 (N)
+        
+        r0 = b - matmul(A,x0)
+        
+        p0 = r0
+        
+        x1 = x0
+        
+        do k = 1,IMAX
+          r0r0  = dot_product( r0, r0 )
+          Ap0   = matmul(A,p0)
+          alpha = r0r0 / dot_product( p0, Ap0 )
+          x2    = x1 + alpha * p0
+          
+          if( r0r0 < tol )exit
+          
+          r1    = r0 - alpha * Ap0
+          beta  = dot_product(r1,r1) / r0r0
+          p1    = r1 + beta * p0
+          
+          r0    = r1
+          p0    = p1
+          x1    = x2
+        enddo
+        
+        x = x1
+      end subroutine CG
       
     end module qr_solver_mod
     

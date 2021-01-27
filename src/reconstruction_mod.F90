@@ -102,7 +102,7 @@
         
       end function Gaussian_quadrature_2d
     
-      function WLS_ENO(A,u,h,m,n,ic)
+      function WLS_ENO(A,u,h,m,n,ic,x0)
         ! WLS_ENO
         ! Ax = b -> WAx=Wb -> min|| WAx - Wb || -> x
         ! where A->A, x->WLS_ENO, b->u
@@ -113,6 +113,7 @@
         ! m       : number of known values (volumn integration value on cell, or in other words, number of cells in a stencil)
         ! n       : number of coeficients of reconstruction polynomial
         ! ic      : index of center cell on stencil
+        ! x0      : initial value for Conjugate Gradient Method
         real   (r_kind), dimension(n  )             :: WLS_ENO
         integer(i_kind)                , intent(in) :: m
         integer(i_kind)                , intent(in) :: n
@@ -120,6 +121,8 @@
         real   (r_kind), dimension(m  ), intent(in) :: u
         real   (r_kind)                , intent(in) :: h
         integer(i_kind)                , intent(in) :: ic
+        
+        real   (r_kind), dimension(n  ), intent(in),optional :: x0
         
         real(r_kind),parameter :: alpha   = 10
         real(r_kind),parameter :: epsilon = 1.e-2
@@ -149,7 +152,11 @@
         enddo
         
         ! Solver by Tsinghua
-        call qr_solver(WA,Wu,WLS_ENO,M,N)
+        if(present(x0))then
+          call qr_solver(M,N,WA,Wu,WLS_ENO,x0)
+        else
+          call qr_solver(M,N,WA,Wu,WLS_ENO)
+        endif
         
         !! Solver by LAPACK DGELS
         !call DGELS( 'N', M, N, 1, WA, M, Wu, M, WORK, M+N, INFO )

@@ -91,6 +91,8 @@ module spatial_operators_mod
   
   real(r_kind), dimension(:,:,:), allocatable :: q_diff ! u wind, for viscosity terms only
   
+  real(r_kind), dimension(:,:,:,:), allocatable :: CG_coef
+  
 contains
   subroutine init_spatial_operator
     integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE
@@ -170,10 +172,14 @@ contains
     allocate(relax_coef(ics:ice,kcs:kce))
     
     allocate(q_diff(nVar,ics:ice,kcs:kce))
+    
+    allocate(CG_coef(nVar,maxRecTerms,ids:ide,kds:kde))
   
     src   = 0
     
     dV = dx * deta
+    
+    CG_coef = 1.
     
     ! set reconstruction cells on each stencil
     print*,'Set reconstruction cells on each stencil'
@@ -502,7 +508,8 @@ contains
                              qR(iVar,:,:,:),&
                              qB(iVar,:,:,:),&
                              qT(iVar,:,:,:),&
-                             qC(iVar  ,:,:)*recdV)
+                             qC(iVar  ,:,:)*recdV,&
+                             iVar)
     enddo
   
     ! Boundary Condition
@@ -707,12 +714,14 @@ contains
     
   end subroutine spatial_operator
 
-  subroutine reconstruct_field(qL,qR,qB,qT,qC)
+  subroutine reconstruct_field(qL,qR,qB,qT,qC,iVar)
     real(r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce),intent(out) :: qL
     real(r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce),intent(out) :: qR
     real(r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce),intent(out) :: qB
     real(r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce),intent(out) :: qT
     real(r_kind), dimension(              ics:ice,kcs:kce),intent(in ) :: qC
+    
+    integer(i_kind), optional :: iVar ! Specify variable for speed up CG method
   
     integer(i_kind) :: i,j,k
     integer(i_kind) :: iRec,kRec
@@ -742,7 +751,13 @@ contains
         enddo
         ic = iCenCell(i,k)
         
-        polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic)
+        
+        if(present(iVar))then
+          polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic,CG_coef(iVar,1:n,i,k))
+          CG_coef(iVar,1:n,i,k) = polyCoef(1:n)
+        else
+          polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic)
+        endif
         
         qL(:,i,k) = matmul(recMatrixL(:,1:n,i,k),polyCoef(1:n))
         qR(:,i,k) = matmul(recMatrixR(:,1:n,i,k),polyCoef(1:n))
