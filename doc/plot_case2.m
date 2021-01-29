@@ -7,7 +7,7 @@ pic_path  = '.\';
 varname   = 'u';
 
 time_start = 1;
-time_end   = 501;
+time_end   = 335;
 
 it = time_end;
 

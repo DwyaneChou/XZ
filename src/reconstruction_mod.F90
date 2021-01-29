@@ -152,11 +152,12 @@
         enddo
         
         ! Solver by Tsinghua
-        if(present(x0))then
-          call qr_solver(M,N,WA,Wu,WLS_ENO,x0)
-        else
-          call qr_solver(M,N,WA,Wu,WLS_ENO)
-        endif
+        call qr_solver(M,N,WA,Wu,WLS_ENO)
+        !if(present(x0))then
+        !  call qr_solver(M,N,WA,Wu,WLS_ENO,x0)
+        !else
+        !  call qr_solver(M,N,WA,Wu,WLS_ENO)
+        !endif
         
         !! Solver by LAPACK DGELS
         !call DGELS( 'N', M, N, 1, WA, M, Wu, M, WORK, M+N, INFO )

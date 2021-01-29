@@ -209,38 +209,22 @@ contains
       enddo
     enddo
     
-    !do i = ibs,ibe
-    !  ! special treatment on low boundary
-    !  k = kds
-    !  iRecCell(11,i,k) = i - 1
-    !  kRecCell(11,i,k) = k + 2
-    !  iRecCell(12,i,k) = i
-    !  kRecCell(12,i,k) = k + 2
-    !  iRecCell(13,i,k) = i + 1
-    !  kRecCell(13,i,k) = k + 2
-    !  iRecCell(14,i,k) = i
-    !  kRecCell(14,i,k) = k + 3
-    !  
-    !  nRecCells    (i,k) = 14
-    !  locPolyDegree(i,k) = 3
-    !  
-    !  k = kds + 1
-    !  iRecCell(16,i,k) = i - 1
-    !  kRecCell(16,i,k) = k + 2
-    !  iRecCell(17,i,k) = i
-    !  kRecCell(17,i,k) = k + 2
-    !  iRecCell(18,i,k) = i + 1
-    !  kRecCell(18,i,k) = k + 2
-    !  iRecCell(19,i,k) = i - 1
-    !  kRecCell(19,i,k) = k + 3
-    !  iRecCell(20,i,k) = i
-    !  kRecCell(20,i,k) = k + 3
-    !  iRecCell(21,i,k) = i + 1
-    !  kRecCell(21,i,k) = k + 3
-    !  
-    !  nRecCells    (i,k) = 21
-    !  locPolyDegree(i,k) = 3
-    !enddo
+    do i = ibs,ibe
+      ! special treatment on low boundary
+      k = kds
+      iRecCell(16,i,k) = i
+      kRecCell(16,i,k) = k + 3
+      
+      nRecCells    (i,k) = 16
+      locPolyDegree(i,k) = 3
+      
+      k = kds + 1
+      iRecCell(21,i,k) = i
+      kRecCell(21,i,k) = k + 4
+      
+      nRecCells    (i,k) = 21
+      locPolyDegree(i,k) = 3
+    enddo
     
     !!! Scheme 2
     !!do i = ibs,ibe
@@ -289,39 +273,6 @@ contains
     !    if( nRecCells(i,k) >= 25          ) locPolyDegree(i,k) = 4
     !    if( nRecCells(i,k) == maxRecCells ) locPolyDegree(i,k) = recPolyDegree
     !  enddo
-    !enddo
-    !
-    !do i = ibs,ibe
-    !  ! special treatment on low boundary
-    !  k = kds
-    !  iRecCell(11,i,k) = i - 1
-    !  kRecCell(11,i,k) = k + 2
-    !  iRecCell(12,i,k) = i
-    !  kRecCell(12,i,k) = k + 2
-    !  iRecCell(13,i,k) = i + 1
-    !  kRecCell(13,i,k) = k + 2
-    !  iRecCell(14,i,k) = i
-    !  kRecCell(14,i,k) = k + 3
-    !  
-    !  nRecCells    (i,k) = 14
-    !  locPolyDegree(i,k) = 3
-    !  
-    !  k = kds + 1
-    !  iRecCell(16,i,k) = i - 1
-    !  kRecCell(16,i,k) = k + 2
-    !  iRecCell(17,i,k) = i
-    !  kRecCell(17,i,k) = k + 2
-    !  iRecCell(18,i,k) = i + 1
-    !  kRecCell(18,i,k) = k + 2
-    !  iRecCell(19,i,k) = i - 1
-    !  kRecCell(19,i,k) = k + 3
-    !  iRecCell(20,i,k) = i
-    !  kRecCell(20,i,k) = k + 3
-    !  iRecCell(21,i,k) = i + 1
-    !  kRecCell(21,i,k) = k + 3
-    !  
-    !  nRecCells    (i,k) = 21
-    !  locPolyDegree(i,k) = 3
     !enddo
 
     do k = kds,kde
@@ -508,8 +459,13 @@ contains
                              qR(iVar,:,:,:),&
                              qB(iVar,:,:,:),&
                              qT(iVar,:,:,:),&
-                             qC(iVar  ,:,:)*recdV,&
-                             iVar)
+                             qC(iVar  ,:,:)*recdV)
+      !call reconstruct_field(qL(iVar,:,:,:),&
+      !                       qR(iVar,:,:,:),&
+      !                       qB(iVar,:,:,:),&
+      !                       qT(iVar,:,:,:),&
+      !                       qC(iVar  ,:,:)*recdV,&
+      !                       iVar)
     enddo
   
     ! Boundary Condition
