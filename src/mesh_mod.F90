@@ -66,6 +66,10 @@
       real(r_kind), dimension(:,:,:,:), allocatable :: dzdeta_ext
       real(r_kind), dimension(:,:,:,:), allocatable :: dzsdx_ext
       real(r_kind), dimension(:,:,:,:), allocatable :: detadx_ext
+      
+      ! For projecting wind along to surface
+      real(r_kind), dimension(:,:,:,:,:  ), allocatable :: nvec
+      real(r_kind), dimension(:,:,:,:,:,:), allocatable :: pmtx
     contains
     
       subroutine init_mesh
@@ -135,6 +139,9 @@
         allocate(dzsdx_ext (nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde))
         allocate(detadx_ext(nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde))
         
+        allocate( nvec(2  ,nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde) )
+        allocate( pmtx(2,2,nPointsOnEdge,nEdgesOnCell,ids:ide,kds:kde) )
+      
         deta = ( z_max - z_min ) / nz
         
         do k = kcs,kce

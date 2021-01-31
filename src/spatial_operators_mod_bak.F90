@@ -543,7 +543,7 @@ contains
     
     ! copy stat
     !qC(:,ids:ide,kds:kde) = stat%q(:,ids:ide,kds:kde)
-    !$OMP PARALLEL DO PRIVATE(i,iVar) COLLAPSE(3)
+    !$OMP PARALLEL DO PRIVATE(i,iVar)
     do k = kds,kde
       do i = ids,ide
         do iVar = 1,nVar
@@ -577,7 +577,7 @@ contains
     ! Correct wind on bottom and top boundaries
     k    = kds
     iEOC = 1
-    !$OMP PARALLEL DO PRIVATE(iPOE,wind_vector) COLLAPSE(2)
+    !$OMP PARALLEL DO PRIVATE(iPOE,wind_vector)
     do i = ids,ide
       do iPOE = 1,nPointsOnEdge
         wind_vector(1) = qB(2,iPOE,i,k)
@@ -591,7 +591,7 @@ contains
     
     k    = kde
     iEOC = 3
-    !$OMP PARALLEL DO PRIVATE(iPOE,wind_vector) COLLAPSE(2)
+    !$OMP PARALLEL DO PRIVATE(iPOE,wind_vector)
     do i = ids,ide
       do iPOE = 1,nPointsOnEdge
         wind_vector(1) = qT(2,iPOE,i,k)
@@ -608,7 +608,7 @@ contains
       qL(2,:,ids,kds:kde) = 0
       qR(2,:,ide,kds:kde) = 0
     elseif(case_num==2)then
-      !$OMP PARALLEL DO PRIVATE(iPOE) COLLAPSE(2)
+      !$OMP PARALLEL DO PRIVATE(iPOE)
       do k = kds,kde
         do iPOE = 1,nPointsOnEdge
           qL(2,iPOE,ids,k) = ref%q(2,ids,k)
@@ -618,11 +618,8 @@ contains
       !$OMP END PARALLEL DO
     endif
     
-    ! Start OpenMP zone
-    !$OMP PARALLEL
-    
     ! Fill outside boundary
-    !$OMP DO
+    !$OMP PARALLEL DO
     do k = kds,kde
       ! left boundary
       qR(:,:,ids-1,k) = qL(:,:,ids,k)
@@ -630,9 +627,9 @@ contains
       ! right boundary
       qL(:,:,ide+1,k) = qR(:,:,ide,k)
     enddo
-    !$OMP ENDDO
+    !$OMP END PARALLEL DO
     
-    !$OMP DO
+    !$OMP PARALLEL DO
     do i = ids,ide
       ! bottom boundary
       qT(:,:,i,kds-1) = qB(:,:,i,kds)
@@ -640,10 +637,10 @@ contains
       ! top boundary
       qB(:,:,i,kde+1) = qT(:,:,i,kde)
     enddo
-    !$OMP ENDDO
+    !$OMP END PARALLEL DO
   
     ! Calculate pressure X
-    !$OMP DO PRIVATE(i,iPOE) COLLAPSE(3)
+    !$OMP PARALLEL DO PRIVATE(i,iPOE)
     do k = kds,kde
       do i = ids,ide
         do iPOE = 1,nPointsOnEdge
@@ -652,8 +649,8 @@ contains
         enddo
       enddo
     enddo
-    !$OMP END DO NOWAIT
-    !$OMP DO PRIVATE(iPOE,i) COLLAPSE(2)
+    !$OMP END PARALLEL DO
+    !$OMP PARALLEL DO PRIVATE(iPOE,i)
     do k = kds,kde
       do iPOE = 1,nPointsOnEdge
         i = ide + 1
@@ -662,10 +659,10 @@ contains
         PR(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k))
       enddo
     enddo
-    !$OMP ENDDO NOWAIT
+    !$OMP END PARALLEL DO
     
     ! Calculate pressure Z
-    !$OMP DO PRIVATE(i,iPOE) COLLAPSE(3)
+    !$OMP PARALLEL DO PRIVATE(i,iPOE)
     do k = kds,kde
       do i = ids,ide
         do iPOE = 1,nPointsOnEdge
@@ -674,8 +671,8 @@ contains
         enddo
       enddo
     enddo
-    !$OMP END DO NOWAIT
-    !$OMP DO PRIVATE(k,iPOE) COLLAPSE(2)
+    !$OMP END PARALLEL DO
+    !$OMP PARALLEL DO PRIVATE(k,iPOE)
     do i = ids,ide
       do iPOE = 1,nPointsOnEdge
         k = kde + 1
@@ -684,70 +681,81 @@ contains
         PT(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT(:,iPOE,i,k))
       enddo
     enddo
-    !$OMP END DO NOWAIT
-    
-    !$OMP BARRIER
+    !$OMP END PARALLEL DO
     
     ! Calculate x directional flux on each points on edge
-    !$OMP DO PRIVATE(i,im1,iPOE,iVar) COLLAPSE(3)
+    !$OMP PARALLEL DO PRIVATE(i,im1,iPOE,iVar)
     do k = kds,kde
       do i = ids,ide+1
-       ! Calculate x directional flux on each points on edge
         do iPOE = 1,nPointsOnEdge
           im1 = i - 1
           FeP(:,iPOE,i,k) = calc_F(sqrtGR(iPOE,im1,k),sqrtGL(iPOE,i,k),qR(:,iPOE,im1,k),qL(:,iPOE,i,k),pR(iPOE,im1,k),pL(iPOE,i,k))
         enddo
-        ! Calculate x directional flux on each edge
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
+    ! Calculate x directional flux on edges
+    !$OMP PARALLEL DO PRIVATE(i,iVar)
+    do k = kds,kde
+      do i = ids,ide+1
         do iVar = 1,nVar
           Fe(iVar,i,k) = Gaussian_quadrature_1d(FeP(iVar,:,i,k))
         enddo
       enddo
     enddo
-    !$OMP END DO NOWAIT
+    !$OMP END PARALLEL DO
     
     ! Calculate z directional flux on each points on edge
-    !$OMP DO PRIVATE(k,km1,iPOE,iVar) COLLAPSE(3)
+    !$OMP PARALLEL DO PRIVATE(k,km1,iPOE,iVar)
     do i = ids,ide
       do k = kds,kde+1
-        ! Calculate z directional flux on each points on edge
         do iPOE = 1,nPointsOnEdge
           km1 = k - 1
           HeP(:,iPOE,i,k) = calc_H(sqrtGT(  iPOE,i,km1),sqrtGB(  iPOE,i,k),G13T(iPOE,i,km1),G13B(iPOE,i,k),&
                                    qT    (:,iPOE,i,km1),qB    (:,iPOE,i,k),pT  (iPOE,i,km1),pB  (iPOE,i,k),&
                                    Pz_ref(  iPOE,i,k))
         enddo
-        ! Calculate z directional flux on each edge
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
+    ! Calculate z directional flux on edges
+    !$OMP PARALLEL DO PRIVATE(k,iVar)
+    do i = ids,ide
+      do k = kds,kde+1
         do iVar = 1,nVar
           He(iVar,i,k) = Gaussian_quadrature_1d(HeP(iVar,:,i,k))
         enddo
       enddo
     enddo
-    !$OMP END DO NOWAIT
+    !$OMP END PARALLEL DO
     
-    !$OMP DO PRIVATE(i) COLLAPSE(2)
+    !$OMP PARALLEL DO PRIVATE(i)
     do k = kds,kde
       do i = ids,ide
         !rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) - ref%q(1,i,k) - ref%q(5,i,k) ) / sqrtGC(i,k)  ! hydrostatic
         !rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) ) / sqrtGC(i,k)  ! nonhydrostatic
         rho_p(i,k) = Gaussian_quadrature_2d( ( qG(1,:,i,k) + qG(5,:,i,k) - qG_ref(1,:,i,k) - qG_ref(5,:,i,k) ) / sqrtG(:,i,k) ) ! hydrostatic
-        if( abs( rho_p(i,k) ) <= 1.e-13 ) rho_p(i,k) = 0 ! hydrostatic
       enddo
     enddo
-    !$OMP END DO
+    !$OMP END PARALLEL DO
+    where(abs(rho_p)<=1.E-13)rho_p=0.! hydrostatic
     
-    !$OMP DO PRIVATE(i,iVar) COLLAPSE(2)
+    !$OMP PARALLEL DO PRIVATE(i,iVar)
     do k = kds,kde
       do i = ids,ide
         do iVar = 1,nVar
           src(iVar,i,k) = 0
         enddo
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
+    !$OMP PARALLEL DO PRIVATE(i)
+    do k = kds,kde
+      do i = ids,ide
         src(3,i,k) = src(3,i,k) - sqrtGC(i,k) * rho_p(i,k) * gravity
       enddo
     enddo
-    !$OMP END DO
-    
-    !$OMP END PARALLEL
-    ! End OpenMP zone
+    !$OMP END PARALLEL DO
   
     ! Viscosity terms for Density Current case only
     if(case_num==3)then
@@ -773,7 +781,7 @@ contains
     endif
     
     ! Calculate tend
-    !$OMP PARALLEL DO PRIVATE(i,ip1,kp1,iVar) COLLAPSE(2)
+    !$OMP PARALLEL DO PRIVATE(i,ip1,kp1,iVar)
     do k = kds,kde
       do i = ids,ide
         ip1 = i + 1
@@ -809,7 +817,7 @@ contains
     h = dx
     
     ! Full WLS-ENO
-    !$OMP PARALLEL DO PRIVATE(i,j,m,n,iRec,kRec,iC,u,A,polyCoef) collapse(2)
+    !$OMP PARALLEL DO PRIVATE(i,j,m,n,iRec,kRec,iC,u,A,polyCoef)
     do k = kds,kde
       do i = ids,ide
         m = nRecCells(i,k)
@@ -1256,7 +1264,7 @@ contains
     
     integer i,k,iVar
     
-    !$OMP PARALLEL DO PRIVATE(i,iVar) COLLAPSE(3)
+    !$OMP PARALLEL DO PRIVATE(i,iVar)
     do k = kds,kde
       do i = ids,ide
         do iVar = vs,ve

@@ -165,7 +165,7 @@ module temporal_mod
       
       integer(i_kind) :: iVar,i,k
 
-      !$OMP PARALLEL DO PRIVATE(i,iVar)
+      !$OMP PARALLEL DO PRIVATE(i,iVar) COLLAPSE(3)
       do k = kds,kde
         do i = ids,ide
           do iVar = 1,nVar
@@ -185,7 +185,7 @@ module temporal_mod
 
       integer(i_kind) :: iVar,i,k
       
-      !$OMP PARALLEL DO PRIVATE(i,iVar)
+      !$OMP PARALLEL DO PRIVATE(i,iVar) COLLAPSE(3)
       do k = kds,kde
         do i = ids,ide
           do iVar = 1,nVar
@@ -206,7 +206,7 @@ module temporal_mod
       
       integer(i_kind) :: iVar,i,k
       
-      !$OMP PARALLEL DO PRIVATE(i,iVar)
+      !$OMP PARALLEL DO PRIVATE(i,iVar) COLLAPSE(3)
       do k = kds,kde
         do i = ids,ide
           do iVar = 1,nVar

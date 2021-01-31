@@ -109,7 +109,7 @@
         ! WLS_ENO : unknown vector x (the vector of reconstruction polynomial coefficients)
         ! A       : matrix of coordinate coefficient
         ! u       : vector of known values
-        ! h       : average edge length of cells
+        ! h       : average edge length of cell
         ! m       : number of known values (volumn integration value on cell, or in other words, number of cells in a stencil)
         ! n       : number of coeficients of reconstruction polynomial
         ! ic      : index of center cell on stencil

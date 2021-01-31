@@ -68,8 +68,8 @@
         ! Modified Gram-Schmidt
         call gram_dec(A,Q,R,M,N)
         
-        QT=transpose(Q)
-        QTb=matmul(QT,b)  !  Rx=Q'b
+        QT  = transpose(Q)
+        QTb = matmul(QT,b)  !  Rx=Q'b
         
         call uptri(R,QTb,x,N) !回带
         
@@ -115,33 +115,34 @@
         !       3.  详细的数学解释，可以参看 麻省理工学院的
         !           线性代数教材《Linear Algebra with Application》
         !----------------------------------------------------
-        implicit real(r_kind)(a-z)
         
-        integer(i_kind)::M,N
-        integer(i_kind)::i,j,k
+        integer(i_kind)                , intent(in ) :: M,N
+        real   (r_kind), dimension(M,N), intent(in ) :: A
+        real   (r_kind), dimension(M,N), intent(out) :: Q
+        real   (r_kind), dimension(N,N), intent(out) :: R
         
-        real(r_kind)::A(M,N),Q(M,N),R(N,N)
+        real   (r_kind), dimension(M  ) :: T(M)
         
-        real(r_kind)::vec_temp(M)
+        integer(i_kind) :: i,j,k
         
-        R(1,1)=sqrt(dot_product(A(:,1),A(:,1)))
-        Q(:,1)=A(:,1)/R(1,1)
+        R(1,1) = sqrt( dot_product( A(:,1), A(:,1) ) )
+        Q(:,1) = A(:,1) / R(1,1)
         
-        do k=2,N
-          do j=1,k-1
-            R(j,k)=dot_product(Q(:,j),A(:,k))
+        do k = 2,N
+          do j = 1,k-1
+            R(j,k) = dot_product( Q(:,j), A(:,k) )
           end do
           
-          vec_temp=A(:,k)
+          T = A(:,k)
           
-          do j=1,k-1
-            vec_temp=vec_temp-Q(:,j)*R(j,k)
+          do j = 1,k-1
+            T = T - Q(:,j) * R(j,k)
           end do
         
-          R(k,k)=sqrt(dot_product(vec_temp,vec_temp))
-          Q(:,k)=vec_temp/R(k,k)
+          R(k,k) = sqrt( dot_product( T, T ) )
+          Q(:,k) = T / R(k,k)
         end do
-       
+        
       end subroutine gram_dec
       
       subroutine chol_eq(A,b,x,N)
@@ -229,7 +230,7 @@
         x(N) = b(N) / A(N,N)
         
         !回带部分
-        do i=n-1,1,-1
+        do i = n-1,1,-1
           x(i) = ( b(i) - dot_product( A(i,i+1:N), x(i+1:N)) ) / A(i,i)
         end do
       end subroutine uptri
@@ -249,7 +250,7 @@
         
         x(1) = b(1) / a(1,1)
         
-        do k=2,N
+        do k = 2,N
           x(k) = ( b(k) - dot_product( A(k,1:k-1), x(1:k-1)) ) / A(k,k)
         end do
       
