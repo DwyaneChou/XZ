@@ -215,13 +215,13 @@ contains
         enddo
         nRecCells(i,k) = j
         
-        !locPolyDegree(i,k) = min( maxval(iRecCell(1:j,i,k)) - minval(iRecCell(1:j,i,k)), maxval(kRecCell(1:j,i,k)) - minval(kRecCell(1:j,i,k)) )
+        locPolyDegree(i,k) = min( maxval(iRecCell(1:j,i,k)) - minval(iRecCell(1:j,i,k)), maxval(kRecCell(1:j,i,k)) - minval(kRecCell(1:j,i,k)) )
         
-        if( nRecCells(i,k) >= 3           ) locPolyDegree(i,k) = 1
-        if( nRecCells(i,k) >= 9           ) locPolyDegree(i,k) = 2
-        if( nRecCells(i,k) >= 16          ) locPolyDegree(i,k) = 3
-        if( nRecCells(i,k) >= 25          ) locPolyDegree(i,k) = 3
-        if( nRecCells(i,k) == maxRecCells ) locPolyDegree(i,k) = recPolyDegree
+        !if( nRecCells(i,k) >= 3           ) locPolyDegree(i,k) = 1
+        !if( nRecCells(i,k) >= 9           ) locPolyDegree(i,k) = 2
+        !if( nRecCells(i,k) >= 16          ) locPolyDegree(i,k) = 3
+        !if( nRecCells(i,k) >= 25          ) locPolyDegree(i,k) = 4
+        !if( nRecCells(i,k) == maxRecCells ) locPolyDegree(i,k) = recPolyDegree
       enddo
     enddo
     
@@ -229,27 +229,27 @@ contains
     do i = ibs,ibe
       k = kds
       j = 0
-      do kRec = 0,4
-        do iRec = -2,2
+      do kRec = 0,2
+        do iRec = -1,1
           j = j + 1
           iRecCell(j,i,k) = i + iRec
           kRecCell(j,i,k) = k + kRec
         enddo
       enddo
       nRecCells    (i,k) = j
-      locPolyDegree(i,k) = 4
+      locPolyDegree(i,k) = 2
       
-      !k = kds + 1
-      !j = 0
-      !do kRec = -1,3
-      !  do iRec = -recBdy,recBdy
-      !    j = j + 1
-      !    iRecCell(j,i,k) = i + iRec
-      !    kRecCell(j,i,k) = k + kRec
-      !  enddo
-      !enddo
-      !nRecCells    (i,k) = j
-      !locPolyDegree(i,k) = 4
+      k = kds + 1
+      j = 0
+      do kRec = -1,3
+        do iRec = -recBdy,recBdy
+          j = j + 1
+          iRecCell(j,i,k) = i + iRec
+          kRecCell(j,i,k) = k + kRec
+        enddo
+      enddo
+      nRecCells    (i,k) = j
+      locPolyDegree(i,k) = 3
       
       !do k = kds, kds + recBdy - 1
       !  j = 0
