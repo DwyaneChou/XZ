@@ -46,7 +46,7 @@ module parameters_mod
   integer(i_kind) :: total_run_time   ! total run time for this model in seconds, this variable is determined by run_days, run_hours ...
   integer(i_kind) :: total_run_steps  ! total run steps for this model in seconds, this variable is determined by total_run_time and dt
   
-  integer(i_kind), parameter :: extPts = 3
+  integer(i_kind) :: extPts = 3
   
   real   (r_kind) :: viscosity_coef ! For viscosity term in Density Current case
   
@@ -183,16 +183,18 @@ module parameters_mod
     kds = 1
     kde = nz
     
-    ics = ids - extPts
-    ice = ide + extPts
-    kcs = kds - extPts
-    kce = kde + extPts
-    
     recBdy = ( stencil_width - 1 ) / 2
     ibs    = ids + recBdy
     ibe    = ide - recBdy
     kbs    = kds + recBdy
     kbe    = kde - recBdy
+    
+    extPts = recBdy + 1
+    
+    ics = ids - extPts
+    ice = ide + extPts
+    kcs = kds - extPts
+    kce = kde + extPts
       
     nx = ide - ids + 1
     

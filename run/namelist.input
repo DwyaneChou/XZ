@@ -29,5 +29,5 @@ m_coef                = 2
 &reconstruction
 recPolyDegree = 4, ! reconstruction polynomial degree
 stencil_width = 5, ! Choose from odds, 3, 5, 7, 9
-nPointsOnEdge = 3
+nPointsOnEdge = 3,
 /

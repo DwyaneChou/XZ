@@ -214,31 +214,29 @@ contains
           enddo
         enddo
         nRecCells(i,k) = j
-        
-        !locPolyDegree(i,k) = min( maxval(iRecCell(1:j,i,k)) - minval(iRecCell(1:j,i,k)), maxval(kRecCell(1:j,i,k)) - minval(kRecCell(1:j,i,k)) )
-        
+          
         if( nRecCells(i,k) >= 3           ) locPolyDegree(i,k) = 1
         if( nRecCells(i,k) >= 9           ) locPolyDegree(i,k) = 2
         if( nRecCells(i,k) >= 16          ) locPolyDegree(i,k) = 3
-        if( nRecCells(i,k) >= 25          ) locPolyDegree(i,k) = 3
+        if( nRecCells(i,k) >= 25          ) locPolyDegree(i,k) = 4
         if( nRecCells(i,k) == maxRecCells ) locPolyDegree(i,k) = recPolyDegree
       enddo
     enddo
     
     ! special treatment on low boundary
     do i = ibs,ibe
-      k = kds
-      j = 0
-      do kRec = 0,4
-        do iRec = -2,2
-          j = j + 1
-          iRecCell(j,i,k) = i + iRec
-          kRecCell(j,i,k) = k + kRec
-        enddo
-      enddo
-      nRecCells    (i,k) = j
-      locPolyDegree(i,k) = 4
-      
+      !k = kds
+      !j = 0
+      !do kRec = 0,4
+      !  do iRec = -1,1
+      !    j = j + 1
+      !    iRecCell(j,i,k) = i + iRec
+      !    kRecCell(j,i,k) = k + kRec
+      !  enddo
+      !enddo
+      !nRecCells    (i,k) = j
+      !locPolyDegree(i,k) = 2
+      !
       !k = kds + 1
       !j = 0
       !do kRec = -1,3
@@ -251,20 +249,19 @@ contains
       !nRecCells    (i,k) = j
       !locPolyDegree(i,k) = 4
       
-      !do k = kds, kds + recBdy - 1
-      !  j = 0
-      !  do kRec = - k + 1, - k + stencil_width
-      !    do iRec = -recBdy,recBdy
-      !      j = j + 1
-      !      iRecCell(j,i,k) = i + iRec
-      !      kRecCell(j,i,k) = k + kRec
-      !    enddo
-      !  enddo
-      !  nRecCells    (i,k) = j
-      !  locPolyDegree(i,k) = 4!k + 1
-      !enddo
-      
-      !locPolyDegree(i,k) = min( maxval(iRecCell(1:j,i,k)) - minval(iRecCell(1:j,i,k)), maxval(kRecCell(1:j,i,k)) - minval(kRecCell(1:j,i,k)) )
+      do k = kds, kds + recBdy - 1
+        j = 0
+        !do kRec = - k + 1, - k + stencil_width
+        do kRec = -recBdy,recBdy
+          do iRec = -recBdy,recBdy
+            j = j + 1
+            iRecCell(j,i,k) = i + iRec
+            kRecCell(j,i,k) = k + kRec
+          enddo
+        enddo
+        nRecCells    (i,k) = j
+        locPolyDegree(i,k) = 4!k + 1
+      enddo
     enddo
     
     !!! Scheme 2
@@ -392,6 +389,9 @@ contains
     ! Calculate reference pressure
     qC = FillValue
     qC(:,ids:ide,kds:kde) = ref%q(:,ids:ide,kds:kde)
+    
+    call extend_low_bdy(sqrtGC,qC,ref%q)
+    
     do iVar = 1,nVar
       call reconstruct_field(qC(iVar  ,:,:)*recdV,&
                              qL(iVar,:,:,:)      ,&
@@ -545,11 +545,13 @@ contains
     ! Attension stat is changed here!
     if(case_num==2)call Rayleigh_damping(stat%q,ref%q)
     
+    call extend_low_bdy(sqrtGC,stat%q,ref%q)
+    
     ! copy stat
     !qC(:,ids:ide,kds:kde) = stat%q(:,ids:ide,kds:kde)
     !$OMP PARALLEL DO PRIVATE(i,iVar) COLLAPSE(3)
-    do k = kds,kde
-      do i = ids,ide
+    do k = kcs,kce
+      do i = ics,ice
         do iVar = 1,nVar
           qC(iVar,i,k) = stat%q(iVar,i,k)
         enddo
@@ -576,7 +578,12 @@ contains
       !                       qT(iVar,:,:,:)      ,&
       !                       iVar=iVar)
     enddo
-  
+    !print*,qB(1,2,100,2),qT(1,2,100,2)
+    !print*,qB(2,2,100,2),qT(2,2,100,2)
+    !print*,qB(3,2,100,2),qT(3,2,100,2)
+    !print*,qB(4,2,100,2),qT(4,2,100,2)
+    !print*,''
+    
     ! Boundary Condition
     ! Correct wind on bottom and top boundaries
     k    = kds
@@ -731,13 +738,15 @@ contains
     !$OMP DO PRIVATE(i) COLLAPSE(2)
     do k = kds,kde
       do i = ids,ide
-        !rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) - ref%q(1,i,k) - ref%q(5,i,k) ) / sqrtGC(i,k)  ! hydrostatic
+        rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) - ref%q(1,i,k) - ref%q(5,i,k) ) / sqrtGC(i,k)  ! hydrostatic
         !rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) ) / sqrtGC(i,k)  ! nonhydrostatic
-        rho_p(i,k) = Gaussian_quadrature_2d( ( qG(1,:,i,k) + qG(5,:,i,k) - qG_ref(1,:,i,k) - qG_ref(5,:,i,k) ) / sqrtG(:,i,k) ) ! hydrostatic
-        if( abs( rho_p(i,k) ) <= 1.e-13 ) rho_p(i,k) = 0 ! hydrostatic
+        !rho_p(i,k) = Gaussian_quadrature_2d( ( qG(1,:,i,k) + qG(5,:,i,k) - qG_ref(1,:,i,k) - qG_ref(5,:,i,k) ) / sqrtG(:,i,k) ) ! hydrostatic
+        !if( abs( rho_p(i,k) ) <= 1.e-13 ) rho_p(i,k) = 0 ! hydrostatic
       enddo
     enddo
     !$OMP END DO
+    
+    !$OMP BARRIER
     
     !$OMP DO PRIVATE(i,iVar) COLLAPSE(2)
     do k = kds,kde
@@ -784,10 +793,17 @@ contains
         kp1 = k + 1
         do iVar = 1,nVar
           tend%q(iVar,i,k) = - ( ( Fe(iVar,ip1,k) - Fe(iVar,i,k) ) / dx + ( He(iVar,i,kp1) - He(iVar,i,k) ) / deta ) + src(iVar,i,k)
+          
+          if(i==100.and.k==1)then
+            print*,tend%q(iVar,i,k),Fe(iVar,ip1,k), Fe(iVar,i,k),He(iVar,i,kp1),He(iVar,i,k),src(iVar,i,k)
+            print*,''
+          endif
+          
         enddo
       enddo
     enddo
     !$OMP END PARALLEL DO
+    print*,''
     
   end subroutine spatial_operator
 
@@ -1332,5 +1348,69 @@ contains
     enddo
   
   end subroutine Rayleigh_coef
+  
+  subroutine extend_low_bdy(sqrtGC,qC,qC_ref)
+    real(r_kind), dimension(     ics:ice,kcs:kce), intent(in   ) :: sqrtGC
+    real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: qC
+    real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: qC_ref
+    
+    real(r_kind), dimension(ics:ice,kcs:kce) :: rho
+    real(r_kind), dimension(ics:ice,kcs:kce) :: u
+    real(r_kind), dimension(ics:ice,kcs:kce) :: w
+    real(r_kind), dimension(ics:ice,kcs:kce) :: theta
+    
+    real(r_kind), dimension(ics:ice,kcs:kce) :: rho_ref
+    real(r_kind), dimension(ics:ice,kcs:kce) :: theta_ref
+    
+    real(r_kind), dimension(ics:ice,kcs:kce) :: rho_pert
+    real(r_kind), dimension(ics:ice,kcs:kce) :: theta_pert
+    
+    rho   = qC(1,:,:) / sqrtGC
+    u     = qC(2,:,:) / qC(1,:,:)
+    w     = qC(3,:,:) / qC(1,:,:)
+    theta = qC(4,:,:) / qC(1,:,:)
+    
+    rho_ref   = qC_ref(1,:,:) / sqrtGC
+    theta_ref = qC_ref(4,:,:) / qC_ref(1,:,:)
+    
+    rho_pert   = rho - rho_ref
+    theta_pert = theta - theta_ref
+    
+    call fill_ghost(rho_pert  , rho_pert  , 2,  1)
+    call fill_ghost(u         , u         , 2,  1)
+    call fill_ghost(w         , w         , 2, -1)
+    call fill_ghost(theta_pert, theta_pert, 2,  1)
+    
+    qC(1,:,:) = sqrtGC * ( rho_ref + rho_pert )
+    qC(2,:,:) = qC(1,:,:) * u
+    qC(3,:,:) = qC(1,:,:) * w
+    qC(4,:,:) = qC(1,:,:) * ( theta_ref + theta_pert )
+  end subroutine extend_low_bdy
+  
+  subroutine fill_ghost(qC,q,dir,sign)
+    real   (r_kind), dimension(ics:ice,kcs:kce), intent(out) :: qC
+    real   (r_kind), dimension(ics:ice,kcs:kce), intent(in ) :: q
+    integer(i_kind)                            , intent(in ) :: dir
+    integer(i_kind)                            , intent(in ) :: sign
+    
+    integer(i_kind) i,k
+    
+    qC(ids:ide,kds:kde) = q(ids:ide,kds:kde)
+    
+    if(dir == 1)then
+      ! x-dir
+      do i = 1,extPts
+        qC(ids-i,kds:kde) = sign * q(ids+i-1,kds:kde)
+        qC(ide+i,kds:kde) = sign * q(ide-i+1,kds:kde)
+      enddo
+    elseif(dir == 2)then
+      ! z-dir
+      do k = 1,extPts
+        qC(ids:ide,kds-k) = sign * q(ids:ide,kds+k-1)
+        qC(ids:ide,kde+k) = sign * q(ids:ide,kde-k+1)
+      enddo
+    endif
+    
+  end subroutine fill_ghost
 end module spatial_operators_mod
 
