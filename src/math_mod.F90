@@ -29,13 +29,14 @@
   
     end subroutine calc_polynomial_matrix
     
-    subroutine calc_polynomial_deriv_matrix(d,n,xi,eta,px,py)
+    subroutine calc_polynomial_deriv_matrix(d,m,n,xi,eta,px,py)
       integer(i_kind), intent(in ) :: d ! polynomial degree
+      integer(i_kind), intent(in ) :: m ! number of points
       integer(i_kind), intent(in ) :: n ! number of points on cell, n = (d+1)*(d+2)/2
-      real   (r_kind), intent(in ) :: xi (n)
-      real   (r_kind), intent(in ) :: eta(n)
-      real   (r_kind), intent(out) :: px (n,n)
-      real   (r_kind), intent(out) :: py (n,n)
+      real   (r_kind), intent(in ) :: xi (m)
+      real   (r_kind), intent(in ) :: eta(m)
+      real   (r_kind), intent(out) :: px (m,n)
+      real   (r_kind), intent(out) :: py (m,n)
       
       real   (r16) :: x
       real   (r16) :: y
@@ -45,7 +46,7 @@
       real   (r16) :: powy1,powy2
       real   (r16) :: coefx,coefy
       
-      do iPOC = 1,n
+      do iPOC = 1,m
         x = xi (iPOC)
         y = eta(iPOC)
         
