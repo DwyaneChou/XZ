@@ -5,7 +5,7 @@ clear
 % ncfile    = '..\run\output_xz_2_0p28_0p18.nc';
 ncfile    = '..\run\output_xz_2_gaussian_src.nc';
 pic_path  = '.\';
-varname   = 'u';
+varname   = 'w';
 
 time_start = 1;
 time_end   = 501;

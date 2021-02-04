@@ -27,8 +27,6 @@ module spatial_operators_mod
   real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixB
   real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixT
   real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixG ! Reconstruction matrix on Gaussian points
-  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixX   ! Reconstruction matrix of x derivative
-  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixEta ! Reconstruction matrix of eta derivative
   
   real   (r_kind) :: dV
   
@@ -98,25 +96,15 @@ module spatial_operators_mod
   
   real(r_kind), dimension(:,:,:,:), allocatable :: CG_coef
   
-  real(r_kind), dimension(:,:,:), allocatable :: dxdx
-  real(r_kind), dimension(:,:,:), allocatable :: dxdeta
-  real(r_kind), dimension(:,:,:), allocatable :: dzdx
-  real(r_kind), dimension(:,:,:), allocatable :: dzdeta
-  
-  real(r_kind), dimension(:,:,:,:,:), allocatable :: mtxJ
-  real(r_kind), dimension(:,:,:,:,:), allocatable :: invJ
-  
 contains
   subroutine init_spatial_operator
-    integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE,iEOC,iPOC
+    integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE,iEOC
     integer(i_kind) :: iRec,kRec
     
     real(r_kind) :: uB_ref,uT_ref
     real(r_kind) :: nx,nz,nv(2),pm(2,2)
     real(r_kind) :: xG  (nQuadPointsOnCell)
     real(r_kind) :: etaG(nQuadPointsOnCell)
-    real(r_kind) :: xD  (nPointsOnCell)
-    real(r_kind) :: etaD(nPointsOnCell)
     
     allocate(inDomain  (ics:ice,kcs:kce))
     
@@ -134,9 +122,6 @@ contains
     allocate(recMatrixT(nPointsOnEdge,maxRecTerms,ids:ide,kds:kde))
     
     allocate(recMatrixG(nQuadPointsOnCell,maxRecTerms,ids:ide,kds:kde))
-    
-    allocate(recMatrixX  (nPointsOnCell    ,maxRecTerms,ids:ide,kds:kde))
-    allocate(recMatrixEta(nPointsOnCell    ,maxRecTerms,ids:ide,kds:kde))
     
     allocate(qC(nVar,              ics:ice,kcs:kce))
     allocate(qL(nVar,nPointsOnEdge,ics:ice,kcs:kce))
@@ -201,14 +186,6 @@ contains
     allocate(q_diff(nVar,ics:ice,kcs:kce))
     
     allocate(CG_coef(nVar,maxRecTerms,ids:ide,kds:kde))
-    
-    allocate( dxdx  (nPointsOnCell,ids:ide,kds:kde) )
-    allocate( dxdeta(nPointsOnCell,ids:ide,kds:kde) )
-    allocate( dzdx  (nPointsOnCell,ids:ide,kds:kde) )
-    allocate( dzdeta(nPointsOnCell,ids:ide,kds:kde) )
-  
-    allocate( mtxJ(2,2,nPointsOnCell,ids:ide,kds:kde))
-    allocate( invJ(2,2,nPointsOnCell,ids:ide,kds:kde))
   
     src   = 0
     
@@ -354,7 +331,7 @@ contains
     recdeta = 1. / ( deta * recCoef )
     recdV   = 1. / ( recCoef**2 )
     
-    !$OMP PARALLEL DO PRIVATE(i,j,iRec,kRec,xG,etaG,xD,etaD,iEOC)
+    !$OMP PARALLEL DO PRIVATE(i,j,iRec,kRec,xG,etaG)
     do k = kds,kde
       do i = ids,ide
         do j = 1,nRecCells(i,k)
@@ -379,27 +356,23 @@ contains
         xG   = ( ( x  (:,i,k) - xCenter  (i,k) ) / dx   ) / recCoef
         etaG = ( ( eta(:,i,k) - etaCenter(i,k) ) / deta ) / recCoef
         call calc_polynomial_matrix(locPolyDegree(i,k),nQuadPointsOnCell,nRecTerms(i,k),xG,etaG,recMatrixG(:,1:nRecTerms(i,k),i,k))
-        
-        ! Set points for calculating metric derivative
-        iEOC = 1
-        xD  (1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = xL   * recdx
-        etaD(1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = etaL * recdeta
-        iEOC = 2
-        xD  (1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = xB   * recdx
-        etaD(1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = etaB * recdeta
-        iEOC = 3
-        xD  (1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = xR   * recdx
-        etaD(1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = etaR * recdeta
-        iEOC = 4
-        xD  (1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = xT   * recdx
-        etaD(1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = etaT * recdeta
-        
-        xD  (nEdgesOnCell*nPointsOnEdge+1:nPointsOnCell) = xG
-        etaD(nEdgesOnCell*nPointsOnEdge+1:nPointsOnCell) = etaG
-        call calc_polynomial_deriv_matrix(locPolyDegree(i,k),nPointsOnCell,nRecTerms(i,k),xD,etaD,recMatrixX(:,1:nRecTerms(i,k),i,k),recMatrixEta(:,1:nRecTerms(i,k),i,k))
       enddo
     enddo
     !$OMP END PARALLEL DO
+    
+    !! Reconstruct metric function
+    !call reconstruct_field(sqrtGC*recdV,&
+    !                       sqrtGL      ,&
+    !                       sqrtGR      ,&
+    !                       sqrtGB      ,&
+    !                       sqrtGT)
+    !
+    !call reconstruct_field(G13C*recdV,&
+    !                       G13L      ,&
+    !                       G13R      ,&
+    !                       G13B      ,&
+    !                       G13T)
+    
         
     ! Set mertric functions by analytical value
     do k = kds,kde
@@ -415,39 +388,6 @@ contains
         G13T  (:,i,k) = G13_ext  (:,3,i,k)
       enddo
     enddo
-    
-    !! Reconstruct metric function
-    !call reconstruct_field(sqrtGC*recdV,&
-    !                       sqrtGL      ,&
-    !                       sqrtGR      ,&
-    !                       sqrtGB      ,&
-    !                       sqrtGT)
-    !
-    !call reconstruct_field(G13C*recdV,&
-    !                       G13L      ,&
-    !                       G13R      ,&
-    !                       G13B      ,&
-    !                       G13T)
-    
-    call reconstruct_deriv(xC*recdx  ,dxdx,dxdeta)
-    call reconstruct_deriv(zC*recdeta,dzdx,dzdeta)
-    mtxJ(1,1,:,:,:) = dxdx
-    mtxJ(1,2,:,:,:) = dxdeta
-    mtxJ(2,1,:,:,:) = dzdx
-    mtxJ(2,2,:,:,:) = dzdeta
-    do k = kds,kde
-      do i = ids,ide
-        do iPOC = 1,nPointsOnCell
-          call BRINV(2,mtxJ(:,:,iPOE,i,k),invJ(:,:,iPOE,i,k))
-          print*,det2(mtxJ(:,:,iPOE,i,k))
-        enddo
-      enddo
-    enddo
-    !print*,maxval(dxdx),minval(dxdx)
-    !print*,maxloc(dxdx),minloc(dxdx)
-    !print*,maxval(dzdx),minval(dzdx)
-    !print*,maxloc(dzdx),minloc(dzdx)
-    !stop 'Check metric derivative'
     
     ! Calculate reference pressure
     qC = FillValue
@@ -907,48 +847,6 @@ contains
     enddo
     !$OMP END PARALLEL DO
   end subroutine reconstruct_field
-  
-  subroutine reconstruct_deriv(qC,dqdx,dqdeta)
-    real   (r_kind), dimension(              ics:ice,kcs:kce),intent(in ) :: qC
-    real   (r_kind), dimension(nPointsOnCell,ics:ice,kcs:kce),intent(out) :: dqdx
-    real   (r_kind), dimension(nPointsOnCell,ics:ice,kcs:kce),intent(out) :: dqdeta
-  
-    integer(i_kind) :: i,j,k
-    integer(i_kind) :: iRec,kRec
-    integer(i_kind) :: ic
-    integer(i_kind) :: m,n
-    
-    real(r_kind)                                     :: h
-    real(r_kind), dimension(maxRecCells            ) :: u
-    real(r_kind), dimension(maxRecCells,maxRecTerms) :: A
-    real(r_kind), dimension(            maxRecTerms) :: polyCoef
-    
-    h = dx
-    
-    ! Full WLS-ENO
-    !$OMP PARALLEL DO PRIVATE(i,j,m,n,iRec,kRec,iC,u,A,polyCoef) collapse(2)
-    do k = kds,kde
-      do i = ids,ide
-        m = nRecCells(i,k)
-        n = nRecTerms(i,k)
-        ! Set variable for reconstruction
-        do j = 1,m
-          iRec = iRecCell(j,i,k)
-          kRec = kRecCell(j,i,k)
-          
-          u(j    ) = qC(iRec,kRec)
-          A(j,1:n) = polyCoordCoef(j,1:n,i,k)
-        enddo
-        ic = iCenCell(i,k)
-        
-        polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic)
-        
-        dqdx  (:,i,k) = matmul(recMatrixX  (:,1:n,i,k),polyCoef(1:n))
-        dqdeta(:,i,k) = matmul(recMatrixEta(:,1:n,i,k),polyCoef(1:n))
-      enddo
-    enddo
-    !$OMP END PARALLEL DO
-  end subroutine reconstruct_deriv
   
   function calc_pressure(sqrtG,q)
     real(r_kind) calc_pressure
