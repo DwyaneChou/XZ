@@ -225,7 +225,57 @@ contains
       enddo
     enddo
     
-    !! special treatment on low boundary
+    ! special treatment on low boundary
+    do i = ids+1,ibe-1
+      k = kds
+      j = 0
+      do kRec = 0,2
+        do iRec = -1,1
+          j = j + 1
+          iRecCell(j,i,k) = i + iRec
+          kRecCell(j,i,k) = k + kRec
+        enddo
+      enddo
+      nRecCells    (i,k) = j
+      locPolyDegree(i,k) = 2
+      
+      k = kds + 1
+      j = 0
+      do kRec = -1,1
+        do iRec = -1,1
+          j = j + 1
+          iRecCell(j,i,k) = i + iRec
+          kRecCell(j,i,k) = k + kRec
+        enddo
+      enddo
+      nRecCells    (i,k) = j
+      locPolyDegree(i,k) = 2
+      
+      k = kde
+      j = 0
+      do kRec = -2,0
+        do iRec = -1,1
+          j = j + 1
+          iRecCell(j,i,k) = i + iRec
+          kRecCell(j,i,k) = k + kRec
+        enddo
+      enddo
+      nRecCells    (i,k) = j
+      locPolyDegree(i,k) = 2
+      
+      k = kde - 1
+      j = 0
+      do kRec = -1,1
+        do iRec = -1,1
+          j = j + 1
+          iRecCell(j,i,k) = i + iRec
+          kRecCell(j,i,k) = k + kRec
+        enddo
+      enddo
+      nRecCells    (i,k) = j
+      locPolyDegree(i,k) = 2
+    enddo
+    
     !do i = ibs,ibe
     !  k = kds
     !  j = 0
@@ -239,17 +289,17 @@ contains
     !  nRecCells    (i,k) = j
     !  locPolyDegree(i,k) = 2
     !  
-    !  k = kds + 1
-    !  j = 0
-    !  do kRec = -1,3
-    !    do iRec = -recBdy,recBdy
-    !      j = j + 1
-    !      iRecCell(j,i,k) = i + iRec
-    !      kRecCell(j,i,k) = k + kRec
-    !    enddo
-    !  enddo
-    !  nRecCells    (i,k) = j
-    !  locPolyDegree(i,k) = 3
+    !  !k = kds + 1
+    !  !j = 0
+    !  !do kRec = -1,3
+    !  !  do iRec = -recBdy,recBdy
+    !  !    j = j + 1
+    !  !    iRecCell(j,i,k) = i + iRec
+    !  !    kRecCell(j,i,k) = k + kRec
+    !  !  enddo
+    !  !enddo
+    !  !nRecCells    (i,k) = j
+    !  !locPolyDegree(i,k) = 3
     !  
     !  !do k = kds, kds + recBdy - 1
     !  !  j = 0
