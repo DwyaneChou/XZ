@@ -110,6 +110,13 @@
       
     end subroutine  calc_polynomial_square_integration
     
+    function det2(mtx)
+      real(r_kind) :: det2
+      real(r_kind) :: mtx(2,2)
+      
+      det2 = mtx(1,1) * mtx(2,2) - mtx(1,2) * mtx(2,1)
+    end function det2
+    
     function nchoosek(n,k) ! same as nchoosek in matlab
       real   (r_kind) :: nchoosek
       integer(i_kind) :: n

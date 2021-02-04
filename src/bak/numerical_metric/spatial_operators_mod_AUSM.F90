@@ -225,47 +225,47 @@ contains
       enddo
     enddo
     
-    !! special treatment on low boundary
-    !do i = ibs,ibe
-    !  k = kds
-    !  j = 0
-    !  do kRec = 0,2
-    !    do iRec = -1,1
-    !      j = j + 1
-    !      iRecCell(j,i,k) = i + iRec
-    !      kRecCell(j,i,k) = k + kRec
-    !    enddo
-    !  enddo
-    !  nRecCells    (i,k) = j
-    !  locPolyDegree(i,k) = 2
-    !  
-    !  k = kds + 1
-    !  j = 0
-    !  do kRec = -1,3
-    !    do iRec = -recBdy,recBdy
-    !      j = j + 1
-    !      iRecCell(j,i,k) = i + iRec
-    !      kRecCell(j,i,k) = k + kRec
-    !    enddo
-    !  enddo
-    !  nRecCells    (i,k) = j
-    !  locPolyDegree(i,k) = 3
-    !  
-    !  !do k = kds, kds + recBdy - 1
-    !  !  j = 0
-    !  !  do kRec = - k + 1, - k + stencil_width
-    !  !    do iRec = -recBdy,recBdy
-    !  !      j = j + 1
-    !  !      iRecCell(j,i,k) = i + iRec
-    !  !      kRecCell(j,i,k) = k + kRec
-    !  !    enddo
-    !  !  enddo
-    !  !  nRecCells    (i,k) = j
-    !  !  locPolyDegree(i,k) = 4!k + 1
-    !  !enddo
-    !  
-    !  !locPolyDegree(i,k) = min( maxval(iRecCell(1:j,i,k)) - minval(iRecCell(1:j,i,k)), maxval(kRecCell(1:j,i,k)) - minval(kRecCell(1:j,i,k)) )
-    !enddo
+    ! special treatment on low boundary
+    do i = ibs,ibe
+      k = kds
+      j = 0
+      do kRec = 0,2
+        do iRec = -1,1
+          j = j + 1
+          iRecCell(j,i,k) = i + iRec
+          kRecCell(j,i,k) = k + kRec
+        enddo
+      enddo
+      nRecCells    (i,k) = j
+      locPolyDegree(i,k) = 2
+      
+      k = kds + 1
+      j = 0
+      do kRec = -1,3
+        do iRec = -recBdy,recBdy
+          j = j + 1
+          iRecCell(j,i,k) = i + iRec
+          kRecCell(j,i,k) = k + kRec
+        enddo
+      enddo
+      nRecCells    (i,k) = j
+      locPolyDegree(i,k) = 3
+      
+      !do k = kds, kds + recBdy - 1
+      !  j = 0
+      !  do kRec = - k + 1, - k + stencil_width
+      !    do iRec = -recBdy,recBdy
+      !      j = j + 1
+      !      iRecCell(j,i,k) = i + iRec
+      !      kRecCell(j,i,k) = k + kRec
+      !    enddo
+      !  enddo
+      !  nRecCells    (i,k) = j
+      !  locPolyDegree(i,k) = 4!k + 1
+      !enddo
+      
+      !locPolyDegree(i,k) = min( maxval(iRecCell(1:j,i,k)) - minval(iRecCell(1:j,i,k)), maxval(kRecCell(1:j,i,k)) - minval(kRecCell(1:j,i,k)) )
+    enddo
     
     !!! Scheme 2
     !!do i = ibs,ibe
@@ -1285,8 +1285,8 @@ contains
     real(r_kind), parameter :: leftSpongeThickness  = 10000  ! 10000 for "best" result
     real(r_kind), parameter :: rightSpongeThickness = 10000  ! 10000 for "best" result
     
-    real(r_kind), parameter :: mu_max_top = 0.2!0.28
-    real(r_kind), parameter :: mu_max_lat = 0.2!0.15
+    real(r_kind), parameter :: mu_max_top = 0.28!0.2
+    real(r_kind), parameter :: mu_max_lat = 0.15!0.2
     
     real(r_kind) zd, zt
     

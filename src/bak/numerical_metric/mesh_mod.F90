@@ -44,6 +44,7 @@
       
       real(r_kind), dimension(:,:), allocatable :: xC   ! x coordinate on Cell by Gaussian quadrature
       real(r_kind), dimension(:,:), allocatable :: zC   ! z coordinate on Cell by Gaussian quadrature
+      real(r_kind), dimension(:,:), allocatable :: etaC ! eta coordinate on Cell by Gaussian quadrature
       real(r_kind), dimension(:,:), allocatable :: zsC ! topography on Cell by Gaussian quadrature
         
       real(r_kind), dimension(:,:), allocatable :: xCenter   ! center coordinate
@@ -114,9 +115,10 @@
         allocate(G13B(nPointsOnEdge,ics:ice,kcs:kce))   ! G13 on RiemannPoints on Bottom edge of Cell
         allocate(G13T(nPointsOnEdge,ics:ice,kcs:kce))   ! G13 on RiemannPoints on Top edge of Cell
         
-        allocate(xC (ics:ice,kcs:kce))
-        allocate(zC (ics:ice,kcs:kce))
-        allocate(zsC(ics:ice,kcs:kce))
+        allocate(xC  (ics:ice,kcs:kce))
+        allocate(zC  (ics:ice,kcs:kce))
+        allocate(etaC(ics:ice,kcs:kce))
+        allocate(zsC (ics:ice,kcs:kce))
         
         allocate(xCenter  (ics:ice,kcs:kce))
         allocate(etaCenter(ics:ice,kcs:kce))
@@ -164,7 +166,8 @@
                 eta(j,i,k) = etaCorner(1,i,k) + deta * quad_pos_1d(jQP)
               enddo
             enddo
-            xC(i,k) = Gaussian_quadrature_2d(x(:,i,k))
+            xC  (i,k) = Gaussian_quadrature_2d(x  (:,i,k))
+            etaC(i,k) = Gaussian_quadrature_2d(eta(:,i,k))
           enddo
         enddo
         

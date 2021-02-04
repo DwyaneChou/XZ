@@ -5,12 +5,17 @@ module spatial_operators_mod
   use stat_mod
   use tend_mod
   use reconstruction_mod
-  use test_case_mod
   implicit none
   
   private
   
-  public init_spatial_operator,spatial_operator
+  public init_spatial_operator,&
+         init_metric_tensor   ,&
+         init_stencil         ,&
+         init_polyCoef        ,&
+         init_ref_stat        ,&
+         init_bdy_condition   ,&
+         spatial_operator
   
   logical, dimension(:,:), allocatable :: inDomain
   
@@ -27,6 +32,8 @@ module spatial_operators_mod
   real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixB
   real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixT
   real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixG ! Reconstruction matrix on Gaussian points
+  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixX   ! Reconstruction matrix of x derivative
+  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixEta ! Reconstruction matrix of eta derivative
   
   real   (r_kind) :: dV
   
@@ -96,15 +103,18 @@ module spatial_operators_mod
   
   real(r_kind), dimension(:,:,:,:), allocatable :: CG_coef
   
+  real(r_kind), dimension(:,:,:), allocatable :: dxdx
+  real(r_kind), dimension(:,:,:), allocatable :: dxde
+  real(r_kind), dimension(:,:,:), allocatable :: dzdx
+  real(r_kind), dimension(:,:,:), allocatable :: dzde
+  
+  real(r_kind), dimension(:,:,:,:,:), allocatable :: mtxJ
+  real(r_kind), dimension(:,:,:,:,:), allocatable :: invJ
+  
 contains
   subroutine init_spatial_operator
-    integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE,iEOC
+    integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE,iEOC,iPOC
     integer(i_kind) :: iRec,kRec
-    
-    real(r_kind) :: uB_ref,uT_ref
-    real(r_kind) :: nx,nz,nv(2),pm(2,2)
-    real(r_kind) :: xG  (nQuadPointsOnCell)
-    real(r_kind) :: etaG(nQuadPointsOnCell)
     
     allocate(inDomain  (ics:ice,kcs:kce))
     
@@ -122,6 +132,9 @@ contains
     allocate(recMatrixT(nPointsOnEdge,maxRecTerms,ids:ide,kds:kde))
     
     allocate(recMatrixG(nQuadPointsOnCell,maxRecTerms,ids:ide,kds:kde))
+    
+    allocate(recMatrixX  (nPointsOnCell,maxRecTerms,ids:ide,kds:kde))
+    allocate(recMatrixEta(nPointsOnCell,maxRecTerms,ids:ide,kds:kde))
     
     allocate(qC(nVar,              ics:ice,kcs:kce))
     allocate(qL(nVar,nPointsOnEdge,ics:ice,kcs:kce))
@@ -186,12 +199,32 @@ contains
     allocate(q_diff(nVar,ics:ice,kcs:kce))
     
     allocate(CG_coef(nVar,maxRecTerms,ids:ide,kds:kde))
+    
+    allocate( dxdx(nPointsOnCell,ics:ice,kcs:kce) )
+    allocate( dxde(nPointsOnCell,ics:ice,kcs:kce) )
+    allocate( dzdx(nPointsOnCell,ics:ice,kcs:kce) )
+    allocate( dzde(nPointsOnCell,ics:ice,kcs:kce) )
+  
+    allocate( mtxJ(2,2,nPointsOnCell,ics:ice,kcs:kce))
+    allocate( invJ(2,2,nPointsOnCell,ics:ice,kcs:kce))
   
     src   = 0
     
     dV = dx * deta
     
     CG_coef = 1.
+    
+    ! Calculate Rayleigh damping coef
+    call Rayleigh_coef(relax_coef)
+    
+    ! Fill out qC
+    qC = FillValue
+    
+  end subroutine init_spatial_operator
+  
+  subroutine init_stencil
+    integer(i_kind) :: i,j,k
+    integer(i_kind) :: iRec,kRec
     
     ! set reconstruction cells on each stencil
     print*,'Set reconstruction cells on each stencil'
@@ -321,7 +354,17 @@ contains
         nRecTerms(i,k) = ( locPolyDegree(i,k) + 1 ) * ( locPolyDegree(i,k) + 2 ) / 2
       enddo
     enddo
+  
+  end subroutine init_stencil
+  
+  subroutine init_polyCoef
+    integer(i_kind) :: i,j,k,iEOC
+    integer(i_kind) :: iRec,kRec
     
+    real(r_kind) :: xG  (nQuadPointsOnCell)
+    real(r_kind) :: etaG(nQuadPointsOnCell)
+    real(r_kind) :: xD  (nPointsOnCell)
+    real(r_kind) :: etaD(nPointsOnCell)
     ! initilize polyCoordCoef
     print*,'Initilize polyCoordCoef'
     print*,''
@@ -331,7 +374,7 @@ contains
     recdeta = 1. / ( deta * recCoef )
     recdV   = 1. / ( recCoef**2 )
     
-    !$OMP PARALLEL DO PRIVATE(i,j,iRec,kRec,xG,etaG)
+    !$OMP PARALLEL DO PRIVATE(i,j,iRec,kRec,xG,etaG,xD,etaD,iEOC)
     do k = kds,kde
       do i = ids,ide
         do j = 1,nRecCells(i,k)
@@ -356,38 +399,35 @@ contains
         xG   = ( ( x  (:,i,k) - xCenter  (i,k) ) / dx   ) / recCoef
         etaG = ( ( eta(:,i,k) - etaCenter(i,k) ) / deta ) / recCoef
         call calc_polynomial_matrix(locPolyDegree(i,k),nQuadPointsOnCell,nRecTerms(i,k),xG,etaG,recMatrixG(:,1:nRecTerms(i,k),i,k))
+        
+        ! Set points for calculating metric derivative
+        iEOC = 1
+        xD  (1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = xB   * recdx
+        etaD(1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = etaB * recdeta
+        iEOC = 2
+        xD  (1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = xR   * recdx
+        etaD(1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = etaR * recdeta
+        iEOC = 3
+        xD  (1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = xT   * recdx
+        etaD(1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = etaT * recdeta
+        iEOC = 4
+        xD  (1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = xL   * recdx
+        etaD(1+(iEOC-1)*nPointsOnEdge:iEOC*nPointsOnEdge) = etaL * recdeta
+        
+        xD  (nEdgesOnCell*nPointsOnEdge+1:nPointsOnCell) = xG
+        etaD(nEdgesOnCell*nPointsOnEdge+1:nPointsOnCell) = etaG
+        call calc_polynomial_deriv_matrix(locPolyDegree(i,k),nPointsOnCell,nRecTerms(i,k),xD,etaD,recMatrixX(:,1:nRecTerms(i,k),i,k),recMatrixEta(:,1:nRecTerms(i,k),i,k))
       enddo
     enddo
     !$OMP END PARALLEL DO
+  end subroutine init_polyCoef
+  
+  subroutine init_ref_stat
+    integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE,iEOC
+    integer(i_kind) :: iRec,kRec
     
-    !! Reconstruct metric function
-    !call reconstruct_field(sqrtGC*recdV,&
-    !                       sqrtGL      ,&
-    !                       sqrtGR      ,&
-    !                       sqrtGB      ,&
-    !                       sqrtGT)
-    !
-    !call reconstruct_field(G13C*recdV,&
-    !                       G13L      ,&
-    !                       G13R      ,&
-    !                       G13B      ,&
-    !                       G13T)
-    
-        
-    ! Set mertric functions by analytical value
-    do k = kds,kde
-      do i = ids,ide
-        sqrtGL(:,i,k) = sqrtG_ext(:,4,i,k)
-        sqrtGR(:,i,k) = sqrtG_ext(:,2,i,k)
-        sqrtGB(:,i,k) = sqrtG_ext(:,1,i,k)
-        sqrtGT(:,i,k) = sqrtG_ext(:,3,i,k)
-        
-        G13L  (:,i,k) = G13_ext  (:,4,i,k)
-        G13R  (:,i,k) = G13_ext  (:,2,i,k)
-        G13B  (:,i,k) = G13_ext  (:,1,i,k)
-        G13T  (:,i,k) = G13_ext  (:,3,i,k)
-      enddo
-    enddo
+    real(r_kind) :: uB_ref,uT_ref
+    real(r_kind) :: nx,nz,nv(2),pm(2,2)
     
     ! Calculate reference pressure
     qC = FillValue
@@ -410,24 +450,214 @@ contains
     ! Fill outside boundary
     ! left boundary
     qR_ref(:,:,ids-1,kds:kde) = qL_ref(:,:,ids,kds:kde)
+    
+    ! right boundary
+    qL_ref(:,:,ide+1,kds:kde) = qR_ref(:,:,ide,kds:kde)
+    
+    ! bottom boundary
+    qT_ref(:,:,ids:ide,kds-1) = qB_ref(:,:,ids:ide,kds)
+    
+    ! top boundary
+    qB_ref(:,:,ids:ide,kde+1) = qT_ref(:,:,ids:ide,kde)
+    
+    !$OMP PARALLEL DO PRIVATE(i,iPOE)
+    do k = kds-1,kde+1
+      do i = ids-1,ide+1
+        do iPOE = 1,nPointsOnEdge
+          rhoL_ref(iPOE,i,k) = ( qL_ref(1,iPOE,i,k) + qL_ref(5,iPOE,i,k) ) / sqrtGL(iPOE,i,k)
+          rhoR_ref(iPOE,i,k) = ( qR_ref(1,iPOE,i,k) + qR_ref(5,iPOE,i,k) ) / sqrtGR(iPOE,i,k)
+          rhoB_ref(iPOE,i,k) = ( qB_ref(1,iPOE,i,k) + qB_ref(5,iPOE,i,k) ) / sqrtGB(iPOE,i,k)
+          rhoT_ref(iPOE,i,k) = ( qT_ref(1,iPOE,i,k) + qT_ref(5,iPOE,i,k) ) / sqrtGT(iPOE,i,k)
+          
+          cL_ref(iPOE,i,k) = calc_sound_speed_x(sqrtGL(iPOE,i,k)               ,qL_ref(:,iPOE,i,k))
+          cR_ref(iPOE,i,k) = calc_sound_speed_x(sqrtGR(iPOE,i,k)               ,qR_ref(:,iPOE,i,k))
+          cB_ref(iPOE,i,k) = calc_sound_speed_z(sqrtGB(iPOE,i,k),G13B(iPOE,i,k),qB_ref(:,iPOE,i,k)) * sqrtGB(iPOE,i,k) ! unit: m/s
+          cT_ref(iPOE,i,k) = calc_sound_speed_z(sqrtGT(iPOE,i,k),G13T(iPOE,i,k),qT_ref(:,iPOE,i,k)) * sqrtGT(iPOE,i,k) ! unit: m/s
+      
+          PL_ref(iPOE,i,k) = calc_pressure(sqrtGL(iPOE,i,k),qL_ref(:,iPOE,i,k))
+          PR_ref(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR_ref(:,iPOE,i,k))
+          PB_ref(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB_ref(:,iPOE,i,k))
+          PT_ref(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT_ref(:,iPOE,i,k))
+        enddo
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
+    
+    do k = kds,kde+1
+      do i = ids,ide
+        do iPOE = 1,nPointsOnEdge
+          uB_ref = ( qB_ref(3,iPOE,i,k  ) + sqrtGB(iPOE,i,k  ) * G13B(iPOE,i,k  ) * qB_ref(2,iPOE,i,k  ) ) / ( qB_ref(1,iPOE,i,k  ) + qB_ref(5,iPOE,i,k  ) )
+          uT_ref = ( qT_ref(3,iPOE,i,k-1) + sqrtGT(iPOE,i,k-1) * G13T(iPOE,i,k-1) * qT_ref(2,iPOE,i,k-1) ) / ( qT_ref(1,iPOE,i,k-1) + qT_ref(5,iPOE,i,k-1) )
+          call AUSM_p(Pz_ref(iPOE,i,k), rhoT_ref(iPOE,i,k-1), rhoB_ref(iPOE,i,k),&
+                                        uT_ref              , uB_ref            ,&
+                                        cT_ref  (iPOE,i,k-1), cB_ref  (iPOE,i,k),&
+                                        pT_ref  (iPOE,i,k-1), pB_ref  (iPOE,i,k))
+        enddo
+      enddo
+    enddo
+  end subroutine init_ref_stat
+  
+  subroutine init_metric_tensor
+    integer(i_kind) :: i,j,k,iPOE,iEOC,iPOC
+    
+    integer(i_kind) :: stat
+    
+    real(r_kind), dimension(:,:,:), allocatable :: diff_sqrtGL
+    real(r_kind), dimension(:,:,:), allocatable :: diff_sqrtGR
+    real(r_kind), dimension(:,:,:), allocatable :: diff_sqrtGB
+    real(r_kind), dimension(:,:,:), allocatable :: diff_sqrtGT
+    
+    real(r_kind), dimension(:,:,:), allocatable :: diff_G13L
+    real(r_kind), dimension(:,:,:), allocatable :: diff_G13R
+    real(r_kind), dimension(:,:,:), allocatable :: diff_G13B
+    real(r_kind), dimension(:,:,:), allocatable :: diff_G13T
+    
+    allocate( diff_sqrtGL(nPointsOnEdge,ids:ide,kds:kde) )
+    allocate( diff_sqrtGR(nPointsOnEdge,ids:ide,kds:kde) )
+    allocate( diff_sqrtGB(nPointsOnEdge,ids:ide,kds:kde) )
+    allocate( diff_sqrtGT(nPointsOnEdge,ids:ide,kds:kde) )
+    allocate( diff_G13L  (nPointsOnEdge,ids:ide,kds:kde) )
+    allocate( diff_G13R  (nPointsOnEdge,ids:ide,kds:kde) )
+    allocate( diff_G13B  (nPointsOnEdge,ids:ide,kds:kde) )
+    allocate( diff_G13T  (nPointsOnEdge,ids:ide,kds:kde) )
+    
+    ! Set mertric functions by analytical value
+    do k = kds,kde
+      do i = ids,ide
+        sqrtGL(:,i,k) = sqrtG_ext(:,4,i,k)
+        sqrtGR(:,i,k) = sqrtG_ext(:,2,i,k)
+        sqrtGB(:,i,k) = sqrtG_ext(:,1,i,k)
+        sqrtGT(:,i,k) = sqrtG_ext(:,3,i,k)
+        
+        G13L  (:,i,k) = G13_ext  (:,4,i,k)
+        G13R  (:,i,k) = G13_ext  (:,2,i,k)
+        G13B  (:,i,k) = G13_ext  (:,1,i,k)
+        G13T  (:,i,k) = G13_ext  (:,3,i,k)
+      enddo
+    enddo
+    
+    !! Reconstruct metric function
+    !call reconstruct_field(sqrtGC*recdV,&
+    !                       sqrtGL      ,&
+    !                       sqrtGR      ,&
+    !                       sqrtGB      ,&
+    !                       sqrtGT)
+    !
+    !call reconstruct_field(G13C*recdV,&
+    !                       G13L      ,&
+    !                       G13R      ,&
+    !                       G13B      ,&
+    !                       G13T)
+    !print*,maxval(sqrtG(:,ids:ide,kds:kde)),minval(sqrtG(:,ids:ide,kds:kde))
+    !print*,maxval(G13  (:,ids:ide,kds:kde)),minval(G13  (:,ids:ide,kds:kde))
+    
+    call reconstruct_deriv(xC*recdx  ,dxdx,dxde)
+    call reconstruct_deriv(zC*recdeta,dzdx,dzde)
+    mtxJ(1,1,:,:,:) = dxdx
+    mtxJ(1,2,:,:,:) = dxde
+    mtxJ(2,1,:,:,:) = dzdx
+    mtxJ(2,2,:,:,:) = dzde
+    ! Calculate metric matrics
+    do k = kds,kde
+      do i = ids,ide
+        do iPOC = 1,nPointsOnCell
+          call BRINV(2,mtxJ(:,:,iPOC,i,k),invJ(:,:,iPOC,i,k),stat)
+          if(stat==0)then
+            print*,'Fail to calculate invserse of mtxJ at i,k,iPOC',i,k,iPOC
+            stop
+          endif
+        enddo
+      enddo
+    enddo
+          
+    ! Calculate sqrtG and G13
+    do k = kds,kde
+      do i = ids,ide
+        iEOC = 1
+        do iPOE = 1,nPointsOnEdge
+          iPOC = iPOE + ( iEOC - 1 ) * nPointsOnEdge
+          sqrtGB(iPOE,i,k) = det2(mtxJ(:,:,iPOC,i,k))
+          G13B  (iPOE,i,k) = invJ(2,1,iPOC,i,k)
+        enddo
+        iEOC = 2
+        do iPOE = 1,nPointsOnEdge
+          iPOC = iPOE + ( iEOC - 1 ) * nPointsOnEdge
+          sqrtGR(iPOE,i,k) = det2(mtxJ(:,:,iPOC,i,k))
+          G13R  (iPOE,i,k) = invJ(2,1,iPOC,i,k)
+        enddo
+        iEOC = 3
+        do iPOE = 1,nPointsOnEdge
+          iPOC = iPOE + ( iEOC - 1 ) * nPointsOnEdge
+          sqrtGT(iPOE,i,k) = det2(mtxJ(:,:,iPOC,i,k))
+          G13T  (iPOE,i,k) = invJ(2,1,iPOC,i,k)
+        enddo
+        iEOC = 4
+        do iPOE = 1,nPointsOnEdge
+          iPOC = iPOE + ( iEOC - 1 ) * nPointsOnEdge
+          sqrtGL(iPOE,i,k) = det2(mtxJ(:,:,iPOC,i,k))
+          G13L  (iPOE,i,k) = invJ(2,1,iPOC,i,k)
+        enddo
+        do j = 1,nQuadPointsOnCell
+          iPOC = j + nEdgesOnCell * nPointsOnEdge
+          sqrtG(j,i,k) = det2(mtxJ(:,:,iPOC,i,k))
+          G13  (j,i,k) = invJ(2,1,iPOC,i,k)
+        enddo
+      enddo
+    enddo
+  
+    ! Fill outside boundary
+    ! left boundary
     sqrtGR(  :,ids-1,kds:kde) = sqrtGL(  :,ids,kds:kde)
     G13R  (  :,ids-1,kds:kde) = G13L  (  :,ids,kds:kde)
     
     ! right boundary
-    qL_ref(:,:,ide+1,kds:kde) = qR_ref(:,:,ide,kds:kde)
     sqrtGL(  :,ide+1,kds:kde) = sqrtGR(  :,ide,kds:kde)
     G13L  (  :,ide+1,kds:kde) = G13R  (  :,ide,kds:kde)
     
     ! bottom boundary
-    qT_ref(:,:,ids:ide,kds-1) = qB_ref(:,:,ids:ide,kds)
     sqrtGT(  :,ids:ide,kds-1) = sqrtGB(  :,ids:ide,kds)
     G13T  (  :,ids:ide,kds-1) = G13B  (  :,ids:ide,kds)
     
     ! top boundary
-    qB_ref(:,:,ids:ide,kde+1) = qT_ref(:,:,ids:ide,kde)
     sqrtGB(  :,ids:ide,kde+1) = sqrtGT(  :,ids:ide,kde)
     G13B  (  :,ids:ide,kde+1) = G13T  (  :,ids:ide,kde)
     
+    ! Calculate cell value
+    do k = kcs,kce
+      do i = ics,ice
+        sqrtGC(i,k) = Gaussian_quadrature_2d(sqrtG(:,i,k))
+        G13C  (i,k) = Gaussian_quadrature_2d(G13  (:,i,k))
+      enddo
+    enddo
+    
+    !do k = kds,kde
+    !  do i = ids,ide
+    !    diff_sqrtGL(:,i,k) = abs( ( sqrtGL(:,i,k) - sqrtG_ext(:,4,i,k) ) / sqrtG_ext(:,4,i,k) )
+    !    diff_sqrtGR(:,i,k) = abs( ( sqrtGR(:,i,k) - sqrtG_ext(:,2,i,k) ) / sqrtG_ext(:,2,i,k) )
+    !    diff_sqrtGB(:,i,k) = abs( ( sqrtGB(:,i,k) - sqrtG_ext(:,1,i,k) ) / sqrtG_ext(:,1,i,k) )
+    !    diff_sqrtGT(:,i,k) = abs( ( sqrtGT(:,i,k) - sqrtG_ext(:,3,i,k) ) / sqrtG_ext(:,3,i,k) )
+    !    
+    !    diff_G13L  (:,i,k) = abs( ( G13L  (:,i,k) - G13_ext  (:,4,i,k) ) )! / G13_ext  (:,4,i,k) )
+    !    diff_G13R  (:,i,k) = abs( ( G13R  (:,i,k) - G13_ext  (:,2,i,k) ) )! / G13_ext  (:,2,i,k) )
+    !    diff_G13B  (:,i,k) = abs( ( G13B  (:,i,k) - G13_ext  (:,1,i,k) ) )! / G13_ext  (:,1,i,k) )
+    !    diff_G13T  (:,i,k) = abs( ( G13T  (:,i,k) - G13_ext  (:,3,i,k) ) )! / G13_ext  (:,3,i,k) )
+    !  enddo
+    !enddo
+    !print*,'max/min value of diff_sqrtGL',maxval(diff_sqrtGL),minval(diff_sqrtGL)
+    !print*,'max/min value of diff_sqrtGR',maxval(diff_sqrtGR),minval(diff_sqrtGR)
+    !print*,'max/min value of diff_sqrtGB',maxval(diff_sqrtGB),minval(diff_sqrtGB)
+    !print*,'max/min value of diff_sqrtGT',maxval(diff_sqrtGT),minval(diff_sqrtGT)
+    !print*,'max/min value of diff_G13L  ',maxval(diff_G13L  ),minval(diff_G13L  )
+    !print*,'max/min value of diff_G13R  ',maxval(diff_G13R  ),minval(diff_G13R  )
+    !print*,'max/min value of diff_G13B  ',maxval(diff_G13B  ),minval(diff_G13B  )
+    !print*,'max/min value of diff_G13T  ',maxval(diff_G13T  ),minval(diff_G13T  )
+  end subroutine init_metric_tensor
+  
+  subroutine init_bdy_condition
+    integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE,iEOC
+    integer(i_kind) :: iRec,kRec
+    
+    real(r_kind) :: nx,nz,nv(2),pm(2,2)
     ! Calculate projection matrix for no-flux boundary
     k    = kds
     iEOC = 1
@@ -482,50 +712,7 @@ contains
         pmtx(:,:,iPOE,iEOC,i,k) = pm
       enddo
     enddo
-    
-    !$OMP PARALLEL DO PRIVATE(i,iPOE)
-    do k = kds-1,kde+1
-      do i = ids-1,ide+1
-        do iPOE = 1,nPointsOnEdge
-          rhoL_ref(iPOE,i,k) = ( qL_ref(1,iPOE,i,k) + qL_ref(5,iPOE,i,k) ) / sqrtGL(iPOE,i,k)
-          rhoR_ref(iPOE,i,k) = ( qR_ref(1,iPOE,i,k) + qR_ref(5,iPOE,i,k) ) / sqrtGR(iPOE,i,k)
-          rhoB_ref(iPOE,i,k) = ( qB_ref(1,iPOE,i,k) + qB_ref(5,iPOE,i,k) ) / sqrtGB(iPOE,i,k)
-          rhoT_ref(iPOE,i,k) = ( qT_ref(1,iPOE,i,k) + qT_ref(5,iPOE,i,k) ) / sqrtGT(iPOE,i,k)
-          
-          cL_ref(iPOE,i,k) = calc_sound_speed_x(sqrtGL(iPOE,i,k)               ,qL_ref(:,iPOE,i,k))
-          cR_ref(iPOE,i,k) = calc_sound_speed_x(sqrtGR(iPOE,i,k)               ,qR_ref(:,iPOE,i,k))
-          cB_ref(iPOE,i,k) = calc_sound_speed_z(sqrtGB(iPOE,i,k),G13B(iPOE,i,k),qB_ref(:,iPOE,i,k)) * sqrtGB(iPOE,i,k) ! unit: m/s
-          cT_ref(iPOE,i,k) = calc_sound_speed_z(sqrtGT(iPOE,i,k),G13T(iPOE,i,k),qT_ref(:,iPOE,i,k)) * sqrtGT(iPOE,i,k) ! unit: m/s
-      
-          PL_ref(iPOE,i,k) = calc_pressure(sqrtGL(iPOE,i,k),qL_ref(:,iPOE,i,k))
-          PR_ref(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR_ref(:,iPOE,i,k))
-          PB_ref(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB_ref(:,iPOE,i,k))
-          PT_ref(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT_ref(:,iPOE,i,k))
-        enddo
-      enddo
-    enddo
-    !$OMP END PARALLEL DO
-    
-    do k = kds,kde+1
-      do i = ids,ide
-        do iPOE = 1,nPointsOnEdge
-          uB_ref = ( qB_ref(3,iPOE,i,k  ) + sqrtGB(iPOE,i,k  ) * G13B(iPOE,i,k  ) * qB_ref(2,iPOE,i,k  ) ) / ( qB_ref(1,iPOE,i,k  ) + qB_ref(5,iPOE,i,k  ) )
-          uT_ref = ( qT_ref(3,iPOE,i,k-1) + sqrtGT(iPOE,i,k-1) * G13T(iPOE,i,k-1) * qT_ref(2,iPOE,i,k-1) ) / ( qT_ref(1,iPOE,i,k-1) + qT_ref(5,iPOE,i,k-1) )
-          call AUSM_p(Pz_ref(iPOE,i,k), rhoT_ref(iPOE,i,k-1), rhoB_ref(iPOE,i,k),&
-                                        uT_ref              , uB_ref            ,&
-                                        cT_ref  (iPOE,i,k-1), cB_ref  (iPOE,i,k),&
-                                        pT_ref  (iPOE,i,k-1), pB_ref  (iPOE,i,k))
-        enddo
-      enddo
-    enddo
-    
-    ! Calculate Rayleigh damping coef
-    call Rayleigh_coef(relax_coef)
-    
-    ! Fill out qC
-    qC = FillValue
-    
-  end subroutine init_spatial_operator
+  end subroutine init_bdy_condition
   
   subroutine spatial_operator(stat,tend)
     type(stat_field), target, intent(inout) :: stat
@@ -847,6 +1034,48 @@ contains
     enddo
     !$OMP END PARALLEL DO
   end subroutine reconstruct_field
+  
+  subroutine reconstruct_deriv(qC,dqdx,dqdeta)
+    real   (r_kind), dimension(              ics:ice,kcs:kce),intent(in ) :: qC
+    real   (r_kind), dimension(nPointsOnCell,ics:ice,kcs:kce),intent(out) :: dqdx
+    real   (r_kind), dimension(nPointsOnCell,ics:ice,kcs:kce),intent(out) :: dqdeta
+  
+    integer(i_kind) :: i,j,k
+    integer(i_kind) :: iRec,kRec
+    integer(i_kind) :: ic
+    integer(i_kind) :: m,n
+    
+    real(r_kind)                                     :: h
+    real(r_kind), dimension(maxRecCells            ) :: u
+    real(r_kind), dimension(maxRecCells,maxRecTerms) :: A
+    real(r_kind), dimension(            maxRecTerms) :: polyCoef
+    
+    h = dx
+    
+    ! Full WLS-ENO
+    !$OMP PARALLEL DO PRIVATE(i,j,m,n,iRec,kRec,iC,u,A,polyCoef) collapse(2)
+    do k = kds,kde
+      do i = ids,ide
+        m = nRecCells(i,k)
+        n = nRecTerms(i,k)
+        ! Set variable for reconstruction
+        do j = 1,m
+          iRec = iRecCell(j,i,k)
+          kRec = kRecCell(j,i,k)
+          
+          u(j    ) = qC(iRec,kRec)
+          A(j,1:n) = polyCoordCoef(j,1:n,i,k)
+        enddo
+        ic = iCenCell(i,k)
+        
+        polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic)
+        
+        dqdx  (:,i,k) = matmul(recMatrixX  (:,1:n,i,k),polyCoef(1:n))
+        dqdeta(:,i,k) = matmul(recMatrixEta(:,1:n,i,k),polyCoef(1:n))
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
+  end subroutine reconstruct_deriv
   
   function calc_pressure(sqrtG,q)
     real(r_kind) calc_pressure
@@ -1285,8 +1514,8 @@ contains
     real(r_kind), parameter :: leftSpongeThickness  = 10000  ! 10000 for "best" result
     real(r_kind), parameter :: rightSpongeThickness = 10000  ! 10000 for "best" result
     
-    real(r_kind), parameter :: mu_max_top = 0.2!0.28
-    real(r_kind), parameter :: mu_max_lat = 0.2!0.15
+    real(r_kind), parameter :: mu_max_top = 0.28!0.2
+    real(r_kind), parameter :: mu_max_lat = 0.15!0.2
     
     real(r_kind) zd, zt
     
