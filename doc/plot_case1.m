@@ -3,10 +3,10 @@ clear
 
 ncfile    = '..\run\output_xz_1.nc';
 pic_path  = '.\';
-varname   = 'w';
+varname   = 'theta';
 
 time_start = 1;
-time_end   = 201;
+time_end   = 167;
 
 it = time_end;
 

@@ -1,975 +1,1178 @@
-    module spatial_operators_mod
-      use constants_mod
-      use mesh_mod
-      use parameters_mod
-      use stat_mod
-      use tend_mod
-      use reconstruction_mod
-      use test_case_mod
-      implicit none
-      
-      private
-      
-      public init_spatial_operator,spatial_operator
-      
-      integer(i_kind), dimension(:,:), allocatable :: iCenCell ! center cell index on reconstruction stencil
-      
-      integer(i_kind), dimension(:,:,:,:), allocatable :: iRecCell ! x index of reconstruction cells
-      integer(i_kind), dimension(:,:,:,:), allocatable :: kRecCell ! k index of reconstruction cells
-      
-      real   (r_kind), dimension(:,:,:,:,:), allocatable :: xRel   ! relative x coordinate of reconstruction cells
-      real   (r_kind), dimension(:,:,:,:,:), allocatable :: etaRel ! relative eta coordinate of reconstruction cells
-      
-      real   (r_kind), dimension(:,:,:), allocatable :: disCenter ! distance between adjacent cells and center cell on stencil
-      
-      real   (r_kind), dimension(:,:), allocatable :: recMatrixL
-      real   (r_kind), dimension(:,:), allocatable :: recMatrixR
-      real   (r_kind), dimension(:,:), allocatable :: recMatrixB
-      real   (r_kind), dimension(:,:), allocatable :: recMatrixT
-      
-      real   (r_kind) :: dV
-      
-      real   (r_kind), dimension(:,:,:  ), allocatable :: qC
-      real   (r_kind), dimension(:,:,:,:), allocatable :: qL
-      real   (r_kind), dimension(:,:,:,:), allocatable :: qR
-      real   (r_kind), dimension(:,:,:,:), allocatable :: qB
-      real   (r_kind), dimension(:,:,:,:), allocatable :: qT
+module spatial_operators_mod
+  use constants_mod
+  use mesh_mod
+  use parameters_mod
+  use stat_mod
+  use tend_mod
+  use reconstruction_mod
+  use test_case_mod
+  implicit none
   
-      real(r_kind), dimension(:,:,:), allocatable :: F
-      real(r_kind), dimension(:,:,:), allocatable :: H
-      real(r_kind), dimension(  :,:), allocatable :: P
-      
-      real(r_kind), dimension(:,:,:,:), allocatable :: FL    ! Reconstructed F_(i-1/2,k)
-      real(r_kind), dimension(:,:,:,:), allocatable :: FR    ! Reconstructed F_(i+1/2,k)
-      real(r_kind), dimension(:,:,:,:), allocatable :: FB    ! Reconstructed F_(i,k-1/2)
-      real(r_kind), dimension(:,:,:,:), allocatable :: FT    ! Reconstructed F_(i,k+1/2)
-          
-      real(r_kind), dimension(:,:,:,:), allocatable :: HL    ! Reconstructed H_(i-1/2,k)
-      real(r_kind), dimension(:,:,:,:), allocatable :: HR    ! Reconstructed H_(i+1/2,k)
-      real(r_kind), dimension(:,:,:,:), allocatable :: HB    ! Reconstructed H_(i,k-1/2)
-      real(r_kind), dimension(:,:,:,:), allocatable :: HT    ! Reconstructed H_(i,k+1/2)
-      
-      real(r_kind), dimension(  :,:), allocatable :: PC
-      real(r_kind), dimension(:,:,:), allocatable :: PL    ! Reconstructed P_(i-1/2,k)
-      real(r_kind), dimension(:,:,:), allocatable :: PR    ! Reconstructed P_(i+1/2,k)
-      real(r_kind), dimension(:,:,:), allocatable :: PB    ! Reconstructed P_(i,k-1/2)
-      real(r_kind), dimension(:,:,:), allocatable :: PT    ! Reconstructed P_(i,k+1/2)
-      
-      real(r_kind), dimension(:,:,:  ), allocatable :: Fe    ! F on edges of each cell
-      real(r_kind), dimension(:,:,:  ), allocatable :: He    ! H on edges of each cell
-      
-      real(r_kind), dimension(:,:,:,:), allocatable :: FeP   ! F on points on edges of each cell
-      real(r_kind), dimension(:,:,:,:), allocatable :: HeP   ! H on points on edges of each cell
-      
-      real(r_kind), dimension(:,:,:), allocatable :: src   ! source term
-      
-      real(r_kind), dimension(  :,:), allocatable :: rho_p ! density perturbation
-      
-      real(r_kind), dimension(  :,:), allocatable :: PC_ref
-      real(r_kind), dimension(:,:,:), allocatable :: PL_ref! Reconstructed P_ref_(i-1/2,k)
-      real(r_kind), dimension(:,:,:), allocatable :: PR_ref! Reconstructed P_ref_(i+1/2,k)
-      real(r_kind), dimension(:,:,:), allocatable :: PB_ref! Reconstructed P_ref_(i,k-1/2)
-      real(r_kind), dimension(:,:,:), allocatable :: PT_ref! Reconstructed P_ref_(i,k+1/2)
+  private
   
-      real(r_kind), dimension(:,:), allocatable :: eig_x
-      real(r_kind), dimension(:,:), allocatable :: eig_z
+  public init_spatial_operator,spatial_operator
   
-      real(r_kind), dimension(:,:), allocatable :: relax_coef ! Relax coefficient of Rayleigh damping
+  logical, dimension(:,:), allocatable :: inDomain
+  
+  integer(i_kind), dimension(:,:), allocatable :: iCenCell ! center cell index on reconstruction stencil
+  
+  integer(i_kind), dimension(:,:,:), allocatable :: iRecCell ! x index of reconstruction cells
+  integer(i_kind), dimension(:,:,:), allocatable :: kRecCell ! k index of reconstruction cells
+  
+  real   (r_kind), dimension(:,:,:,:), allocatable :: xRel   ! relative x coordinate of reconstruction cells
+  real   (r_kind), dimension(:,:,:,:), allocatable :: etaRel ! relative eta coordinate of reconstruction cells
+  
+  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixL
+  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixR
+  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixB
+  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixT
+  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixG ! Reconstruction matrix on Gaussian points
+  
+  real   (r_kind) :: dV
+  
+  real   (r_kind), dimension(:,:,:  ), allocatable :: qC
+  real   (r_kind), dimension(:,:,:,:), allocatable :: qL
+  real   (r_kind), dimension(:,:,:,:), allocatable :: qR
+  real   (r_kind), dimension(:,:,:,:), allocatable :: qB
+  real   (r_kind), dimension(:,:,:,:), allocatable :: qT
+  real   (r_kind), dimension(:,:,:,:), allocatable :: qG
+
+  real(r_kind), dimension(:,:,:), allocatable :: F
+  real(r_kind), dimension(:,:,:), allocatable :: H
+  real(r_kind), dimension(  :,:), allocatable :: P
+  
+  real(r_kind), dimension(:,:,:,:), allocatable :: FL    ! Reconstructed F_(i-1/2,k)
+  real(r_kind), dimension(:,:,:,:), allocatable :: FR    ! Reconstructed F_(i+1/2,k)
+  real(r_kind), dimension(:,:,:,:), allocatable :: FB    ! Reconstructed F_(i,k-1/2)
+  real(r_kind), dimension(:,:,:,:), allocatable :: FT    ! Reconstructed F_(i,k+1/2)
       
-      real(r_kind), dimension(:,:,:), allocatable :: q_diff ! u wind, for viscosity terms only
-      
-    contains
-      subroutine init_spatial_operator
-        integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE
-        integer(i_kind) :: ibs,ibe,kbs,kbe
-        integer(i_kind) :: recBdy
-        integer(i_kind) :: iRec,kRec
-        
-        allocate(iCenCell  (ids:ide,kds:kde))
-        
-        allocate(iRecCell  (stencil_width,stencil_width,ids:ide,kds:kde))
-        allocate(kRecCell  (stencil_width,stencil_width,ids:ide,kds:kde))
-        
-        allocate(xRel  (4,stencil_width,stencil_width,ids:ide,kds:kde))
-        allocate(etaRel(4,stencil_width,stencil_width,ids:ide,kds:kde))
-        
-        allocate(disCenter(nRecCells,ids:ide,kds:kde))
-        
-        allocate(recMatrixL(nPointsOnEdge,nRecTerms))
-        allocate(recMatrixR(nPointsOnEdge,nRecTerms))
-        allocate(recMatrixB(nPointsOnEdge,nRecTerms))
-        allocate(recMatrixT(nPointsOnEdge,nRecTerms))
-        
-        allocate(qC(nVar,              ics:ice,kcs:kce))
-        allocate(qL(nVar,nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(qR(nVar,nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(qB(nVar,nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(qT(nVar,nPointsOnEdge,ics:ice,kcs:kce))
-      
-        allocate(F (nVar,ids:ide,kds:kde))
-        allocate(H (nVar,ids:ide,kds:kde))
-        allocate(P (     ids:ide,kds:kde))
-        
-        allocate(FL(nVar,nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(FR(nVar,nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(HB(nVar,nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(HT(nVar,nPointsOnEdge,ics:ice,kcs:kce))
-        
-        allocate(PC(                   ics:ice,kcs:kce))
-        allocate(PL(     nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(PR(     nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(PB(     nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(PT(     nPointsOnEdge,ics:ice,kcs:kce))
-        
-        allocate(Fe(nVar,ids:ide+1,kds:kde  ))
-        allocate(He(nVar,ids:ide  ,kds:kde+1))
-        
-        allocate(FeP(nVar,nPointsOnEdge,ids:ide+1,kds:kde  ))
-        allocate(HeP(nVar,nPointsOnEdge,ids:ide  ,kds:kde+1))
-        
-        allocate(src  (nVar,ids:ide,kds:kde))
-        
-        allocate(rho_p (    ids:ide,kds:kde))
-        
-        allocate(PC_ref(              ics:ice,kcs:kce))
-        allocate(PL_ref(nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(PR_ref(nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(PB_ref(nPointsOnEdge,ics:ice,kcs:kce))
-        allocate(PT_ref(nPointsOnEdge,ics:ice,kcs:kce))
-      
-        allocate(eig_x(ics:ice,kcs:kce))
-        allocate(eig_z(ics:ice,kcs:kce))
+  real(r_kind), dimension(:,:,:,:), allocatable :: HL    ! Reconstructed H_(i-1/2,k)
+  real(r_kind), dimension(:,:,:,:), allocatable :: HR    ! Reconstructed H_(i+1/2,k)
+  real(r_kind), dimension(:,:,:,:), allocatable :: HB    ! Reconstructed H_(i,k-1/2)
+  real(r_kind), dimension(:,:,:,:), allocatable :: HT    ! Reconstructed H_(i,k+1/2)
+  
+  real(r_kind), dimension(  :,:), allocatable :: PC
+  real(r_kind), dimension(:,:,:), allocatable :: PL    ! Reconstructed P_(i-1/2,k)
+  real(r_kind), dimension(:,:,:), allocatable :: PR    ! Reconstructed P_(i+1/2,k)
+  real(r_kind), dimension(:,:,:), allocatable :: PB    ! Reconstructed P_(i,k-1/2)
+  real(r_kind), dimension(:,:,:), allocatable :: PT    ! Reconstructed P_(i,k+1/2)
+  
+  real(r_kind), dimension(:,:,:  ), allocatable :: Fe    ! F on edges of each cell
+  real(r_kind), dimension(:,:,:  ), allocatable :: He    ! H on edges of each cell
+  
+  real(r_kind), dimension(:,:,:,:), allocatable :: FeP   ! F on points on edges of each cell
+  real(r_kind), dimension(:,:,:,:), allocatable :: HeP   ! H on points on edges of each cell
+  
+  real(r_kind), dimension(:,:,:), allocatable :: src   ! source term
+  
+  real(r_kind), dimension(  :,:), allocatable :: rho_p ! density perturbation
+  
+  real(r_kind), dimension(:,:,:,:), allocatable :: qL_ref
+  real(r_kind), dimension(:,:,:,:), allocatable :: qR_ref
+  real(r_kind), dimension(:,:,:,:), allocatable :: qB_ref
+  real(r_kind), dimension(:,:,:,:), allocatable :: qT_ref
+  real(r_kind), dimension(:,:,:,:), allocatable :: qG_ref
+  
+  real(r_kind), dimension(  :,:), allocatable :: PC_ref
+  real(r_kind), dimension(:,:,:), allocatable :: PL_ref! Reconstructed P_ref_(i-1/2,k)
+  real(r_kind), dimension(:,:,:), allocatable :: PR_ref! Reconstructed P_ref_(i+1/2,k)
+  real(r_kind), dimension(:,:,:), allocatable :: PB_ref! Reconstructed P_ref_(i,k-1/2)
+  real(r_kind), dimension(:,:,:), allocatable :: PT_ref! Reconstructed P_ref_(i,k+1/2)
+  
+  real(r_kind), dimension(:,:), allocatable :: relax_coef ! Relax coefficient of Rayleigh damping
+  
+  real(r_kind), dimension(:,:,:), allocatable :: q_diff ! u wind, for viscosity terms only
+  
+  real(r_kind), dimension(:,:,:,:), allocatable :: CG_coef
+  
+contains
+  subroutine init_spatial_operator
+    integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE,iEOC
+    integer(i_kind) :: iRec,kRec
     
-        allocate(relax_coef(ics:ice,kcs:kce))
+    real(r_kind) :: uB_ref,uT_ref
+    real(r_kind) :: nx,nz,nv(2),pm(2,2)
+    real(r_kind) :: xG  (nQuadPointsOnCell)
+    real(r_kind) :: etaG(nQuadPointsOnCell)
+    
+    allocate(inDomain  (ics:ice,kcs:kce))
+    
+    allocate(iCenCell  (ids:ide,kds:kde))
+    
+    allocate(iRecCell  (maxRecCells,ids:ide,kds:kde))
+    allocate(kRecCell  (maxRecCells,ids:ide,kds:kde))
+    
+    allocate(xRel  (4,maxRecCells,ids:ide,kds:kde))
+    allocate(etaRel(4,maxRecCells,ids:ide,kds:kde))
+    
+    allocate(recMatrixL(nPointsOnEdge,maxRecTerms,ids:ide,kds:kde))
+    allocate(recMatrixR(nPointsOnEdge,maxRecTerms,ids:ide,kds:kde))
+    allocate(recMatrixB(nPointsOnEdge,maxRecTerms,ids:ide,kds:kde))
+    allocate(recMatrixT(nPointsOnEdge,maxRecTerms,ids:ide,kds:kde))
+    
+    allocate(recMatrixG(nQuadPointsOnCell,maxRecTerms,ids:ide,kds:kde))
+    
+    allocate(qC(nVar,              ics:ice,kcs:kce))
+    allocate(qL(nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(qR(nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(qB(nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(qT(nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    
+    allocate(qG(nVar,nQuadPointsOnCell,ics:ice,kcs:kce))
+  
+    allocate(F (nVar,ids:ide,kds:kde))
+    allocate(H (nVar,ids:ide,kds:kde))
+    allocate(P (     ids:ide,kds:kde))
+    
+    allocate(FL(nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(FR(nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(HB(nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(HT(nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    
+    allocate(PC(                   ics:ice,kcs:kce))
+    allocate(PL(     nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(PR(     nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(PB(     nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(PT(     nPointsOnEdge,ics:ice,kcs:kce))
+    
+    allocate(Fe(nVar,ids:ide+1,kds:kde  ))
+    allocate(He(nVar,ids:ide  ,kds:kde+1))
+    
+    allocate(FeP(nVar,nPointsOnEdge,ids:ide+1,kds:kde  ))
+    allocate(HeP(nVar,nPointsOnEdge,ids:ide  ,kds:kde+1))
+    
+    allocate(src  (nVar,ids:ide,kds:kde))
+    
+    allocate(rho_p (    ids:ide,kds:kde))
+  
+    allocate(qL_ref  (nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(qR_ref  (nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(qB_ref  (nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(qT_ref  (nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    
+    allocate(qG_ref  (nVar,nQuadPointsOnCell,ics:ice,kcs:kce))
+    
+    allocate(PC_ref(              ics:ice,kcs:kce))
+    allocate(PL_ref(nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(PR_ref(nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(PB_ref(nPointsOnEdge,ics:ice,kcs:kce))
+    allocate(PT_ref(nPointsOnEdge,ics:ice,kcs:kce))
+    
+    allocate(relax_coef(ics:ice,kcs:kce))
+    
+    allocate(q_diff(nVar,ics:ice,kcs:kce))
+    
+    allocate(CG_coef(nVar,maxRecTerms,ids:ide,kds:kde))
+  
+    src   = 0
+    
+    dV = dx * deta
+    
+    CG_coef = 1.
+    
+    ! set reconstruction cells on each stencil
+    print*,'Set reconstruction cells on each stencil'
+    print*,''
+    inDomain(ics:ice,kcs:kce) = .false. 
+    inDomain(ids:ide,kds:kde) = .true.
+    ! Scheme 1
+    do k = kds,kde
+      do i = ids,ide
+        j = 0
+        do kRec = -recBdy,recBdy
+          do iRec = -recBdy,recBdy
+        !do kRec = -1,1
+        !  do iRec = -1,1
+            if(inDomain(i+iRec,k+kRec))then
+              j = j + 1
+              iRecCell(j,i,k) = i+iRec
+              kRecCell(j,i,k) = k+kRec
+            endif
+          enddo
+        enddo
+        nRecCells(i,k) = j
         
-        allocate(q_diff(nVar,ics:ice,kcs:kce))
+        locPolyDegree(i,k) = min( maxval(iRecCell(1:j,i,k)) - minval(iRecCell(1:j,i,k)), maxval(kRecCell(1:j,i,k)) - minval(kRecCell(1:j,i,k)) )
+        
+        !if( nRecCells(i,k) >= 3           ) locPolyDegree(i,k) = 1
+        !if( nRecCells(i,k) >= 9           ) locPolyDegree(i,k) = 2
+        !if( nRecCells(i,k) >= 16          ) locPolyDegree(i,k) = 3
+        !if( nRecCells(i,k) >= 25          ) locPolyDegree(i,k) = 4
+        !if( nRecCells(i,k) == maxRecCells ) locPolyDegree(i,k) = recPolyDegree
+      enddo
+    enddo
+    
+    ! special treatment on low boundary
+    do i = ibs,ibe
+      k = kds
+      j = 0
+      do kRec = 0,2
+        do iRec = -1,1
+          j = j + 1
+          iRecCell(j,i,k) = i + iRec
+          kRecCell(j,i,k) = k + kRec
+        enddo
+      enddo
+      nRecCells    (i,k) = j
+      locPolyDegree(i,k) = 2
       
-        src   = 0
-        eig_x = 0
-        eig_z = 0
-        
-        dV = dx * deta
-        
-        ! set reconstruction cells on each stencil
-        print*,'Set reconstruction cells on each stencil'
-        print*,''
-        recBdy = ( stencil_width - 1 ) / 2
-        ibs    = ids + recBdy
-        ibe    = ide - recBdy
-        kbs    = kds + recBdy
-        kbe    = kde - recBdy
-        ! x-dir
-        do k = kds,kde
-          ! middle
-          do i = ibs,ibe
-            do kR = 1,stencil_width
-              do iR = 1,stencil_width
-                iRecCell(iR,kR,i,k) = iR + i - 1 - recBdy
-              enddo
-            enddo            
-          enddo
-          ! left
-          do i = ids,ibs-1
-            do kR = 1,stencil_width
-              do iR = 1,stencil_width
-                iRecCell(iR,kR,i,k) = ids - 1 + iR
-              enddo
-            enddo
-          enddo
-          ! right
-          do i = ibe+1,ide
-            do kR = 1,stencil_width
-              do iR = 1,stencil_width
-                iRecCell(iR,kR,i,k) = ide - stencil_width + iR
-              enddo
-            enddo
-          enddo
+      k = kds + 1
+      j = 0
+      do kRec = -1,3
+        do iRec = -recBdy,recBdy
+          j = j + 1
+          iRecCell(j,i,k) = i + iRec
+          kRecCell(j,i,k) = k + kRec
         enddo
-        
-        ! z-dir
-        do i = ids,ide
-          ! middle
-          do k = kbs,kbe
-            do kR = 1,stencil_width
-              do iR = 1,stencil_width
-                kRecCell(iR,kR,i,k) = kR + k - 1 - recBdy
-              enddo
-            enddo            
-          enddo
-          ! bottom
-          do k = kds,kbs-1
-            do kR = 1,stencil_width
-              do iR = 1,stencil_width
-                kRecCell(iR,kR,i,k) = kds - 1 + kR
-              enddo
-            enddo
-          enddo
-          ! top
-          do k = kbe+1,kde
-            do kR = 1,stencil_width
-              do iR = 1,stencil_width
-                kRecCell(iR,kR,i,k) = kde - stencil_width  + kR
-              enddo
-            enddo
-          enddo
+      enddo
+      nRecCells    (i,k) = j
+      locPolyDegree(i,k) = 3
+      
+      !do k = kds, kds + recBdy - 1
+      !  j = 0
+      !  do kRec = - k + 1, - k + stencil_width
+      !    do iRec = -recBdy,recBdy
+      !      j = j + 1
+      !      iRecCell(j,i,k) = i + iRec
+      !      kRecCell(j,i,k) = k + kRec
+      !    enddo
+      !  enddo
+      !  nRecCells    (i,k) = j
+      !  locPolyDegree(i,k) = 4!k + 1
+      !enddo
+      
+      !locPolyDegree(i,k) = min( maxval(iRecCell(1:j,i,k)) - minval(iRecCell(1:j,i,k)), maxval(kRecCell(1:j,i,k)) - minval(kRecCell(1:j,i,k)) )
+    enddo
+    
+    !!! Scheme 2
+    !!do i = ibs,ibe
+    !!  do k = kds,kds+1
+    !do k = kds,kde
+    !  do i = ids,ide
+    !    j = 0
+    !    do kRec = -recBdy,recBdy
+    !      do iRec = -recBdy,recBdy
+    !        if(abs(iRec)+abs(kRec)<=recBdy)then
+    !          if(inDomain(i+iRec,k+kRec))then
+    !            j = j + 1
+    !            iRecCell(j,i,k) = i + iRec
+    !            kRecCell(j,i,k) = k + kRec
+    !          endif
+    !        endif
+    !      enddo
+    !    enddo
+    !    nRecCells(i,k) = j
+    !    if(nRecCells(i,k)>6 )locPolyDegree(i,k) = 2
+    !    if(nRecCells(i,k)>10)locPolyDegree(i,k) = 3
+    !    if(nRecCells(i,k)>16)locPolyDegree(i,k) = 4
+    !    if(nRecCells(i,k)>21)locPolyDegree(i,k) = 5
+    !    !print*,k,i,j,locPolyDegree(i,k)
+    !  enddo
+    !enddo
+    
+    !! special treatment on low boundary
+    !do k = kds,kds+1
+    !  do i = ibs,ibe
+    !    j = 0
+    !    do kRec = 1,5 ! stencil_width=5
+    !      do iRec = 1,5
+    !        if(inDomain(i-2+iRec-1,k-2+kRec-1))then! recBdy=2
+    !          j = j + 1
+    !          iRecCell(j,i,k) = i-2+iRec-1
+    !          kRecCell(j,i,k) = k-2+kRec-1
+    !        endif
+    !      enddo
+    !    enddo
+    !    nRecCells(i,k) = j
+    !      
+    !    if( nRecCells(i,k) >= 3           ) locPolyDegree(i,k) = 1
+    !    if( nRecCells(i,k) >= 9           ) locPolyDegree(i,k) = 2
+    !    if( nRecCells(i,k) >= 16          ) locPolyDegree(i,k) = 3
+    !    if( nRecCells(i,k) >= 25          ) locPolyDegree(i,k) = 4
+    !    if( nRecCells(i,k) == maxRecCells ) locPolyDegree(i,k) = recPolyDegree
+    !  enddo
+    !enddo
+
+    do k = kds,kde
+      do i = ids,ide
+        nRecTerms(i,k) = ( locPolyDegree(i,k) + 1 ) * ( locPolyDegree(i,k) + 2 ) / 2
+      enddo
+    enddo
+    
+    ! initilize polyCoordCoef
+    print*,'Initilize polyCoordCoef'
+    print*,''
+    
+    recCoef = 1.
+    recdx   = 1. / ( dx   * recCoef )
+    recdeta = 1. / ( deta * recCoef )
+    recdV   = 1. / ( recCoef**2 )
+    
+    !$OMP PARALLEL DO PRIVATE(i,j,iRec,kRec,xG,etaG)
+    do k = kds,kde
+      do i = ids,ide
+        do j = 1,nRecCells(i,k)
+          iRec = iRecCell(j,i,k)
+          kRec = kRecCell(j,i,k)
+          
+          if(iRec==i.and.kRec==k)iCenCell(i,k) = j
+          
+          xRel  (:,j,i,k) = ( xCorner  (:,iRec,kRec) - xCenter  (i,k) ) * recdx
+          etaRel(:,j,i,k) = ( etaCorner(:,iRec,kRec) - etaCenter(i,k) ) * recdeta
+          
+          call calc_polynomial_square_integration(locPolyDegree(i,k),xRel  (1,j,i,k),xRel  (2,j,i,k),&
+                                                                     etaRel(1,j,i,k),etaRel(4,j,i,k),polyCoordCoef(j,:,i,k))
         enddo
-        
-        ! initilize polyCoordCoef
-        print*,'Initilize polyCoordCoef'
-        print*,''
-        
-        recCoef = 1.
-        recdx   = 1. / ( dx   * recCoef )
-        recdeta = 1. / ( deta * recCoef )
-        recdV   = 1. / ( recCoef**2 )
-        
-        do k = kds,kde
-          do i = ids,ide
-            j = 0 ! Reset cell number on stencil
-            do kR = 1,stencil_width
-              do iR = 1,stencil_width
-                iRec = iRecCell(iR,kR,i,k)
-                kRec = kRecCell(iR,kR,i,k)
-                
-                j = j + 1
-                
-                if(iRec==i.and.kRec==k)iCenCell(i,k) = j
-                
-                xRel  (:,iR,kR,i,k) = ( xCorner  (:,iRec,kRec) - xCenter  (i,k) ) * recdx
-                etaRel(:,iR,kR,i,k) = ( etaCorner(:,iRec,kRec) - etaCenter(i,k) ) * recdeta
-                
-                disCenter(j,i,k) = sqrt( ( xCenter(iRec,kRec) - xCenter(i,k) )**2 + ( etaCenter(iRec,kRec) - etaCenter(i,k) )**2 )
-                
-                call calc_polynomial_square_integration(recPolyDegree,xRel  (1,iR,kR,i,k),xRel  (2,iR,kR,i,k),&
-                                                                      etaRel(1,iR,kR,i,k),etaRel(4,iR,kR,i,k),polyCoordCoef(j,:,i,k))
-              enddo
-            enddo
-          enddo
-        enddo
-        
+    
         ! Calculate reconstruction matrix on edge
-        call calc_polynomial_matrix(recPolyDegree,nPointsOnEdge,nRecTerms,xL*recdx,etaL*recdeta,recMatrixL)
-        call calc_polynomial_matrix(recPolyDegree,nPointsOnEdge,nRecTerms,xR*recdx,etaR*recdeta,recMatrixR)
-        call calc_polynomial_matrix(recPolyDegree,nPointsOnEdge,nRecTerms,xB*recdx,etaB*recdeta,recMatrixB)
-        call calc_polynomial_matrix(recPolyDegree,nPointsOnEdge,nRecTerms,xT*recdx,etaT*recdeta,recMatrixT)
+        call calc_polynomial_matrix(locPolyDegree(i,k),nPointsOnEdge,nRecTerms(i,k),xL*recdx,etaL*recdeta,recMatrixL(:,1:nRecTerms(i,k),i,k))
+        call calc_polynomial_matrix(locPolyDegree(i,k),nPointsOnEdge,nRecTerms(i,k),xR*recdx,etaR*recdeta,recMatrixR(:,1:nRecTerms(i,k),i,k))
+        call calc_polynomial_matrix(locPolyDegree(i,k),nPointsOnEdge,nRecTerms(i,k),xB*recdx,etaB*recdeta,recMatrixB(:,1:nRecTerms(i,k),i,k))
+        call calc_polynomial_matrix(locPolyDegree(i,k),nPointsOnEdge,nRecTerms(i,k),xT*recdx,etaT*recdeta,recMatrixT(:,1:nRecTerms(i,k),i,k))
         
-        sqrtGL = FillValue
-        sqrtGR = FillValue
-        sqrtGB = FillValue
-        sqrtGT = FillValue
-        G13L   = FillValue
-        G13R   = FillValue
-        G13B   = FillValue
-        G13T   = FillValue
-        
-        ! Reconstruct metric function
-        call reconstruct_field(sqrtGL,&
-                               sqrtGR,&
-                               sqrtGB,&
-                               sqrtGT,&
-                               sqrtGC*recdV)
-        
-        call reconstruct_field(G13L,&
-                               G13R,&
-                               G13B,&
-                               G13T,&
-                               G13C*recdV)
-        
-        ! Calculate reference pressure
-        qC = ref%q
-        do iVar = 1,nVar
-          call reconstruct_field(qL(iVar,:,:,:),&
-                                 qR(iVar,:,:,:),&
-                                 qB(iVar,:,:,:),&
-                                 qT(iVar,:,:,:),&
-                                 qC(iVar  ,:,:)*recdV)
-        enddo
-        
-        !$OMP PARALLEL DO PRIVATE(i,iPOE)
-        do k = kds,kde
-          do i = ids,ide
-            do iPOE = 1,nPointsOnEdge
-              PL_ref(iPOE,i,k) = calc_pressure(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k))
-              PR_ref(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k))
-              PB_ref(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB(:,iPOE,i,k))
-              PT_ref(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT(:,iPOE,i,k))
-            enddo
-          enddo
-        enddo
-        !$OMP END PARALLEL DO
-  
-        ! Calculate Rayleigh damping coef
-        call Rayleigh_coef(relax_coef)
-        
-        ! Fill out qC
-        qC = FillValue
-        
-      end subroutine init_spatial_operator
-      
-      subroutine spatial_operator(stat,tend)
-        type(stat_field), target, intent(inout) :: stat
-        type(tend_field), target, intent(inout) :: tend
-      
-        real(r_kind) maxeigen_x
-        real(r_kind) maxeigen_z
-        
-        integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE
-      
-        integer(i_kind) ip1,im1
-        integer(i_kind) kp1,km1
-        integer(i_kind) ip2,im2
-        integer(i_kind) kp2,km2
-  
-        ! Attension stat is changed here!
-        if(case_num==2)call Rayleigh_damping(stat%q,ref%q)
-        
-        ! copy stat
-        !qC(:,ids:ide,kds:kde) = stat%q(:,ids:ide,kds:kde)
-        !$OMP PARALLEL DO PRIVATE(i,iVar)
-        do k = kds,kde
-          do i = ids,ide
-            do iVar = 1,nVar
-              qC(iVar,i,k) = stat%q(iVar,i,k)
-            enddo
-          enddo
-        enddo
-        !$OMP END PARALLEL DO
-        
-        do iVar = 1,nVar
-          call reconstruct_field(qL(iVar,:,:,:),&
-                                 qR(iVar,:,:,:),&
-                                 qB(iVar,:,:,:),&
-                                 qT(iVar,:,:,:),&
-                                 qC(iVar  ,:,:)*recdV)
-        enddo
-        
-        ! Boundary Condition
-        ! Fill boundary
-        if(case_num==1.or.case_num==3)then
-          qL(2,:,ids,:) = 0
-          qR(2,:,ide,:) = 0
-          qB(3,:,:,kds) = 0
-          qT(3,:,:,kde) = 0
-        elseif(case_num==2)then
-          !$OMP PARALLEL DO PRIVATE(iPOE)
-          do k = kds,kde
-            do iPOE = 1,nPointsOnEdge
-              qL(2,iPOE,ids,k) = ref%q(2,ids,k)
-              qR(2,iPOE,ide,k) = ref%q(2,ide,k)
-            enddo
-          enddo
-          !$OMP END PARALLEL DO
-          !$OMP PARALLEL DO PRIVATE(iPOE)
-          do i = ids,ide
-            do iPOE = 1,nPointsOnEdge
-              qB(3,iPOE,i,kds) = -sqrtGB(iPOE,i,kds) * G13B(iPOE,i,kds) * qB(2,iPOE,i,kds)
-              qT(3,iPOE,i,kde) = -sqrtGT(iPOE,i,kde) * G13T(iPOE,i,kde) * qT(2,iPOE,i,kde)
-            enddo
-          enddo
-          !$OMP END PARALLEL DO
-        endif
-        
-        ! Calculate functions
-        !$OMP PARALLEL DO PRIVATE(i,iPOE)
-        do k = kds,kde
-          do i = ids,ide
-            do iPOE = 1,nPointsOnEdge
-              PL(iPOE,i,k) = calc_pressure(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k))
-              PR(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k))
-              PB(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB(:,iPOE,i,k))
-              PT(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT(:,iPOE,i,k))
-              
-              FL(:,iPOE,i,k) = calc_F(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k),PL(iPOE,i,k))
-              FR(:,iPOE,i,k) = calc_F(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k),PR(iPOE,i,k))
-              HB(:,iPOE,i,k) = calc_H(sqrtGB(iPOE,i,k),G13B(iPOE,i,k),qB(:,iPOE,i,k),PB(iPOE,i,k),PB_ref(iPOE,i,k))
-              HT(:,iPOE,i,k) = calc_H(sqrtGT(iPOE,i,k),G13T(iPOE,i,k),qT(:,iPOE,i,k),PT(iPOE,i,k),PT_ref(iPOE,i,k))
-            enddo
-          enddo
-        enddo
-        !$OMP END PARALLEL DO
-        
-        ! Fill outside boundary
-        ! left boundary
-        qR(:,:,ids-1,kds:kde) = qL(:,:,ids,kds:kde)
-        FR(:,:,ids-1,kds:kde) = FL(:,:,ids,kds:kde)
-        
-        ! right boundary
-        qL(:,:,ide+1,kds:kde) = qR(:,:,ide,kds:kde)
-        FL(:,:,ide+1,kds:kde) = FR(:,:,ide,kds:kde)
-        
-        ! bottom boundary
-        qT(:,:,ids:ide,kds-1) = qB(:,:,ids:ide,kds)
-        HT(:,:,ids:ide,kds-1) = HB(:,:,ids:ide,kds)
-        
-        ! top boundary
-        qB(:,:,ids:ide,kde+1) = qT(:,:,ids:ide,kde)
-        HB(:,:,ids:ide,kde+1) = HT(:,:,ids:ide,kde)
-        
-        ! Calculate eigenvalues x-dir
-        !$OMP PARALLEL DO PRIVATE(i)
-        do k = kds,kde
-          do i = ids,ide
-            eig_x(i,k) = calc_eigenvalue_x(sqrtGC(i,k),qC(:,i,k))
-          enddo
-        enddo
-        !$OMP END PARALLEL DO
-        
-        ! Calculate eigenvalues z-dir
-        !$OMP PARALLEL DO PRIVATE(k)
-        do i = ids,ide
-          do k = kds,kde
-            eig_z(i,k) = calc_eigenvalue_z(sqrtGC(i,k),G13C(i,k),qC(:,i,k))
-          enddo
-        enddo
-        !$OMP END PARALLEL DO
-
-        ! calc x flux
-        !$OMP PARALLEL DO PRIVATE(i,im1,maxeigen_x,iVar,iPOE)
-        do k = kds,kde
-          do i = ids,ide+1
-            im1 = i - 1
-            
-            maxeigen_x = max(eig_x(i,k),eig_x(im1,k))
-            maxeigen_x = max(eig_x(i,k),eig_x(im1,k),eig_x(i,k+1),eig_x(i,k-1),eig_x(im1,k+1),eig_x(im1,k-1))
-            
-            do iPOE = 1,nPointsOnEdge
-              !maxeigen_x = max(calc_eigenvalue_x(sqrtGL(iPOE,i  ,k),qL(:,iPOE,i  ,k)),&
-              !                 calc_eigenvalue_x(sqrtGR(iPOE,im1,k),qR(:,iPOE,im1,k)))
-              do iVar = 1,nVar
-                if(abs(FL(iVar,iPOE,i,k) + FR(iVar,iPOE,im1,k))<=1.E-15)then
-                  FeP(iVar,iPOE,i,k) = 0
-                else
-                  FeP(iVar,iPOE,i,k) = 0.5 * ( FL(iVar,iPOE,i,k) + FR(iVar,iPOE,im1,k) - maxeigen_x * ( qL(iVar,iPOE,i,k) - qR(iVar,iPOE,im1,k) ) )
-                endif
-              enddo
-            enddo
-            
-            do iVar = 1,nVar
-              Fe(iVar,i,k) = Gaussian_quadrature_1d(FeP(iVar,:,i,k))
-            enddo
-          enddo
-        enddo
-        !$OMP END PARALLEL DO
-        
-        ! calc z flux
-        !$OMP PARALLEL DO PRIVATE(k,km1,maxeigen_z,iVar,iPOE)
-        do i = ids,ide
-          do k = kds,kde+1
-            km1 = k - 1
-            
-            !maxeigen_z = max(eig_z(i,k),eig_z(i,km1))
-            !maxeigen_z = max(eig_z(i,k),eig_z(i,km1),eig_z(i+1,k),eig_z(i-1,k),eig_z(i+1,km1),eig_z(i-1,km1))
-            
-            do iPOE = 1,nPointsOnEdge
-              !maxeigen_z = max(calc_eigenvalue_z(sqrtGB(iPOE,i,k  ),G13B(iPOE,i,k  ),qB(:,iPOE,i,k  )),&
-              !                 calc_eigenvalue_z(sqrtGT(iPOE,i,km1),G13T(iPOE,i,km1),qT(:,iPOE,i,km1)))
-              do iVar = 1,nVar
-                if(abs(HB(iVar,iPOE,i,k) + HT(iVar,iPOE,i,km1))<=1.E-15)then
-                  HeP(iVar,iPOE,i,k) = 0
-                else
-                  HeP(iVar,iPOE,i,k) = 0.5 * ( HB(iVar,iPOE,i,k) + HT(iVar,iPOE,i,km1) - maxeigen_z * ( qB(iVar,iPOE,i,k) - qT(iVar,iPOE,i,km1) ) )
-                endif
-              enddo
-            enddo
-            
-            do iVar = 1,nVar
-              He(iVar,i,k) = Gaussian_quadrature_1d(HeP(iVar,:,i,k))
-            enddo
-          enddo
-        enddo
-        !$OMP END PARALLEL DO
-        
-        !$OMP PARALLEL DO PRIVATE(i)
-        do k = kds,kde
-          do i = ids,ide
-            rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) - ref%q(1,i,k) - ref%q(5,i,k) ) / sqrtGC(i,k)
-          enddo
-        enddo
-        !$OMP END PARALLEL DO
-        
-        !where(abs(rho_p)<=1.E-13)rho_p=0.
+        xG   = ( ( x  (:,i,k) - xCenter  (i,k) ) / dx   ) / recCoef
+        etaG = ( ( eta(:,i,k) - etaCenter(i,k) ) / deta ) / recCoef
+        call calc_polynomial_matrix(locPolyDegree(i,k),nQuadPointsOnCell,nRecTerms(i,k),xG,etaG,recMatrixG(:,1:nRecTerms(i,k),i,k))
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
     
-        !$OMP PARALLEL DO PRIVATE(i,iVar)
-        do k = kds,kde
-          do i = ids,ide
-            do iVar = 1,nVar
-              src(iVar,i,k) = 0
-            enddo
-          enddo
-        enddo
-        !$OMP END PARALLEL DO
-        !$OMP PARALLEL DO PRIVATE(i)
-        do k = kds,kde
-          do i = ids,ide
-            src(3,i,k) = src(3,i,k) - sqrtGC(i,k) * rho_p(i,k) * gravity
-          enddo
-        enddo
-        !$OMP END PARALLEL DO
+    !! Reconstruct metric function
+    !call reconstruct_field(sqrtGC*recdV,&
+    !                       sqrtGL      ,&
+    !                       sqrtGR      ,&
+    !                       sqrtGB      ,&
+    !                       sqrtGT)
+    !
+    !call reconstruct_field(G13C*recdV,&
+    !                       G13L      ,&
+    !                       G13R      ,&
+    !                       G13B      ,&
+    !                       G13T)
+    
+        
+    ! Set mertric functions by analytical value
+    do k = kds,kde
+      do i = ids,ide
+        sqrtGL(:,i,k) = sqrtG_ext(:,4,i,k)
+        sqrtGR(:,i,k) = sqrtG_ext(:,2,i,k)
+        sqrtGB(:,i,k) = sqrtG_ext(:,1,i,k)
+        sqrtGT(:,i,k) = sqrtG_ext(:,3,i,k)
+        
+        G13L  (:,i,k) = G13_ext  (:,4,i,k)
+        G13R  (:,i,k) = G13_ext  (:,2,i,k)
+        G13B  (:,i,k) = G13_ext  (:,1,i,k)
+        G13T  (:,i,k) = G13_ext  (:,3,i,k)
+      enddo
+    enddo
+    
+    ! Calculate reference pressure
+    qC = FillValue
+    qC(:,ids:ide,kds:kde) = ref%q(:,ids:ide,kds:kde)
+    do iVar = 1,nVar
+      call reconstruct_field(qC(iVar  ,:,:)*recdV,&
+                             qL(iVar,:,:,:)      ,&
+                             qR(iVar,:,:,:)      ,&
+                             qB(iVar,:,:,:)      ,&
+                             qT(iVar,:,:,:)      ,&
+                             qG(iVar,:,:,:))
+    enddo
+    
+    qL_ref = qL
+    qR_ref = qR
+    qB_ref = qB
+    qT_ref = qT
+    qG_ref = qG
   
-        ! Viscosity terms for Density Current case only
-        if(case_num==3)then
+    ! Fill outside boundary
+    ! left boundary
+    qR_ref(:,:,ids-1,kds:kde) = qL_ref(:,:,ids,kds:kde)
+    sqrtGR(  :,ids-1,kds:kde) = sqrtGL(  :,ids,kds:kde)
+    G13R  (  :,ids-1,kds:kde) = G13L  (  :,ids,kds:kde)
+    
+    ! right boundary
+    qL_ref(:,:,ide+1,kds:kde) = qR_ref(:,:,ide,kds:kde)
+    sqrtGL(  :,ide+1,kds:kde) = sqrtGR(  :,ide,kds:kde)
+    G13L  (  :,ide+1,kds:kde) = G13R  (  :,ide,kds:kde)
+    
+    ! bottom boundary
+    qT_ref(:,:,ids:ide,kds-1) = qB_ref(:,:,ids:ide,kds)
+    sqrtGT(  :,ids:ide,kds-1) = sqrtGB(  :,ids:ide,kds)
+    G13T  (  :,ids:ide,kds-1) = G13B  (  :,ids:ide,kds)
+    
+    ! top boundary
+    qB_ref(:,:,ids:ide,kde+1) = qT_ref(:,:,ids:ide,kde)
+    sqrtGB(  :,ids:ide,kde+1) = sqrtGT(  :,ids:ide,kde)
+    G13B  (  :,ids:ide,kde+1) = G13T  (  :,ids:ide,kde)
+    
+    ! Calculate projection matrix for no-flux boundary
+    k    = kds
+    iEOC = 1
+    do i = ids,ide
+      do iPOE = 1,nPointsOnEdge
+        if(G13B(iPOE,i,k)/=0)then
+          nx = 1
+          nz = 1. / G13B(iPOE,i,k)
+        else
+          nx = 0
+          nz = 1
+        endif
+        nv(1) = nx
+        nv(2) = nz
+        nv    = nv / sqrt( dot_product( nv, nv ) ) ! calc unit norm vector
+        nx    = nv(1)
+        nz    = nv(2)
+        
+        pm(1,1) = 1. - nx**2
+        pm(1,2) = -nx * nz
+        pm(2,1) = pm(1,2)
+        pm(2,2) = 1. - nz**2
+        
+        nvec(:  ,iPOE,iEOC,i,k) = nv
+        pmtx(:,:,iPOE,iEOC,i,k) = pm
+      enddo
+    enddo
+    
+    k    = kde
+    iEOC = 3
+    do i = ids,ide
+      do iPOE = 1,nPointsOnEdge
+        if(G13T(iPOE,i,k)/=0)then
+          nx = 1
+          nz = 1. / G13T(iPOE,i,k)
+        else
+          nx = 0
+          nz = 1
+        endif
+        nv(1) = nx
+        nv(2) = nz
+        nv    = nv / sqrt( dot_product( nv, nv ) ) ! calc unit norm vector
+        nx    = nv(1)
+        nz    = nv(2)
+        
+        pm(1,1) = 1. - nx**2
+        pm(1,2) = -nx * nz
+        pm(2,1) = pm(1,2)
+        pm(2,2) = 1. - nz**2
+        
+        nvec(:  ,iPOE,iEOC,i,k) = nv
+        pmtx(:,:,iPOE,iEOC,i,k) = pm
+      enddo
+    enddo
+    
+    !$OMP PARALLEL DO PRIVATE(i,iPOE)
+    do k = kds-1,kde+1
+      do i = ids-1,ide+1
+        do iPOE = 1,nPointsOnEdge
+          PL_ref(iPOE,i,k) = calc_pressure(sqrtGL(iPOE,i,k),qL_ref(:,iPOE,i,k))
+          PR_ref(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR_ref(:,iPOE,i,k))
+          PB_ref(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB_ref(:,iPOE,i,k))
+          PT_ref(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT_ref(:,iPOE,i,k))
+        enddo
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
+    
+    ! Calculate Rayleigh damping coef
+    call Rayleigh_coef(relax_coef)
+    
+    ! Fill out qC
+    qC = FillValue
+    
+  end subroutine init_spatial_operator
+  
+  subroutine spatial_operator(stat,tend)
+    type(stat_field), target, intent(inout) :: stat
+    type(tend_field), target, intent(inout) :: tend
+    
+    real(r_kind) :: eigL
+    real(r_kind) :: eigR
+    
+    integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE,iEOC
+    real   (r_kind) :: wind_vector(2)
+    
+    integer(i_kind) ip1,im1
+    integer(i_kind) kp1,km1
+    integer(i_kind) ip2,im2
+    integer(i_kind) kp2,km2
+    
+    ! Attension stat is changed here!
+    if(case_num==2)call Rayleigh_damping(stat%q,ref%q)
+    
+    ! copy stat
+    !qC(:,ids:ide,kds:kde) = stat%q(:,ids:ide,kds:kde)
+    !$OMP PARALLEL DO PRIVATE(i,iVar) COLLAPSE(3)
+    do k = kds,kde
+      do i = ids,ide
+        do iVar = 1,nVar
+          qC(iVar,i,k) = stat%q(iVar,i,k)
+        enddo
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
+    
+    do iVar = 1,nVar
+      call reconstruct_field(qC(iVar  ,:,:)*recdV,&
+                             qL(iVar,:,:,:)      ,&
+                             qR(iVar,:,:,:)      ,&
+                             qB(iVar,:,:,:)      ,&
+                             qT(iVar,:,:,:)      ,&
+                             qG(iVar,:,:,:))
+      !call reconstruct_field(qC(iVar  ,:,:)*recdV,&
+      !                       qL(iVar,:,:,:)      ,&
+      !                       qR(iVar,:,:,:)      ,&
+      !                       qB(iVar,:,:,:)      ,&
+      !                       qT(iVar,:,:,:))
+      !call reconstruct_field(qC(iVar  ,:,:)*recdV,&
+      !                       qL(iVar,:,:,:)      ,&
+      !                       qR(iVar,:,:,:)      ,&
+      !                       qB(iVar,:,:,:)      ,&
+      !                       qT(iVar,:,:,:)      ,&
+      !                       iVar=iVar)
+    enddo
+  
+    ! Boundary Condition
+    ! Correct wind on bottom and top boundaries
+    k    = kds
+    iEOC = 1
+    !$OMP PARALLEL DO PRIVATE(iPOE,wind_vector) COLLAPSE(2)
+    do i = ids,ide
+      do iPOE = 1,nPointsOnEdge
+        wind_vector(1) = qB(2,iPOE,i,k)
+        wind_vector(2) = qB(3,iPOE,i,k)
+        wind_vector    = matmul(pmtx(:,:,iPOE,iEOC,i,k),wind_vector)
+        qB(2,iPOE,i,k) = wind_vector(1)
+        qB(3,iPOE,i,k) = wind_vector(2)
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
+    
+    k    = kde
+    iEOC = 3
+    !$OMP PARALLEL DO PRIVATE(iPOE,wind_vector) COLLAPSE(2)
+    do i = ids,ide
+      do iPOE = 1,nPointsOnEdge
+        wind_vector(1) = qT(2,iPOE,i,k)
+        wind_vector(2) = qT(3,iPOE,i,k)
+        wind_vector    = matmul(pmtx(:,:,iPOE,iEOC,i,k),wind_vector)
+        qT(2,iPOE,i,k) = wind_vector(1)
+        qT(3,iPOE,i,k) = wind_vector(2)
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
+      
+    ! Fill lateral boundary
+    if(case_num==1.or.case_num==3)then
+      qL(2,:,ids,kds:kde) = 0
+      qR(2,:,ide,kds:kde) = 0
+    elseif(case_num==2)then
+      !$OMP PARALLEL DO PRIVATE(iPOE) COLLAPSE(2)
+      do k = kds,kde
+        do iPOE = 1,nPointsOnEdge
+          qL(2,iPOE,ids,k) = ref%q(2,ids,k)
+          qR(2,iPOE,ide,k) = ref%q(2,ide,k)
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
+    endif
+    
+    ! Start OpenMP zone
+    !$OMP PARALLEL
+    
+    ! Fill outside boundary
+    !$OMP DO
+    do k = kds,kde
+      ! left boundary
+      qR(:,:,ids-1,k) = qL(:,:,ids,k)
+      
+      ! right boundary
+      qL(:,:,ide+1,k) = qR(:,:,ide,k)
+    enddo
+    !$OMP ENDDO
+    
+    !$OMP DO
+    do i = ids,ide
+      ! bottom boundary
+      qT(:,:,i,kds-1) = qB(:,:,i,kds)
+      
+      ! top boundary
+      qB(:,:,i,kde+1) = qT(:,:,i,kde)
+    enddo
+    !$OMP ENDDO
+  
+    ! Calculate pressure X
+    !$OMP DO PRIVATE(i,iPOE) COLLAPSE(3)
+    do k = kds,kde
+      do i = ids,ide
+        do iPOE = 1,nPointsOnEdge
+          PL(iPOE,i,k) = calc_pressure(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k))
+          PR(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k))
+        enddo
+      enddo
+    enddo
+    !$OMP END DO NOWAIT
+    !$OMP DO PRIVATE(iPOE,i) COLLAPSE(2)
+    do k = kds,kde
+      do iPOE = 1,nPointsOnEdge
+        i = ide + 1
+        PL(iPOE,i,k) = calc_pressure(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k))
+        i = ids - 1
+        PR(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k))
+      enddo
+    enddo
+    !$OMP ENDDO NOWAIT
+    
+    ! Calculate pressure Z
+    !$OMP DO PRIVATE(i,iPOE) COLLAPSE(3)
+    do k = kds,kde
+      do i = ids,ide
+        do iPOE = 1,nPointsOnEdge
+          PB(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB(:,iPOE,i,k))
+          PT(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT(:,iPOE,i,k))
+        enddo
+      enddo
+    enddo
+    !$OMP END DO NOWAIT
+    !$OMP DO PRIVATE(k,iPOE) COLLAPSE(2)
+    do i = ids,ide
+      do iPOE = 1,nPointsOnEdge
+        k = kde + 1
+        PB(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB(:,iPOE,i,k))
+        k = kds - 1
+        PT(iPOE,i,k) = calc_pressure(sqrtGT(iPOE,i,k),qT(:,iPOE,i,k))
+      enddo
+    enddo
+    !$OMP END DO NOWAIT
+    
+    !$OMP BARRIER
+    
+    ! Calculate F
+    !$OMP DO PRIVATE(i,iPOE) COLLAPSE(3)
+    do k = kds,kde
+      do i = ids,ide
+        do iPOE = 1,nPointsOnEdge
+          FL(:,iPOE,i,k) = calc_F(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k),PL(iPOE,i,k))
+          FR(:,iPOE,i,k) = calc_F(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k),PR(iPOE,i,k))
+        enddo
+      enddo
+    enddo
+    !$OMP END DO NOWAIT
+    !$OMP DO PRIVATE(i,iPOE) COLLAPSE(2)
+    do k = kds,kde
+      do iPOE = 1,nPointsOnEdge
+        i = ide + 1
+        FL(:,iPOE,i,k) = calc_F(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k),PL(iPOE,i,k))
+        i = ids - 1
+        FR(:,iPOE,i,k) = calc_F(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k),PR(iPOE,i,k))
+      enddo
+    enddo
+    !$OMP END DO NOWAIT
+    
+    ! Calculate pressure H
+    !$OMP DO PRIVATE(i,iPOE) COLLAPSE(3)
+    do k = kds,kde
+      do i = ids,ide
+        do iPOE = 1,nPointsOnEdge
+          HB(:,iPOE,i,k) = calc_H(sqrtGB(iPOE,i,k),G13B(iPOE,i,k),qB(:,iPOE,i,k),pB(iPOE,i,k),pB_ref(iPOE,i,k))
+          HT(:,iPOE,i,k) = calc_H(sqrtGT(iPOE,i,k),G13T(iPOE,i,k),qT(:,iPOE,i,k),pT(iPOE,i,k),pT_ref(iPOE,i,k))
+        enddo
+      enddo
+    enddo
+    !$OMP END DO NOWAIT
+    !$OMP DO PRIVATE(k,iPOE) COLLAPSE(2)
+    do i = ids,ide
+      do iPOE = 1,nPointsOnEdge
+        k = kde + 1
+        HB(:,iPOE,i,k) = calc_H(sqrtGB(iPOE,i,k),G13B(iPOE,i,k),qB(:,iPOE,i,k),pB(iPOE,i,k),pB_ref(iPOE,i,k))
+        k = kds - 1
+        HT(:,iPOE,i,k) = calc_H(sqrtGT(iPOE,i,k),G13T(iPOE,i,k),qT(:,iPOE,i,k),pT(iPOE,i,k),pT_ref(iPOE,i,k))
+      enddo
+    enddo
+    !$OMP END DO NOWAIT
+    
+    !$OMP BARRIER
+    
+    ! calc x flux
+    !$OMP DO PRIVATE(i,im1,iPOE,eigL,eigR,iVar) COLLAPSE(2)
+    do k = kds,kde
+      do i = ids,ide+1
+        im1 = i - 1
+        do iPOE = 1,nPointsOnEdge
+          eigL = calc_eigenvalue_x(sqrtGR(iPOE,im1,k),qR(:,iPOE,im1,k))
+          eigR = calc_eigenvalue_x(sqrtGL(iPOE,i  ,k),qL(:,iPOE,i  ,k))
+          
+          FeP(:,iPOE,i,k) = 0.5 * ( FL(:,iPOE,i,k) + FR(:,iPOE,im1,k) - max( eigL, eigR ) * ( qL(:,iPOE,i,k) - qR(:,iPOE,im1,k) ) )
+        enddo
+        do iVar = 1,nVar
+          Fe(iVar,i,k) = Gaussian_quadrature_1d(FeP(iVar,:,i,k))
+        enddo
+      enddo
+    enddo
+    !$OMP END DO NOWAIT
+    
+    ! calc z flux
+    !$OMP DO PRIVATE(k,km1,iPOE,eigL,eigR,iVar) COLLAPSE(2)
+    do i = ids,ide
+      do k = kds,kde+1
+        km1 = k - 1
+        do iPOE = 1,nPointsOnEdge
+          eigL = calc_eigenvalue_z(sqrtGT(iPOE,i,km1),G13T(iPOE,i,km1),qT(:,iPOE,i,km1))
+          eigR = calc_eigenvalue_z(sqrtGB(iPOE,i,k  ),G13B(iPOE,i,k  ),qB(:,iPOE,i,k  ))
+          
+          HeP(:,iPOE,i,k) = 0.5 * ( HB(:,iPOE,i,k) + HT(:,iPOE,i,km1) - max( eigL, eigR ) * ( qB(:,iPOE,i,k) - qT(:,iPOE,i,km1) ) )
+        enddo
+        do iVar = 1,nVar
+          He(iVar,i,k) = Gaussian_quadrature_1d(HeP(iVar,:,i,k))
+        enddo
+      enddo
+    enddo
+    !$OMP END DO NOWAIT
+    
+    !$OMP DO PRIVATE(i) COLLAPSE(2)
+    do k = kds,kde
+      do i = ids,ide
+        !rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) - ref%q(1,i,k) - ref%q(5,i,k) ) / sqrtGC(i,k)  ! hydrostatic
+        !rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) ) / sqrtGC(i,k)  ! nonhydrostatic
+        rho_p(i,k) = Gaussian_quadrature_2d( ( qG(1,:,i,k) + qG(5,:,i,k) - qG_ref(1,:,i,k) - qG_ref(5,:,i,k) ) ) ! hydrostatic
+        if( abs( rho_p(i,k) ) <= 1.e-13 ) rho_p(i,k) = 0 ! hydrostatic
+      enddo
+    enddo
+    !$OMP END DO
+    
+    !$OMP DO PRIVATE(i,iVar) COLLAPSE(2)
+    do k = kds,kde
+      do i = ids,ide
+        do iVar = 1,nVar
+          src(iVar,i,k) = 0
+        enddo
+        !src(3,i,k) = src(3,i,k) - sqrtGC(i,k) * rho_p(i,k) * gravity
+        src(3,i,k) = src(3,i,k) - rho_p(i,k) * gravity
+      enddo
+    enddo
+    !$OMP END DO
+    
+    !$OMP END PARALLEL
+    ! End OpenMP zone
+  
+    ! Viscosity terms for Density Current case only
+    if(case_num==3)then
+      do iVar = 2,4
+        q_diff(iVar,ids:ide,kds:kde) = qC(iVar,ids:ide,kds:kde) / qC(1,ids:ide,kds:kde)
+        
+        q_diff(iVar,ids:ide,kds-1) = q_diff(iVar,ids:ide,kds)
+        q_diff(iVar,ids:ide,kde+1) = q_diff(iVar,ids:ide,kde)
+        q_diff(iVar,ids-1,kds:kde) = q_diff(iVar,ids,kds:kde)
+        q_diff(iVar,ide+1,kds:kde) = q_diff(iVar,ide,kds:kde)
+      enddo
+      
+      !$OMP PARALLEL DO PRIVATE(i,iVar)
+      do k = kds,kde
+        do i = ids,ide
           do iVar = 2,4
-            q_diff(iVar,ids:ide,kds:kde) = qC(iVar,ids:ide,kds:kde) / qC(1,ids:ide,kds:kde)
-            
-            q_diff(iVar,ids:ide,kds-1) = q_diff(iVar,ids:ide,kds)
-            q_diff(iVar,ids:ide,kde+1) = q_diff(iVar,ids:ide,kde)
-            q_diff(iVar,ids-1,kds:kde) = q_diff(iVar,ids,kds:kde)
-            q_diff(iVar,ide+1,kds:kde) = q_diff(iVar,ide,kds:kde)
-          enddo
-          
-          !$OMP PARALLEL DO PRIVATE(i,iVar)
-          do k = kds,kde
-            do i = ids,ide
-              do iVar = 2,4
-                src(iVar,i,k) = src(iVar,i,k) + viscosity_coef * qC(1,i,k) * ( ( q_diff(iVar,i+1,k) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i-1,k) ) / dx  **2 &
-                                                                             + ( q_diff(iVar,i,k+1) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i,k-1) ) / deta**2 / sqrtGC(i,k)**2 )
-              enddo
-            enddo
-          enddo
-          !$OMP END PARALLEL DO
-        endif
-        
-        ! Calculate tend
-        !$OMP PARALLEL DO PRIVATE(i,ip1,kp1,iVar)
-        do k = kds,kde
-          do i = ids,ide
-            ip1 = i + 1
-            kp1 = k + 1
-            tend%q(:,i,k) = - ( ( Fe(:,ip1,k) - Fe(:,i,k) ) / dx + ( He(:,i,kp1) - He(:,i,k) ) / deta ) + src(:,i,k)
+            src(iVar,i,k) = src(iVar,i,k) + viscosity_coef * qC(1,i,k) * ( ( q_diff(iVar,i+1,k) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i-1,k) ) / dx  **2 &
+                                                                         + ( q_diff(iVar,i,k+1) - 2. * q_diff(iVar,i,k) + q_diff(iVar,i,k-1) ) / deta**2 / sqrtGC(i,k)**2 )
           enddo
         enddo
-        !$OMP END PARALLEL DO
-      end subroutine spatial_operator
+      enddo
+      !$OMP END PARALLEL DO
+    endif
     
-      subroutine reconstruct_field(qL,qR,qB,qT,qC)
-        real(r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce),intent(out) :: qL
-        real(r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce),intent(out) :: qR
-        real(r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce),intent(out) :: qB
-        real(r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce),intent(out) :: qT
-        real(r_kind), dimension(              ics:ice,kcs:kce),intent(in ) :: qC
-      
-        integer(i_kind) :: i,j,k,iR,kR
-        integer(i_kind) :: iRec,kRec
-        integer(i_kind) :: ic
-        integer(i_kind) :: m,n
-        
-        real(r_kind), dimension(nRecCells          ) :: u
-        real(r_kind)                                 :: h
-        real(r_kind), dimension(nRecCells,nRecTerms) :: A
-        real(r_kind), dimension(          nRecTerms) :: polyCoef
-        
-        m = nRecCells
-        n = nRecTerms
-        
-        h = dx
-        
-        !$OMP PARALLEL DO PRIVATE(i,j,kR,iR,iRec,kRec,iC,u,A,polyCoef)
-        !do k = kds,kde
-        !  do i = ids,ide
-        do k = kbs,kbe
-          do i = ibs,ibe
-            ! Set variable for reconstruction
-            do kR = 1,stencil_width
-              do iR = 1,stencil_width
-                iRec = iRecCell(iR,kR,i,k)
-                kRec = kRecCell(iR,kR,i,k)
-                
-                j = stencil_width * ( kR - 1 ) + iR
-                u(j  ) = qC(iRec,kRec)
-                A(j,:) = polyCoordCoef(j,:,i,k)
-              enddo
-            enddo
-            ic = iCenCell(i,k)
-            
-            polyCoef = WLS_ENO(A,u,h,m,n,ic)
-            
-            qL(:,i,k) = matmul(recMatrixL,polyCoef)
-            qR(:,i,k) = matmul(recMatrixR,polyCoef)
-            qB(:,i,k) = matmul(recMatrixB,polyCoef)
-            qT(:,i,k) = matmul(recMatrixT,polyCoef)
-          enddo
+    ! Calculate tend
+    !$OMP PARALLEL DO PRIVATE(i,ip1,kp1,iVar) COLLAPSE(2)
+    do k = kds,kde
+      do i = ids,ide
+        ip1 = i + 1
+        kp1 = k + 1
+        do iVar = 1,nVar
+          tend%q(iVar,i,k) = - ( ( Fe(iVar,ip1,k) - Fe(iVar,i,k) ) / dx + ( He(iVar,i,kp1) - He(iVar,i,k) ) / deta ) + src(iVar,i,k)
         enddo
-        !$OMP END PARALLEL DO
-        
-        ! bottom
-        call reconstruct_bdy(ids,ide,kds,kbs-1,qL,qR,qB,qT,qC)
-        ! top
-        call reconstruct_bdy(ids,ide,kbe+1,kde,qL,qR,qB,qT,qC)
-        ! left
-        call reconstruct_bdy(ids,ibs-1,kbs,kbe,qL,qR,qB,qT,qC)
-        ! right
-        call reconstruct_bdy(ibe+1,ide,kbs,kbe,qL,qR,qB,qT,qC)
-        
-      end subroutine reconstruct_field
-      
-      ! reconstruct boundary by weno
-      subroutine reconstruct_bdy(is,ie,ks,ke,qL,qR,qB,qT,qC)
-        integer(i_kind)                                          , intent(in ) :: is
-        integer(i_kind)                                          , intent(in ) :: ie
-        integer(i_kind)                                          , intent(in ) :: ks
-        integer(i_kind)                                          , intent(in ) :: ke
-        real   (r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce), intent(out) :: qL
-        real   (r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce), intent(out) :: qR
-        real   (r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce), intent(out) :: qB
-        real   (r_kind), dimension(nPointsOnEdge,ics:ice,kcs:kce), intent(out) :: qT
-        real   (r_kind), dimension(              ics:ice,kcs:kce), intent(in ) :: qC
-        
-        real   (r_kind) :: q_weno(5)
-        integer(i_kind) :: dir
-        
-        integer(i_kind) :: i,k
-      
-        integer(i_kind) :: ip1,im1
-        integer(i_kind) :: kp1,km1
-        integer(i_kind) :: ip2,im2
-        integer(i_kind) :: kp2,km2
-        
-        !$OMP PARALLEL DO PRIVATE(kp1,km1,kp2,km2,i,ip1,im1,ip2,im2,q_weno,dir)
-        do k = ks,ke
-          kp1 = k + 1
-          km1 = k - 1
-          kp2 = k + 2
-          km2 = k - 2
-          do i = is,ie
-            ip1 = i + 1
-            im1 = i - 1
-            ip2 = i + 2
-            im2 = i - 2
-            
-            ! x-dir
-            q_weno = qC(im2:ip2,k)
-            
-            dir = -1
-            call WENO5(qL(1,i,k),q_weno,dir)
-            dir = 1
-            call WENO5(qR(1,i,k),q_weno,dir)
-            
-            ! z-dir
-            q_weno = qC(i,km2:kp2)
-            
-            dir = -1
-            call WENO5(qB(1,i,k),q_weno,dir)
-            dir = 1
-            call WENO5(qT(1,i,k),q_weno,dir)
-          
-            qL(2:nPointsOnEdge,i,k) = qL(1,i,k)
-            qR(2:nPointsOnEdge,i,k) = qR(1,i,k)
-            qB(2:nPointsOnEdge,i,k) = qB(1,i,k)
-            qT(2:nPointsOnEdge,i,k) = qT(1,i,k)
-          enddo
-        enddo
-        !$OMP END PARALLEL DO
-      
-      end subroutine reconstruct_bdy
-      
-      function calc_pressure(sqrtG,q)
-        real(r_kind) calc_pressure
-        real(r_kind) sqrtG
-        real(r_kind) q(5)
-        
-        real(r_kind) w1
-        real(r_kind) w4
-        real(r_kind) w5
-        
-        real(r_kind) rho
-        real(r_kind) R
-        real(r_kind) gamma
-        real(r_kind) theta
-        real(r_kind) cp
-        real(r_kind) cv
-        real(r_kind) sh
-        real(r_kind) kappa
-        
-        w1 = q(1)
-        w4 = q(4)
-        w5 = q(5)
-        
-        rho      = ( w1 + w5 ) / sqrtG
-        gamma    = w5 / w1
-        sh       = gamma / ( 1. + gamma )
-        R        = ( 1. + eq * sh ) * Rd
-        theta    = w4 / w1
-        cp       = cpd + ( cpv - cpd ) * sh
-        cv       = cvd + ( cvv - cvd ) * sh
-        kappa    = cp / cv
-        
-        calc_pressure = p0 * ( rho * theta * R / p0 )**kappa
-        
-      end function calc_pressure
-      
-      function calc_F(sqrtG,q,p)
-        real(r_kind),dimension(5) :: calc_F
-        real(r_kind)              :: sqrtG
-        real(r_kind),dimension(5) :: q(5)
-        real(r_kind)              :: p      ! pressure
-        
-        real(r_kind) w1
-        real(r_kind) w2
-        real(r_kind) w3
-        real(r_kind) w4
-        real(r_kind) w5
-        
-        real(r_kind) sqrtGrho
-        real(r_kind) u
-        
-        w1 = q(1)
-        w2 = q(2)
-        w3 = q(3)
-        w4 = q(4)
-        w5 = q(5)
-        
-        sqrtGrho = w1 + w5
-        u        = w2 / sqrtGrho
-        
-        calc_F(1) = w1 * u
-        calc_F(2) = w2 * u + sqrtG * p
-        calc_F(3) = w3 * u
-        calc_F(4) = w4 * u
-        calc_F(5) = w5 * u
-        
-      end function calc_F
-      
-      function calc_H(sqrtG,G13,q,p,p_ref)
-        real(r_kind),dimension(5) :: calc_H
-        real(r_kind)              :: sqrtG
-        real(r_kind)              :: G13
-        real(r_kind),dimension(5) :: q(5)
-        real(r_kind)              :: p      ! pressure
-        real(r_kind)              :: p_ref  ! reference pressure
-        
-        real(r_kind)              :: p_pert ! pressure  perturbation
-        
-        real(r_kind) w1
-        real(r_kind) w2
-        real(r_kind) w3
-        real(r_kind) w4
-        real(r_kind) w5
-        real(r_kind) ww
-        
-        real(r_kind) sqrtGrho
-        real(r_kind) u
-        real(r_kind) w
-        
-        w1 = q(1)
-        w2 = q(2)
-        w3 = q(3)
-        w4 = q(4)
-        w5 = q(5)
-        
-        sqrtGrho = w1 + w5
-        u        = w2 / sqrtGrho
-        w        = w3 / sqrtGrho
-        p_pert   = p - p_ref
-        
-        ww = w / sqrtG + G13 * u
-        
-        calc_H(1) = w1 * ww
-        calc_H(2) = w2 * ww + sqrtG * G13 * p
-        calc_H(3) = w3 * ww + p_pert
-        calc_H(4) = w4 * ww
-        calc_H(5) = w5 * ww
-        
-      end function calc_H
-      
-      function calc_eigenvalue_x(sqrtG,q)
-        real(r_kind) :: calc_eigenvalue_x
-        real(r_kind) :: sqrtG
-        real(r_kind) :: q(5)
-        real(r_kind) :: eig(5)
-        
-        real(r_kind) w1
-        real(r_kind) w2
-        real(r_kind) w3
-        real(r_kind) w4
-        real(r_kind) w5
-        
-        real(r_kind) coef1,coef2,coef3
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
+    
+  end subroutine spatial_operator
 
-        real(r_kind) c1,c2,c3,c4,c5
-        
-        if(any(q==FillValue).or.sqrtG==FillValue)then
-          eig = 0
-        else
-          w1 = q(1)
-          w2 = q(2)
-          w3 = q(3)
-          w4 = q(4)
-          w5 = q(5)
-          
-          c1 = w1 + w5
-          c2 = c1 + eq*w5
-          c3 = cpd*w1 + cpv*w5
-          c4 = cvd*w1 + cvv*w5
-          c5 = p0*sqrtG
-          
-          coef1 = cvd**2*w1**3*w2*w4*c1*c2 + &
-                2.*cvd*cvv*w1**2*w2*w4*w5*c1*c2 + &
-                cvv**2*w1*w2*w4*w5**2*c1*c2
-          
-          coef2 = sqrt( c5*w1**2*w4**2*c1**3*c3*&
-                c4**3*c2**2*((Rd*w4*c2)/(c5*w1))**&
-                (c3/c4) )
-          
-          coef3 = w1*w4*c1**2*c4**2*c2
-          
-          eig(1) = w2 / c1
-          eig(2) = eig(1)
-          eig(3) = eig(1)
-          eig(4) = ( coef1 - coef2 ) / coef3
-          eig(5) = ( coef1 + coef2 ) / coef3
-        endif
-        
-        calc_eigenvalue_x = maxval(abs(eig))
-        
-      end function calc_eigenvalue_x
-      
-      function calc_eigenvalue_z(sqrtG,G13,q)
-        real(r_kind) :: calc_eigenvalue_z
-        real(r_kind) :: sqrtG
-        real(r_kind) :: G13
-        real(r_kind) :: q(5)
-        real(r_kind) :: eig(5)
-        
-        real(r_kind) w1
-        real(r_kind) w2
-        real(r_kind) w3
-        real(r_kind) w4
-        real(r_kind) w5
-        
-        real(r_kind) sqrtGrho
-        real(r_kind) u
-        real(r_kind) w
-        
-        real(r_kind) drhoetadt
-        
-        real(r_kind) coef1,coef2,coef3
-
-        real(r_kind) c1,c2,c3,c4,c5
-        
-        if(any(q==FillValue).or.sqrtG==FillValue)then
-          eig = 0
-        else
-          w1 = q(1)
-          w2 = q(2)
-          w3 = q(3)
-          w4 = q(4)
-          w5 = q(5)
-          
-          c1 = w1 + w5
-          c2 = c1 + eq*w5
-          c3 = cpd*w1 + cpv*w5
-          c4 = cvd*w1 + cvv*w5
-          c5 = p0*sqrtG
-          
-          !sqrtGrho = w1 + w5
-          !u        = w2 / sqrtGrho
-          !w        = w3 / sqrtGrho
-          
-          coef1 = cvd**2*w1**3*(G13*sqrtG*w2 + w3)*w4*c1*c2 + &
-                2.*cvd*cvv*w1**2*(G13*sqrtG*w2 + w3)*w4*      &
-                w5*c1*c2 +                                    &
-                cvv**2*w1*(G13*sqrtG*w2 + w3)*w4*w5**2*c1*c2
-          
-          coef2 = sqrt( c5*(1 + G13**2*sqrtG**2)*w1**2*             &
-                w4**2*c1**3*c3*c4**3*        &
-                c2**2*((Rd*w4*c2)/(c5*w1))** &
-                (c3/c4) )
-          
-          coef3 = sqrtG*w1*w4*c1**2*c4**2*c2
-          
-          drhoetadt = (G13*sqrtG*w2 + w3)/(sqrtG*w1 + sqrtG*w5)
-          
-          eig(1) = drhoetadt
-          eig(2) = drhoetadt
-          eig(3) = drhoetadt
-          eig(4) = ( coef1 - coef2 ) / coef3
-          eig(5) = ( coef1 + coef2 ) / coef3
-        endif
-        
-        calc_eigenvalue_z = maxval(abs(eig))
-        
-      end function calc_eigenvalue_z
+  subroutine reconstruct_field(qC,qL,qR,qB,qT,qG,iVar)
+    real   (r_kind), dimension(                  ics:ice,kcs:kce),intent(in )           :: qC
+    real   (r_kind), dimension(nPointsOnEdge    ,ics:ice,kcs:kce),intent(out)           :: qL
+    real   (r_kind), dimension(nPointsOnEdge    ,ics:ice,kcs:kce),intent(out)           :: qR
+    real   (r_kind), dimension(nPointsOnEdge    ,ics:ice,kcs:kce),intent(out)           :: qB
+    real   (r_kind), dimension(nPointsOnEdge    ,ics:ice,kcs:kce),intent(out)           :: qT
+    real   (r_kind), dimension(nQuadPointsOnCell,ics:ice,kcs:kce),intent(out), optional :: qG
+    integer(i_kind)                                                          , optional :: iVar ! Specify variable for speed up CG method
   
-      subroutine Rayleigh_damping(q,q_ref)
-        real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: q
-        real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
-        
-        integer(i_kind), parameter :: vs = 1
-        integer(i_kind), parameter :: ve = 5
-        
-        integer i,k,iVar
-        
-        !$OMP PARALLEL DO PRIVATE(i,iVar)
-        do k = kds,kde
-          do i = ids,ide
-            do iVar = vs,ve
-              q(iVar,i,k) = q(iVar,i,k) - relax_coef(i,k) * ( q(iVar,i,k) - q_ref(iVar,i,k) )
-            enddo
-          enddo
+    integer(i_kind) :: i,j,k
+    integer(i_kind) :: iRec,kRec
+    integer(i_kind) :: ic
+    integer(i_kind) :: m,n
+    
+    real(r_kind)                                     :: h
+    real(r_kind), dimension(maxRecCells            ) :: u
+    real(r_kind), dimension(maxRecCells,maxRecTerms) :: A
+    real(r_kind), dimension(            maxRecTerms) :: polyCoef
+    
+    h = dx
+    
+    ! Full WLS-ENO
+    !$OMP PARALLEL DO PRIVATE(i,j,m,n,iRec,kRec,iC,u,A,polyCoef) collapse(2)
+    do k = kds,kde
+      do i = ids,ide
+        m = nRecCells(i,k)
+        n = nRecTerms(i,k)
+        ! Set variable for reconstruction
+        do j = 1,m
+          iRec = iRecCell(j,i,k)
+          kRec = kRecCell(j,i,k)
+          
+          u(j    ) = qC(iRec,kRec)
+          A(j,1:n) = polyCoordCoef(j,1:n,i,k)
         enddo
-        !$OMP END PARALLEL DO
+        ic = iCenCell(i,k)
         
-      end subroutine Rayleigh_damping
+        !if(present(iVar))then
+        !  polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic,CG_coef(iVar,1:n,i,k))
+        !  CG_coef(iVar,1:n,i,k) = polyCoef(1:n)
+        !else
+        !  polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic)
+        !endif
+        polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic)
+        
+        qL(:,i,k) = matmul(recMatrixL(:,1:n,i,k),polyCoef(1:n))
+        qR(:,i,k) = matmul(recMatrixR(:,1:n,i,k),polyCoef(1:n))
+        qB(:,i,k) = matmul(recMatrixB(:,1:n,i,k),polyCoef(1:n))
+        qT(:,i,k) = matmul(recMatrixT(:,1:n,i,k),polyCoef(1:n))
+        
+        if(present(qG))qG(:,i,k) = matmul(recMatrixG(:,1:n,i,k),polyCoef(1:n))
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
+  end subroutine reconstruct_field
+  
+  function calc_pressure(sqrtG,q)
+    real(r_kind) calc_pressure
+    real(r_kind) sqrtG
+    real(r_kind) q(5)
+    
+    real(r_kind) w1
+    real(r_kind) w4
+    real(r_kind) w5
+    
+    real(r_kind) rho
+    real(r_kind) R
+    real(r_kind) gamma
+    real(r_kind) theta
+    real(r_kind) cp
+    real(r_kind) cv
+    real(r_kind) sh
+    real(r_kind) kappa
+    
+    w1 = q(1)
+    w4 = q(4)
+    w5 = q(5)
+    
+    rho      = ( w1 + w5 ) / sqrtG
+    gamma    = w5 / w1
+    sh       = gamma / ( 1. + gamma )
+    R        = ( 1. + eq * sh ) * Rd
+    theta    = w4 / w1
+    cp       = cpd + ( cpv - cpd ) * sh
+    cv       = cvd + ( cvv - cvd ) * sh
+    kappa    = cp / cv
+    
+    calc_pressure = p0 * ( rho * theta * R / p0 )**kappa
+    
+  end function calc_pressure
+    
+    function calc_F(sqrtG,q,p)
+      real(r_kind),dimension(5) :: calc_F
+      real(r_kind)              :: sqrtG
+      real(r_kind),dimension(5) :: q(5)
+      real(r_kind)              :: p      ! pressure
       
-      ! Rayleigh damping ( Wong and Stull, MWR, 2015 )
-      subroutine Rayleigh_coef(mu)
-        real(r_kind), dimension(ics:ice,kcs:kce), intent(out) :: mu
-        
-        real(r_kind), dimension(ics:ice,kcs:kce) :: muT
-        real(r_kind), dimension(ics:ice,kcs:kce) :: muL
-        real(r_kind), dimension(ics:ice,kcs:kce) :: muR
-        
-        real(r_kind), parameter :: topSpongeThickness   = 9000   ! 12000 for "best" result
-        real(r_kind), parameter :: leftSpongeThickness  = 10000  ! 10000 for "best" result
-        real(r_kind), parameter :: rightSpongeThickness = 10000  ! 10000 for "best" result
-        
-        real(r_kind), parameter :: mu_max_top = 0.2
-        real(r_kind), parameter :: mu_max_lat = 0.2
-        
-        real(r_kind) zd, zt
-        
-        integer i,k
-        
-        muT = 0
-        muL = 0
-        MuR = 0
-        
-        ! Top
-        zt = z_max
-        zd = zt - topSpongeThickness
-        where( zC > zd )
-          !muT = mu_max_top * sin( pi / 2. * ( zC - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
-          muT = mu_max_top * ( ( zC - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
-        elsewhere
-          muT = 0.
-        endwhere
-        
-        ! Left
-        zt = -x_min
-        zd = zt - leftSpongeThickness
-        where( abs(xC) > zd )
-          !muT = mu_max_lat * sin( pi / 2. * ( abs(xC) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
-          muT = mu_max_lat * ( ( abs(xC) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
-        elsewhere
-          muL = 0.
-        endwhere
-        
-        ! Right
-        zt = x_max
-        zd = zt - rightSpongeThickness
-        where( xC > zd )
-          !muT = mu_max_lat * sin( pi / 2. * ( abs(xC) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
-          muT = mu_max_lat * ( ( abs(xC) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
-        elsewhere
-          muR = 0.
-        endwhere
-        
-        do k = kds,kde
-          do i = ids,ide
-            mu(i,k) = max( muT(i,k), muL(i,k), muR(i,k) )
-          enddo
+      real(r_kind) w1
+      real(r_kind) w2
+      real(r_kind) w3
+      real(r_kind) w4
+      real(r_kind) w5
+      
+      real(r_kind) sqrtGrho
+      real(r_kind) u
+      
+      w1 = q(1)
+      w2 = q(2)
+      w3 = q(3)
+      w4 = q(4)
+      w5 = q(5)
+      
+      sqrtGrho = w1 + w5
+      u        = w2 / sqrtGrho
+      
+      calc_F(1) = w1 * u
+      calc_F(2) = w2 * u + sqrtG * p
+      calc_F(3) = w3 * u
+      calc_F(4) = w4 * u
+      calc_F(5) = w5 * u
+      
+    end function calc_F
+    
+    function calc_H(sqrtG,G13,q,p,p_ref)
+      real(r_kind),dimension(5) :: calc_H
+      real(r_kind)              :: sqrtG
+      real(r_kind)              :: G13
+      real(r_kind),dimension(5) :: q(5)
+      real(r_kind)              :: p      ! pressure
+      real(r_kind)              :: p_ref  ! reference pressure
+      
+      real(r_kind)              :: p_pert ! pressure  perturbation
+      
+      real(r_kind) w1
+      real(r_kind) w2
+      real(r_kind) w3
+      real(r_kind) w4
+      real(r_kind) w5
+      real(r_kind) ww
+      
+      real(r_kind) sqrtGrho
+      real(r_kind) u
+      real(r_kind) w
+      
+      w1 = q(1)
+      w2 = q(2)
+      w3 = q(3)
+      w4 = q(4)
+      w5 = q(5)
+      
+      sqrtGrho = w1 + w5
+      u        = w2 / sqrtGrho
+      w        = w3 / sqrtGrho
+      p_pert   = p - p_ref
+      
+      ww = w / sqrtG + G13 * u
+      
+      calc_H(1) = w1 * ww
+      calc_H(2) = w2 * ww + sqrtG * G13 * p
+      calc_H(3) = w3 * ww + p_pert
+      calc_H(4) = w4 * ww
+      calc_H(5) = w5 * ww
+      
+    end function calc_H
+    
+  function calc_w_eta(sqrtG,G13,q)
+    real(r_kind)                 :: calc_w_eta
+    real(r_kind)                 :: sqrtG
+    real(r_kind)                 :: G13
+    real(r_kind),dimension(nVar) :: q
+    
+    real(r_kind) :: u
+    real(r_kind) :: w
+
+    u = q(2) / q(1)
+    w = q(3) / q(1)
+    
+    calc_w_eta = w / sqrtG + G13 * u
+  
+  end function calc_w_eta
+  
+  subroutine Rayleigh_damping(q,q_ref)
+    real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: q
+    real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: q_ref
+    
+    integer(i_kind), parameter :: vs = 1
+    integer(i_kind), parameter :: ve = 5
+    
+    integer i,k,iVar
+    
+    !$OMP PARALLEL DO PRIVATE(i,iVar) COLLAPSE(3)
+    do k = kds,kde
+      do i = ids,ide
+        do iVar = vs,ve
+          q(iVar,i,k) = q(iVar,i,k) - relax_coef(i,k) * ( q(iVar,i,k) - q_ref(iVar,i,k) )
         enddo
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
+    
+  end subroutine Rayleigh_damping
+  
+  ! Rayleigh damping ( Wong and Stull, MWR, 2015 )
+  subroutine Rayleigh_coef(mu)
+    real(r_kind), dimension(ics:ice,kcs:kce), intent(out) :: mu
+    
+    real(r_kind), dimension(ics:ice,kcs:kce) :: muT
+    real(r_kind), dimension(ics:ice,kcs:kce) :: muL
+    real(r_kind), dimension(ics:ice,kcs:kce) :: muR
+    
+    real(r_kind), parameter :: topSpongeThickness   = 9000   ! 12000 for "best" result
+    real(r_kind), parameter :: leftSpongeThickness  = 10000  ! 10000 for "best" result
+    real(r_kind), parameter :: rightSpongeThickness = 10000  ! 10000 for "best" result
+    
+    real(r_kind), parameter :: mu_max_top = 0.28!0.2
+    real(r_kind), parameter :: mu_max_lat = 0.15!0.2
+    
+    real(r_kind) zd, zt
+    
+    integer i,k
+    
+    muT = 0
+    muL = 0
+    MuR = 0
+    
+    ! Top
+    zt = z_max
+    zd = zt - topSpongeThickness
+    where( zC > zd )
+      !muT = mu_max_top * sin( pi / 2. * ( zC - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+      muT = mu_max_top * ( ( zC - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
+    elsewhere
+      muT = 0.
+    endwhere
+    
+    ! Left
+    zt = -x_min
+    zd = zt - leftSpongeThickness
+    where( abs(xC) > zd )
+      !muT = mu_max_lat * sin( pi / 2. * ( abs(xC) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+      muT = mu_max_lat * ( ( abs(xC) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
+    elsewhere
+      muL = 0.
+    endwhere
+    
+    ! Right
+    zt = x_max
+    zd = zt - rightSpongeThickness
+    where( xC > zd )
+      !muT = mu_max_lat * sin( pi / 2. * ( abs(xC) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+      muT = mu_max_lat * ( ( abs(xC) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
+    elsewhere
+      muR = 0.
+    endwhere
+    
+    do k = kds,kde
+      do i = ids,ide
+        mu(i,k) = max( muT(i,k), muL(i,k), muR(i,k) )
+      enddo
+    enddo
+  
+  end subroutine Rayleigh_coef
       
-      end subroutine Rayleigh_coef
-    end module spatial_operators_mod
+  function calc_eigenvalue_x(sqrtG,q)
+    real(r_kind) :: calc_eigenvalue_x
+    real(r_kind) :: sqrtG
+    real(r_kind) :: q(5)
+    real(r_kind) :: eig(5)
+    
+    real(r_kind) w1
+    real(r_kind) w2
+    real(r_kind) w3
+    real(r_kind) w4
+    real(r_kind) w5
+    
+    real(r_kind) coef1,coef2,coef3
+
+    real(r_kind) c1,c2,c3,c4,c5
+    
+    if(any(q==FillValue).or.sqrtG==FillValue)then
+      eig = 0
+    else
+      w1 = q(1)
+      w2 = q(2)
+      w3 = q(3)
+      w4 = q(4)
+      w5 = q(5)
+      
+      c1 = w1 + w5
+      c2 = c1 + eq*w5
+      c3 = cpd*w1 + cpv*w5
+      c4 = cvd*w1 + cvv*w5
+      c5 = p0*sqrtG
+      
+      coef1 = cvd**2*w1**3*w2*w4*c1*c2 + &
+            2.*cvd*cvv*w1**2*w2*w4*w5*c1*c2 + &
+            cvv**2*w1*w2*w4*w5**2*c1*c2
+      
+      coef2 = sqrt( c5*w1**2*w4**2*c1**3*c3*&
+            c4**3*c2**2*((Rd*w4*c2)/(c5*w1))**&
+            (c3/c4) )
+      
+      coef3 = w1*w4*c1**2*c4**2*c2
+      
+      eig(1) = w2 / c1
+      eig(2) = eig(1)
+      eig(3) = eig(1)
+      eig(4) = ( coef1 - coef2 ) / coef3
+      eig(5) = ( coef1 + coef2 ) / coef3
+    endif
+    
+    calc_eigenvalue_x = maxval(abs(eig))
+    
+  end function calc_eigenvalue_x
+  
+  function calc_eigenvalue_z(sqrtG,G13,q)
+    real(r_kind) :: calc_eigenvalue_z
+    real(r_kind) :: sqrtG
+    real(r_kind) :: G13
+    real(r_kind) :: q(5)
+    real(r_kind) :: eig(5)
+    
+    real(r_kind) w1
+    real(r_kind) w2
+    real(r_kind) w3
+    real(r_kind) w4
+    real(r_kind) w5
+    
+    real(r_kind) sqrtGrho
+    real(r_kind) u
+    real(r_kind) w
+    
+    real(r_kind) drhoetadt
+    
+    real(r_kind) coef1,coef2,coef3
+
+    real(r_kind) c1,c2,c3,c4,c5
+    
+    if(any(q==FillValue).or.sqrtG==FillValue)then
+      eig = 0
+    else
+      w1 = q(1)
+      w2 = q(2)
+      w3 = q(3)
+      w4 = q(4)
+      w5 = q(5)
+      
+      c1 = w1 + w5
+      c2 = c1 + eq*w5
+      c3 = cpd*w1 + cpv*w5
+      c4 = cvd*w1 + cvv*w5
+      c5 = p0*sqrtG
+      
+      !sqrtGrho = w1 + w5
+      !u        = w2 / sqrtGrho
+      !w        = w3 / sqrtGrho
+      
+      coef1 = cvd**2*w1**3*(G13*sqrtG*w2 + w3)*w4*c1*c2 + &
+            2.*cvd*cvv*w1**2*(G13*sqrtG*w2 + w3)*w4*      &
+            w5*c1*c2 +                                    &
+            cvv**2*w1*(G13*sqrtG*w2 + w3)*w4*w5**2*c1*c2
+      
+      coef2 = sqrt( c5*(1 + G13**2*sqrtG**2)*w1**2*             &
+            w4**2*c1**3*c3*c4**3*        &
+            c2**2*((Rd*w4*c2)/(c5*w1))** &
+            (c3/c4) )
+      
+      coef3 = sqrtG*w1*w4*c1**2*c4**2*c2
+      
+      drhoetadt = (G13*sqrtG*w2 + w3)/(sqrtG*w1 + sqrtG*w5)
+      
+      eig(1) = drhoetadt
+      eig(2) = drhoetadt
+      eig(3) = drhoetadt
+      eig(4) = ( coef1 - coef2 ) / coef3
+      eig(5) = ( coef1 + coef2 ) / coef3
+    endif
+    
+    calc_eigenvalue_z = maxval(abs(eig))
+    
+  end function calc_eigenvalue_z
+    
+end module spatial_operators_mod
 
