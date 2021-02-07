@@ -72,12 +72,23 @@ module spatial_operators_mod
   real(r_kind), dimension(:,:,:,:), allocatable :: qB_ref
   real(r_kind), dimension(:,:,:,:), allocatable :: qT_ref
   real(r_kind), dimension(:,:,:,:), allocatable :: qG_ref
+
+  real(r_kind), dimension(:,:,:), allocatable :: rhoL_ref ! reference density
+  real(r_kind), dimension(:,:,:), allocatable :: rhoR_ref ! reference density
+  real(r_kind), dimension(:,:,:), allocatable :: rhoB_ref ! reference density
+  real(r_kind), dimension(:,:,:), allocatable :: rhoT_ref ! reference density
+      
+  real(r_kind), dimension(:,:,:), allocatable :: cL_ref ! sound speed
+  real(r_kind), dimension(:,:,:), allocatable :: cR_ref ! sound speed
+  real(r_kind), dimension(:,:,:), allocatable :: cB_ref ! sound speed
+  real(r_kind), dimension(:,:,:), allocatable :: cT_ref ! sound speed
   
   real(r_kind), dimension(  :,:), allocatable :: PC_ref
   real(r_kind), dimension(:,:,:), allocatable :: PL_ref! Reconstructed P_ref_(i-1/2,k)
   real(r_kind), dimension(:,:,:), allocatable :: PR_ref! Reconstructed P_ref_(i+1/2,k)
   real(r_kind), dimension(:,:,:), allocatable :: PB_ref! Reconstructed P_ref_(i,k-1/2)
   real(r_kind), dimension(:,:,:), allocatable :: PT_ref! Reconstructed P_ref_(i,k+1/2)
+  real(r_kind), dimension(:,:,:), allocatable :: Pz_ref! Reference pressure on bottom and top boundary
   
   real(r_kind), dimension(:,:), allocatable :: relax_coef ! Relax coefficient of Rayleigh damping
   
@@ -152,11 +163,23 @@ contains
     
     allocate(qG_ref  (nVar,nQuadPointsOnCell,ics:ice,kcs:kce))
     
+    allocate(rhoL_ref(     nPointsOnEdge,ics:ice,kcs:kce)) ! reference density
+    allocate(rhoR_ref(     nPointsOnEdge,ics:ice,kcs:kce)) ! reference density
+    allocate(rhoB_ref(     nPointsOnEdge,ics:ice,kcs:kce)) ! reference density
+    allocate(rhoT_ref(     nPointsOnEdge,ics:ice,kcs:kce)) ! reference density
+    
+    allocate(cL_ref  (     nPointsOnEdge,ics:ice,kcs:kce)) ! sound speed
+    allocate(cR_ref  (     nPointsOnEdge,ics:ice,kcs:kce)) ! sound speed
+    allocate(cB_ref  (     nPointsOnEdge,ics:ice,kcs:kce)) ! sound speed
+    allocate(cT_ref  (     nPointsOnEdge,ics:ice,kcs:kce)) ! sound speed
+    
     allocate(PC_ref(              ics:ice,kcs:kce))
     allocate(PL_ref(nPointsOnEdge,ics:ice,kcs:kce))
     allocate(PR_ref(nPointsOnEdge,ics:ice,kcs:kce))
     allocate(PB_ref(nPointsOnEdge,ics:ice,kcs:kce))
     allocate(PT_ref(nPointsOnEdge,ics:ice,kcs:kce))
+    
+    allocate(Pz_ref(nPointsOnEdge,ids:ide,kds:kde+1))
     
     allocate(relax_coef(ics:ice,kcs:kce))
     
@@ -337,34 +360,34 @@ contains
     enddo
     !$OMP END PARALLEL DO
     
-    ! Reconstruct metric function
-    call reconstruct_field(sqrtGC*recdV,&
-                           sqrtGL      ,&
-                           sqrtGR      ,&
-                           sqrtGB      ,&
-                           sqrtGT)
-    
-    call reconstruct_field(G13C*recdV,&
-                           G13L      ,&
-                           G13R      ,&
-                           G13B      ,&
-                           G13T)
+    !! Reconstruct metric function
+    !call reconstruct_field(sqrtGC*recdV,&
+    !                       sqrtGL      ,&
+    !                       sqrtGR      ,&
+    !                       sqrtGB      ,&
+    !                       sqrtGT)
+    !
+    !call reconstruct_field(G13C*recdV,&
+    !                       G13L      ,&
+    !                       G13R      ,&
+    !                       G13B      ,&
+    !                       G13T)
     
         
-    !! Set mertric functions by analytical value
-    !do k = kds,kde
-    !  do i = ids,ide
-    !    sqrtGL(:,i,k) = sqrtG_ext(:,4,i,k)
-    !    sqrtGR(:,i,k) = sqrtG_ext(:,2,i,k)
-    !    sqrtGB(:,i,k) = sqrtG_ext(:,1,i,k)
-    !    sqrtGT(:,i,k) = sqrtG_ext(:,3,i,k)
-    !    
-    !    G13L  (:,i,k) = G13_ext  (:,4,i,k)
-    !    G13R  (:,i,k) = G13_ext  (:,2,i,k)
-    !    G13B  (:,i,k) = G13_ext  (:,1,i,k)
-    !    G13T  (:,i,k) = G13_ext  (:,3,i,k)
-    !  enddo
-    !enddo
+    ! Set mertric functions by analytical value
+    do k = kds,kde
+      do i = ids,ide
+        sqrtGL(:,i,k) = sqrtG_ext(:,4,i,k)
+        sqrtGR(:,i,k) = sqrtG_ext(:,2,i,k)
+        sqrtGB(:,i,k) = sqrtG_ext(:,1,i,k)
+        sqrtGT(:,i,k) = sqrtG_ext(:,3,i,k)
+        
+        G13L  (:,i,k) = G13_ext  (:,4,i,k)
+        G13R  (:,i,k) = G13_ext  (:,2,i,k)
+        G13B  (:,i,k) = G13_ext  (:,1,i,k)
+        G13T  (:,i,k) = G13_ext  (:,3,i,k)
+      enddo
+    enddo
     
     ! Calculate reference pressure
     qC = FillValue
@@ -464,6 +487,16 @@ contains
     do k = kds-1,kde+1
       do i = ids-1,ide+1
         do iPOE = 1,nPointsOnEdge
+          rhoL_ref(iPOE,i,k) = ( qL_ref(1,iPOE,i,k) + qL_ref(5,iPOE,i,k) ) / sqrtGL(iPOE,i,k)
+          rhoR_ref(iPOE,i,k) = ( qR_ref(1,iPOE,i,k) + qR_ref(5,iPOE,i,k) ) / sqrtGR(iPOE,i,k)
+          rhoB_ref(iPOE,i,k) = ( qB_ref(1,iPOE,i,k) + qB_ref(5,iPOE,i,k) ) / sqrtGB(iPOE,i,k)
+          rhoT_ref(iPOE,i,k) = ( qT_ref(1,iPOE,i,k) + qT_ref(5,iPOE,i,k) ) / sqrtGT(iPOE,i,k)
+          
+          cL_ref(iPOE,i,k) = calc_sound_speed_x(sqrtGL(iPOE,i,k)               ,qL_ref(:,iPOE,i,k))
+          cR_ref(iPOE,i,k) = calc_sound_speed_x(sqrtGR(iPOE,i,k)               ,qR_ref(:,iPOE,i,k))
+          cB_ref(iPOE,i,k) = calc_sound_speed_z(sqrtGB(iPOE,i,k),G13B(iPOE,i,k),qB_ref(:,iPOE,i,k)) * sqrtGB(iPOE,i,k) ! unit: m/s
+          cT_ref(iPOE,i,k) = calc_sound_speed_z(sqrtGT(iPOE,i,k),G13T(iPOE,i,k),qT_ref(:,iPOE,i,k)) * sqrtGT(iPOE,i,k) ! unit: m/s
+      
           PL_ref(iPOE,i,k) = calc_pressure(sqrtGL(iPOE,i,k),qL_ref(:,iPOE,i,k))
           PR_ref(iPOE,i,k) = calc_pressure(sqrtGR(iPOE,i,k),qR_ref(:,iPOE,i,k))
           PB_ref(iPOE,i,k) = calc_pressure(sqrtGB(iPOE,i,k),qB_ref(:,iPOE,i,k))
@@ -472,6 +505,19 @@ contains
       enddo
     enddo
     !$OMP END PARALLEL DO
+    
+    do k = kds,kde+1
+      do i = ids,ide
+        do iPOE = 1,nPointsOnEdge
+          uB_ref = ( qB_ref(3,iPOE,i,k  ) + sqrtGB(iPOE,i,k  ) * G13B(iPOE,i,k  ) * qB_ref(2,iPOE,i,k  ) ) / ( qB_ref(1,iPOE,i,k  ) + qB_ref(5,iPOE,i,k  ) )
+          uT_ref = ( qT_ref(3,iPOE,i,k-1) + sqrtGT(iPOE,i,k-1) * G13T(iPOE,i,k-1) * qT_ref(2,iPOE,i,k-1) ) / ( qT_ref(1,iPOE,i,k-1) + qT_ref(5,iPOE,i,k-1) )
+          call AUSM_p(Pz_ref(iPOE,i,k), rhoT_ref(iPOE,i,k-1), rhoB_ref(iPOE,i,k),&
+                                        uT_ref              , uB_ref            ,&
+                                        cT_ref  (iPOE,i,k-1), cB_ref  (iPOE,i,k),&
+                                        pT_ref  (iPOE,i,k-1), pB_ref  (iPOE,i,k))
+        enddo
+      enddo
+    enddo
     
     ! Calculate Rayleigh damping coef
     call Rayleigh_coef(relax_coef)
@@ -484,9 +530,9 @@ contains
   subroutine spatial_operator(stat,tend)
     type(stat_field), target, intent(inout) :: stat
     type(tend_field), target, intent(inout) :: tend
-    
-    real(r_kind) :: eigL
-    real(r_kind) :: eigR
+  
+    real(r_kind) maxeigen_x
+    real(r_kind) maxeigen_z
     
     integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE,iEOC
     real   (r_kind) :: wind_vector(2)
@@ -646,63 +692,16 @@ contains
     
     !$OMP BARRIER
     
-    ! Calculate F
-    !$OMP DO PRIVATE(i,iPOE) COLLAPSE(3)
-    do k = kds,kde
-      do i = ids,ide
-        do iPOE = 1,nPointsOnEdge
-          FL(:,iPOE,i,k) = calc_F(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k),PL(iPOE,i,k))
-          FR(:,iPOE,i,k) = calc_F(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k),PR(iPOE,i,k))
-        enddo
-      enddo
-    enddo
-    !$OMP END DO NOWAIT
-    !$OMP DO PRIVATE(i,iPOE) COLLAPSE(2)
-    do k = kds,kde
-      do iPOE = 1,nPointsOnEdge
-        i = ide + 1
-        FL(:,iPOE,i,k) = calc_F(sqrtGL(iPOE,i,k),qL(:,iPOE,i,k),PL(iPOE,i,k))
-        i = ids - 1
-        FR(:,iPOE,i,k) = calc_F(sqrtGR(iPOE,i,k),qR(:,iPOE,i,k),PR(iPOE,i,k))
-      enddo
-    enddo
-    !$OMP END DO NOWAIT
-    
-    ! Calculate pressure H
-    !$OMP DO PRIVATE(i,iPOE) COLLAPSE(3)
-    do k = kds,kde
-      do i = ids,ide
-        do iPOE = 1,nPointsOnEdge
-          HB(:,iPOE,i,k) = calc_H(sqrtGB(iPOE,i,k),G13B(iPOE,i,k),qB(:,iPOE,i,k),pB(iPOE,i,k),pB_ref(iPOE,i,k))
-          HT(:,iPOE,i,k) = calc_H(sqrtGT(iPOE,i,k),G13T(iPOE,i,k),qT(:,iPOE,i,k),pT(iPOE,i,k),pT_ref(iPOE,i,k))
-        enddo
-      enddo
-    enddo
-    !$OMP END DO NOWAIT
-    !$OMP DO PRIVATE(k,iPOE) COLLAPSE(2)
-    do i = ids,ide
-      do iPOE = 1,nPointsOnEdge
-        k = kde + 1
-        HB(:,iPOE,i,k) = calc_H(sqrtGB(iPOE,i,k),G13B(iPOE,i,k),qB(:,iPOE,i,k),pB(iPOE,i,k),pB_ref(iPOE,i,k))
-        k = kds - 1
-        HT(:,iPOE,i,k) = calc_H(sqrtGT(iPOE,i,k),G13T(iPOE,i,k),qT(:,iPOE,i,k),pT(iPOE,i,k),pT_ref(iPOE,i,k))
-      enddo
-    enddo
-    !$OMP END DO NOWAIT
-    
-    !$OMP BARRIER
-    
-    ! calc x flux
-    !$OMP DO PRIVATE(i,im1,iPOE,eigL,eigR,iVar) COLLAPSE(2)
+    ! Calculate x directional flux on each points on edge
+    !$OMP DO PRIVATE(i,im1,iPOE,iVar) COLLAPSE(3)
     do k = kds,kde
       do i = ids,ide+1
-        im1 = i - 1
+       ! Calculate x directional flux on each points on edge
         do iPOE = 1,nPointsOnEdge
-          eigL = calc_eigenvalue_x(sqrtGR(iPOE,im1,k),qR(:,iPOE,im1,k))
-          eigR = calc_eigenvalue_x(sqrtGL(iPOE,i  ,k),qL(:,iPOE,i  ,k))
-          
-          FeP(:,iPOE,i,k) = 0.5 * ( FL(:,iPOE,i,k) + FR(:,iPOE,im1,k) - max( eigL, eigR ) * ( qL(:,iPOE,i,k) - qR(:,iPOE,im1,k) ) )
+          im1 = i - 1
+          FeP(:,iPOE,i,k) = calc_F(sqrtGR(iPOE,im1,k),sqrtGL(iPOE,i,k),qR(:,iPOE,im1,k),qL(:,iPOE,i,k),pR(iPOE,im1,k),pL(iPOE,i,k))
         enddo
+        ! Calculate x directional flux on each edge
         do iVar = 1,nVar
           Fe(iVar,i,k) = Gaussian_quadrature_1d(FeP(iVar,:,i,k))
         enddo
@@ -710,17 +709,18 @@ contains
     enddo
     !$OMP END DO NOWAIT
     
-    ! calc z flux
-    !$OMP DO PRIVATE(k,km1,iPOE,eigL,eigR,iVar) COLLAPSE(2)
+    ! Calculate z directional flux on each points on edge
+    !$OMP DO PRIVATE(k,km1,iPOE,iVar) COLLAPSE(3)
     do i = ids,ide
       do k = kds,kde+1
-        km1 = k - 1
+        ! Calculate z directional flux on each points on edge
         do iPOE = 1,nPointsOnEdge
-          eigL = calc_eigenvalue_z(sqrtGT(iPOE,i,km1),G13T(iPOE,i,km1),qT(:,iPOE,i,km1))
-          eigR = calc_eigenvalue_z(sqrtGB(iPOE,i,k  ),G13B(iPOE,i,k  ),qB(:,iPOE,i,k  ))
-          
-          HeP(:,iPOE,i,k) = 0.5 * ( HB(:,iPOE,i,k) + HT(:,iPOE,i,km1) - max( eigL, eigR ) * ( qB(:,iPOE,i,k) - qT(:,iPOE,i,km1) ) )
+          km1 = k - 1
+          HeP(:,iPOE,i,k) = calc_H(sqrtGT(  iPOE,i,km1),sqrtGB(  iPOE,i,k),G13T(iPOE,i,km1),G13B(iPOE,i,k),&
+                                   qT    (:,iPOE,i,km1),qB    (:,iPOE,i,k),pT  (iPOE,i,km1),pB  (iPOE,i,k),&
+                                   Pz_ref(  iPOE,i,k))
         enddo
+        ! Calculate z directional flux on each edge
         do iVar = 1,nVar
           He(iVar,i,k) = Gaussian_quadrature_1d(HeP(iVar,:,i,k))
         enddo
@@ -882,96 +882,375 @@ contains
     calc_pressure = p0 * ( rho * theta * R / p0 )**kappa
     
   end function calc_pressure
-    
-    function calc_F(sqrtG,q,p)
-      real(r_kind),dimension(5) :: calc_F
-      real(r_kind)              :: sqrtG
-      real(r_kind),dimension(5) :: q(5)
-      real(r_kind)              :: p      ! pressure
-      
-      real(r_kind) w1
-      real(r_kind) w2
-      real(r_kind) w3
-      real(r_kind) w4
-      real(r_kind) w5
-      
-      real(r_kind) sqrtGrho
-      real(r_kind) u
-      
-      w1 = q(1)
-      w2 = q(2)
-      w3 = q(3)
-      w4 = q(4)
-      w5 = q(5)
-      
-      sqrtGrho = w1 + w5
-      u        = w2 / sqrtGrho
-      
-      calc_F(1) = w1 * u
-      calc_F(2) = w2 * u + sqrtG * p
-      calc_F(3) = w3 * u
-      calc_F(4) = w4 * u
-      calc_F(5) = w5 * u
-      
-    end function calc_F
-    
-    function calc_H(sqrtG,G13,q,p,p_ref)
-      real(r_kind),dimension(5) :: calc_H
-      real(r_kind)              :: sqrtG
-      real(r_kind)              :: G13
-      real(r_kind),dimension(5) :: q(5)
-      real(r_kind)              :: p      ! pressure
-      real(r_kind)              :: p_ref  ! reference pressure
-      
-      real(r_kind)              :: p_pert ! pressure  perturbation
-      
-      real(r_kind) w1
-      real(r_kind) w2
-      real(r_kind) w3
-      real(r_kind) w4
-      real(r_kind) w5
-      real(r_kind) ww
-      
-      real(r_kind) sqrtGrho
-      real(r_kind) u
-      real(r_kind) w
-      
-      w1 = q(1)
-      w2 = q(2)
-      w3 = q(3)
-      w4 = q(4)
-      w5 = q(5)
-      
-      sqrtGrho = w1 + w5
-      u        = w2 / sqrtGrho
-      w        = w3 / sqrtGrho
-      p_pert   = p - p_ref
-      
-      ww = w / sqrtG + G13 * u
-      
-      calc_H(1) = w1 * ww
-      calc_H(2) = w2 * ww + sqrtG * G13 * p
-      calc_H(3) = w3 * ww + p_pert
-      calc_H(4) = w4 * ww
-      calc_H(5) = w5 * ww
-      
-    end function calc_H
-    
-  function calc_w_eta(sqrtG,G13,q)
-    real(r_kind)                 :: calc_w_eta
-    real(r_kind)                 :: sqrtG
-    real(r_kind)                 :: G13
-    real(r_kind),dimension(nVar) :: q
-    
-    real(r_kind) :: u
-    real(r_kind) :: w
-
-    u = q(2) / q(1)
-    w = q(3) / q(1)
-    
-    calc_w_eta = w / sqrtG + G13 * u
   
-  end function calc_w_eta
+  function calc_F(sqrtGL,sqrtGR,qL,qR,pL,pR)
+    real(r_kind) :: calc_F(nVar)
+    real(r_kind) :: sqrtGL
+    real(r_kind) :: sqrtGR
+    real(r_kind) :: qL(nVar)
+    real(r_kind) :: qR(nVar)
+    real(r_kind) :: pL      ! pressure
+    real(r_kind) :: pR      ! pressure
+    
+    real(r_kind) sqrtGrhoL
+    real(r_kind) sqrtGrhoR
+    
+    real(r_kind) rhoL
+    real(r_kind) rhoR
+    
+    real(r_kind) uL
+    real(r_kind) uR
+    
+    real(r_kind) cL
+    real(r_kind) cR
+    
+    real(r_kind) m
+    real(r_kind) p ! sqrtG * p
+    
+    sqrtGrhoL = qL(1) + qL(5)
+    sqrtGrhoR = qR(1) + qR(5)
+    
+    rhoL = sqrtGrhoL / sqrtGL
+    rhoR = sqrtGrhoR / sqrtGR
+    uL   = qL(2) / sqrtGrhoL
+    uR   = qR(2) / sqrtGrhoR
+    cL   = calc_sound_speed_x(sqrtGL,qL)
+    cR   = calc_sound_speed_x(sqrtGR,qR)
+    
+    call AUSM_up_x(m,p,sqrtGL,sqrtGR,rhoL,rhoR,uL,uR,pL,pR,cL,cR)
+    
+    calc_F = 0.5 * m * ( qL + qR - sign(1._r_kind,m) * ( qR - qL ) )
+    calc_F(2) = calc_F(2) + p
+    
+  end function calc_F
+  
+  function calc_H(sqrtGL,sqrtGR,G13L,G13R,qL,qR,pL,pR,p_ref)
+    real(r_kind) :: calc_H(nVar)
+    real(r_kind) :: sqrtGL
+    real(r_kind) :: sqrtGR
+    real(r_kind) :: G13L
+    real(r_kind) :: G13R
+    real(r_kind) :: qL(nVar)
+    real(r_kind) :: qR(nVar)
+    real(r_kind) :: pL        ! pressure
+    real(r_kind) :: pR        ! pressure
+    real(r_kind) :: p_ref     ! reference pressure
+    
+    real(r_kind) sqrtGrhoL
+    real(r_kind) sqrtGrhoR
+    
+    real(r_kind) rhoL
+    real(r_kind) rhoR
+    
+    real(r_kind) uL
+    real(r_kind) uR
+    
+    real(r_kind) cL
+    real(r_kind) cR
+    
+    real(r_kind) m
+    real(r_kind) p      ! sqrtG * G13 * p
+    real(r_kind) p_pert ! p - p_ref
+    
+    sqrtGrhoL = qL(1) + qL(5)
+    sqrtGrhoR = qR(1) + qR(5)
+    
+    rhoL = sqrtGrhoL / sqrtGL
+    rhoR = sqrtGrhoR / sqrtGR
+    uL   = ( qL(3) + sqrtGL * G13L * qL(2) ) / sqrtGrhoL ! a sqrtG has been multipled here
+    uR   = ( qR(3) + sqrtGR * G13R * qR(2) ) / sqrtGrhoR ! a sqrtG has been multipled here
+    cL   = calc_sound_speed_z(sqrtGL,G13L,qL) * sqrtGL
+    cR   = calc_sound_speed_z(sqrtGR,G13R,qR) * sqrtGR
+    
+    call AUSM_up_z(m, p, p_pert,                                                  &
+                   sqrtGL, sqrtGR, G13L, G13R, rhoL, rhoR, uL, uR, cL, cR, pL, pR,&
+                   p_ref)
+    
+    calc_H = 0.5 * m * ( qL + qR - sign(1._r_kind,m) * ( qR - qL ) )
+    calc_H(2) = calc_H(2) + p
+    calc_H(3) = calc_H(3) + p_pert
+    
+  end function calc_H
+      
+  function calc_sound_speed_x(sqrtG,q)
+    real(r_kind) :: calc_sound_speed_x
+    real(r_kind) :: sqrtG
+    real(r_kind) :: q(nVar)
+    
+    real(r_kind) w1
+    real(r_kind) w2
+    real(r_kind) w3
+    real(r_kind) w4
+    real(r_kind) w5
+    
+    real(r_kind) coef1,coef2
+
+    real(r_kind) c1,c2,c3,c4,c5
+    
+    if(any(q==FillValue).or.sqrtG==FillValue)then
+      calc_sound_speed_x = 0
+    else
+      w1 = q(1)
+      w2 = q(2)
+      w3 = q(3)
+      w4 = q(4)
+      w5 = q(5)
+
+      c1 = w1 + w5
+      c2 = cpd*w1 + cpv*w5
+      c3 = cvd*w1 + cvv*w5
+      c4 = c1 + eq*w5
+      c5 = p0*sqrtG
+      
+      coef1 = sqrt( c5*w1**2*w4**2*c1**3*c2*&
+      c3**3*c4**2*((Rd*w4*c4)/(c5*w1))**&
+      (c2/c3) )
+      
+      coef2 = w1*w4*c1**2*c3**2*c4
+      
+      calc_sound_speed_x = coef1 / coef2
+    endif
+    
+  end function calc_sound_speed_x
+  
+  function calc_sound_speed_z(sqrtG,G13,q)
+    real(r_kind) :: calc_sound_speed_z
+    real(r_kind) :: sqrtG
+    real(r_kind) :: G13
+    real(r_kind) :: q(nVar)
+    
+    real(r_kind) w1
+    real(r_kind) w2
+    real(r_kind) w3
+    real(r_kind) w4
+    real(r_kind) w5
+    
+    real(r_kind) coef1,coef2
+
+    real(r_kind) c1,c2,c3,c4,c5
+    
+    if(any(q==FillValue).or.sqrtG==FillValue)then
+      calc_sound_speed_z = 0
+    else
+      w1 = q(1)
+      w2 = q(2)
+      w3 = q(3)
+      w4 = q(4)
+      w5 = q(5)
+
+      c1 = w1 + w5
+      c2 = cpd*w1 + cpv*w5
+      c3 = cvd*w1 + cvv*w5
+      c4 = c1 + eq*w5
+      c5 = p0*sqrtG
+      
+      coef1 = sqrt( c5*(1. + G13**2*sqrtG**2)*w1**2* &
+            w4**2*c1**3*c2*c3**3*                    &
+            c4**2*((Rd*w4*c4)/(c5*w1))**             &
+            (c2/c3) )
+      
+      coef2 = sqrtG*w1*w4*c1**2*c3**2*c4
+      
+      calc_sound_speed_z = coef1 / coef2
+    endif
+    
+  end function calc_sound_speed_z
+  
+  subroutine AUSM_up_x(m,p,sqrtGL,sqrtGR,rhoL,rhoR,uL,uR,pL,pR,cL,cR)
+    real(r_kind),intent(out) :: m
+    real(r_kind),intent(out) :: p
+    real(r_kind),intent(in ) :: sqrtGL
+    real(r_kind),intent(in ) :: sqrtGR
+    real(r_kind),intent(in ) :: rhoL
+    real(r_kind),intent(in ) :: rhoR
+    real(r_kind),intent(in ) :: uL
+    real(r_kind),intent(in ) :: uR
+    real(r_kind),intent(in ) :: pL
+    real(r_kind),intent(in ) :: pR
+    real(r_kind),intent(in ) :: cL ! Sound speed
+    real(r_kind),intent(in ) :: cR ! Sound speed
+    
+    real(r_kind),parameter :: Ku    = 0.75
+    real(r_kind),parameter :: Kp    = 0.25
+    real(r_kind),parameter :: sigma = 1.
+    real(r_kind),parameter :: sp    = 1.
+    real(r_kind),parameter :: sn    = -1.
+    
+    real(r_kind) :: rho
+    real(r_kind) :: a
+    real(r_kind) :: ML
+    real(r_kind) :: MR
+    real(r_kind) :: Mbar2
+    real(r_kind) :: Mh
+    
+    real(r_kind) :: P5MLsp
+    real(r_kind) :: P5MRsn
+    
+    rho = 0.5 * ( rhoL + rhoR )
+    a   = 0.5 * ( cL + cR )
+    
+    ML = uL / a
+    MR = uR / a
+    
+    Mbar2 = ( uL**2 + uR**2 ) / ( 2. * a**2 )
+    
+    Mh = M4( ML, sp ) + M4( MR, sn ) - Kp * max( 1. - sigma * Mbar2, 0. ) * ( PR - PL ) / ( rho * a**2 )
+    m  = a * Mh
+    
+    P5MLsp = P5(ML,sp)
+    P5MRsn = P5(MR,sn)
+    
+    p = P5MLsp * sqrtGL * PL + P5MRsn * sqrtGR * PR - Ku * P5MLsp * P5MRsn * ( sqrtGL * rhoL + sqrtGR * rhoR ) * a * ( uR - uL )
+    
+  end subroutine AUSM_up_x
+  
+  subroutine AUSM_up_z(m, p, p_pert,                                                  & ! output
+                       sqrtGL, sqrtGR, G13L, G13R, rhoL, rhoR, uL, uR, cL, cR, pL, pR,& ! input state
+                                                                                 P_ref) ! input reference state
+    real(r_kind),intent(out) :: m
+    real(r_kind),intent(out) :: p        ! Actully sqrtG * G13 * p
+    real(r_kind),intent(out) :: p_pert   ! Actully p - p_ref
+    real(r_kind),intent(in ) :: sqrtGL
+    real(r_kind),intent(in ) :: sqrtGR
+    real(r_kind),intent(in ) :: G13L
+    real(r_kind),intent(in ) :: G13R
+    real(r_kind),intent(in ) :: rhoL
+    real(r_kind),intent(in ) :: rhoR
+    real(r_kind),intent(in ) :: uL
+    real(r_kind),intent(in ) :: uR
+    real(r_kind),intent(in ) :: cL       ! Sound speed
+    real(r_kind),intent(in ) :: cR       ! Sound speed
+    real(r_kind),intent(in ) :: pL
+    real(r_kind),intent(in ) :: pR
+    real(r_kind),intent(in ) :: p_ref   ! reference pressure (hydrostatic pressure)
+    
+    real(r_kind),parameter :: Ku    = 0.75
+    real(r_kind),parameter :: Kp    = 0.25
+    real(r_kind),parameter :: sigma = 1.
+    real(r_kind),parameter :: sp    = 1.
+    real(r_kind),parameter :: sn    = -1.
+    
+    real(r_kind) :: rho
+    real(r_kind) :: a
+    real(r_kind) :: ML
+    real(r_kind) :: MR
+    real(r_kind) :: Mbar2
+    real(r_kind) :: Mh
+    
+    real(r_kind) :: p_diff
+    
+    real(r_kind) :: coefL
+    real(r_kind) :: coefR
+    
+    real(r_kind) :: P5MLsp
+    real(r_kind) :: P5MRsn
+    
+    rho = 0.5 * ( rhoL + rhoR )
+    a   = 0.5 * ( cL + cR )
+    
+    ML = uL / a
+    MR = uR / a
+    
+    Mbar2 = ( uL**2 + uR**2 ) / ( 2. * a**2 )
+    
+    P5MLsp = P5(ML,sp)
+    P5MRsn = P5(MR,sn)
+    
+    p_diff = PR - PL
+    
+    Mh     = M4( ML, sp ) + M4( MR, sn ) - Kp * max( 1. - sigma * Mbar2, 0. ) * p_diff / ( rho * a**2 )
+    m      = 0.5 * ( cL / sqrtGL + cR / sqrtGR ) * Mh
+    
+    coefL = sqrtGL * G13L
+    coefR = sqrtGR * G13R
+    
+    p = P5MLsp * coefL * PL + P5MRsn * coefR * PR &
+      - Ku * P5MLsp * P5MRsn * ( coefL * rhoL + coefR * rhoR ) * a * ( uR - uL )
+    
+    p_pert = P5MLsp * pL + P5MRsn * pR - 2. * Ku * P5MLsp * P5MRsn * ( rho * a ) * ( uR - uL ) ! pressure
+    p_pert = p_pert - p_ref ! pressure perturbation, hydrostatic
+    
+    if( abs(p_pert/p_ref) < 1.e-14 )p_pert = 0! hydrostatic
+    
+  end subroutine AUSM_up_z
+
+  ! AUSM calculate pressure only
+  subroutine AUSM_p(p, rhoL, rhoR, uL, uR, cL, cR, pL, pR)
+    real(r_kind),intent(out) :: p
+    real(r_kind),intent(in ) :: rhoL
+    real(r_kind),intent(in ) :: rhoR
+    real(r_kind),intent(in ) :: uL
+    real(r_kind),intent(in ) :: uR
+    real(r_kind),intent(in ) :: cL       ! Sound speed
+    real(r_kind),intent(in ) :: cR       ! Sound speed
+    real(r_kind),intent(in ) :: pL
+    real(r_kind),intent(in ) :: pR
+    
+    real(r_kind),parameter :: Ku    = 0.75
+    real(r_kind),parameter :: Kp    = 0.25
+    real(r_kind),parameter :: sp    = 1.
+    real(r_kind),parameter :: sn    = -1.
+    
+    real(r_kind) :: rho
+    real(r_kind) :: a
+    real(r_kind) :: ML
+    real(r_kind) :: MR
+    
+    real(r_kind) :: P5MLsp
+    real(r_kind) :: P5MRsn
+    
+    rho = 0.5 * ( rhoL + rhoR )
+    a   = 0.5 * ( cL + cR )
+    
+    ML = uL / a
+    MR = uR / a
+    
+    P5MLsp = P5(ML,sp)
+    P5MRsn = P5(MR,sn)
+    
+    p = P5MLsp * PL + P5MRsn * PR &
+      - Ku * P5MLsp * P5MRsn * ( rhoL + rhoR ) * a * ( uR - uL )
+    
+  end subroutine AUSM_p
+  
+  function M2(M,signal)
+    real(r_kind) :: M2
+    real(r_kind) :: M
+    real(r_kind) :: signal ! must be 1 or -1
+    
+    M2 = signal * 0.25 * ( M + signal )**2
+    
+  end function M2
+  
+  function M4(M,signal)
+    real(r_kind) :: M4
+    real(r_kind) :: M
+    real(r_kind) :: signal ! must be 1 or -1
+    
+    real(r_kind),parameter :: beta  = 0.125
+    
+    if(abs(M)>=1)then
+      M4 = 0.5 * ( M + signal * abs(M) )
+    else
+      M4 = M2( M, signal ) * ( 1. - signal * 16. * beta * M2( M, -signal ) )
+    endif
+    
+  end function M4
+  
+  function P5(M,signal)
+    real(r_kind) :: P5
+    real(r_kind) :: M
+    real(r_kind) :: signal ! must be 1 or -1
+    
+    real(r_kind),parameter :: alpha = 0.1875
+    
+    if(abs(M)>=1)then
+      P5 = 0.5 * ( 1. + signal * sign(1._r_kind,M) )
+    else
+      P5 = M2( M, signal ) * ( ( 2. * signal - M ) - signal * 16.*alpha * M * M2( M, -signal ) )
+    endif
+    
+  end function P5
   
   subroutine Rayleigh_damping(q,q_ref)
     real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: q
@@ -1054,125 +1333,5 @@ contains
     enddo
   
   end subroutine Rayleigh_coef
-      
-  function calc_eigenvalue_x(sqrtG,q)
-    real(r_kind) :: calc_eigenvalue_x
-    real(r_kind) :: sqrtG
-    real(r_kind) :: q(5)
-    real(r_kind) :: eig(5)
-    
-    real(r_kind) w1
-    real(r_kind) w2
-    real(r_kind) w3
-    real(r_kind) w4
-    real(r_kind) w5
-    
-    real(r_kind) coef1,coef2,coef3
-
-    real(r_kind) c1,c2,c3,c4,c5
-    
-    if(any(q==FillValue).or.sqrtG==FillValue)then
-      eig = 0
-    else
-      w1 = q(1)
-      w2 = q(2)
-      w3 = q(3)
-      w4 = q(4)
-      w5 = q(5)
-      
-      c1 = w1 + w5
-      c2 = c1 + eq*w5
-      c3 = cpd*w1 + cpv*w5
-      c4 = cvd*w1 + cvv*w5
-      c5 = p0*sqrtG
-      
-      coef1 = cvd**2*w1**3*w2*w4*c1*c2 + &
-            2.*cvd*cvv*w1**2*w2*w4*w5*c1*c2 + &
-            cvv**2*w1*w2*w4*w5**2*c1*c2
-      
-      coef2 = sqrt( c5*w1**2*w4**2*c1**3*c3*&
-            c4**3*c2**2*((Rd*w4*c2)/(c5*w1))**&
-            (c3/c4) )
-      
-      coef3 = w1*w4*c1**2*c4**2*c2
-      
-      eig(1) = w2 / c1
-      eig(2) = eig(1)
-      eig(3) = eig(1)
-      eig(4) = ( coef1 - coef2 ) / coef3
-      eig(5) = ( coef1 + coef2 ) / coef3
-    endif
-    
-    calc_eigenvalue_x = maxval(abs(eig))
-    
-  end function calc_eigenvalue_x
-  
-  function calc_eigenvalue_z(sqrtG,G13,q)
-    real(r_kind) :: calc_eigenvalue_z
-    real(r_kind) :: sqrtG
-    real(r_kind) :: G13
-    real(r_kind) :: q(5)
-    real(r_kind) :: eig(5)
-    
-    real(r_kind) w1
-    real(r_kind) w2
-    real(r_kind) w3
-    real(r_kind) w4
-    real(r_kind) w5
-    
-    real(r_kind) sqrtGrho
-    real(r_kind) u
-    real(r_kind) w
-    
-    real(r_kind) drhoetadt
-    
-    real(r_kind) coef1,coef2,coef3
-
-    real(r_kind) c1,c2,c3,c4,c5
-    
-    if(any(q==FillValue).or.sqrtG==FillValue)then
-      eig = 0
-    else
-      w1 = q(1)
-      w2 = q(2)
-      w3 = q(3)
-      w4 = q(4)
-      w5 = q(5)
-      
-      c1 = w1 + w5
-      c2 = c1 + eq*w5
-      c3 = cpd*w1 + cpv*w5
-      c4 = cvd*w1 + cvv*w5
-      c5 = p0*sqrtG
-      
-      !sqrtGrho = w1 + w5
-      !u        = w2 / sqrtGrho
-      !w        = w3 / sqrtGrho
-      
-      coef1 = cvd**2*w1**3*(G13*sqrtG*w2 + w3)*w4*c1*c2 + &
-            2.*cvd*cvv*w1**2*(G13*sqrtG*w2 + w3)*w4*      &
-            w5*c1*c2 +                                    &
-            cvv**2*w1*(G13*sqrtG*w2 + w3)*w4*w5**2*c1*c2
-      
-      coef2 = sqrt( c5*(1 + G13**2*sqrtG**2)*w1**2*             &
-            w4**2*c1**3*c3*c4**3*        &
-            c2**2*((Rd*w4*c2)/(c5*w1))** &
-            (c3/c4) )
-      
-      coef3 = sqrtG*w1*w4*c1**2*c4**2*c2
-      
-      drhoetadt = (G13*sqrtG*w2 + w3)/(sqrtG*w1 + sqrtG*w5)
-      
-      eig(1) = drhoetadt
-      eig(2) = drhoetadt
-      eig(3) = drhoetadt
-      eig(4) = ( coef1 - coef2 ) / coef3
-      eig(5) = ( coef1 + coef2 ) / coef3
-    endif
-    
-    calc_eigenvalue_z = maxval(abs(eig))
-    
-  end function calc_eigenvalue_z
-    
 end module spatial_operators_mod
 

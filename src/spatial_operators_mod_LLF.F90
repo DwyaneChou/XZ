@@ -218,15 +218,15 @@ contains
       
       k = kds + 1
       j = 0
-      do kRec = -1,3
-        do iRec = -recBdy,recBdy
+      do kRec = -1,1
+        do iRec = -1,1
           j = j + 1
           iRecCell(j,i,k) = i + iRec
           kRecCell(j,i,k) = k + kRec
         enddo
       enddo
       nRecCells    (i,k) = j
-      locPolyDegree(i,k) = 3
+      locPolyDegree(i,k) = 2
       
       !do k = kds, kds + recBdy - 1
       !  j = 0
@@ -337,34 +337,34 @@ contains
     enddo
     !$OMP END PARALLEL DO
     
-    !! Reconstruct metric function
-    !call reconstruct_field(sqrtGC*recdV,&
-    !                       sqrtGL      ,&
-    !                       sqrtGR      ,&
-    !                       sqrtGB      ,&
-    !                       sqrtGT)
-    !
-    !call reconstruct_field(G13C*recdV,&
-    !                       G13L      ,&
-    !                       G13R      ,&
-    !                       G13B      ,&
-    !                       G13T)
+    ! Reconstruct metric function
+    call reconstruct_field(sqrtGC*recdV,&
+                           sqrtGL      ,&
+                           sqrtGR      ,&
+                           sqrtGB      ,&
+                           sqrtGT)
+    
+    call reconstruct_field(G13C*recdV,&
+                           G13L      ,&
+                           G13R      ,&
+                           G13B      ,&
+                           G13T)
     
         
-    ! Set mertric functions by analytical value
-    do k = kds,kde
-      do i = ids,ide
-        sqrtGL(:,i,k) = sqrtG_ext(:,4,i,k)
-        sqrtGR(:,i,k) = sqrtG_ext(:,2,i,k)
-        sqrtGB(:,i,k) = sqrtG_ext(:,1,i,k)
-        sqrtGT(:,i,k) = sqrtG_ext(:,3,i,k)
-        
-        G13L  (:,i,k) = G13_ext  (:,4,i,k)
-        G13R  (:,i,k) = G13_ext  (:,2,i,k)
-        G13B  (:,i,k) = G13_ext  (:,1,i,k)
-        G13T  (:,i,k) = G13_ext  (:,3,i,k)
-      enddo
-    enddo
+    !! Set mertric functions by analytical value
+    !do k = kds,kde
+    !  do i = ids,ide
+    !    sqrtGL(:,i,k) = sqrtG_ext(:,4,i,k)
+    !    sqrtGR(:,i,k) = sqrtG_ext(:,2,i,k)
+    !    sqrtGB(:,i,k) = sqrtG_ext(:,1,i,k)
+    !    sqrtGT(:,i,k) = sqrtG_ext(:,3,i,k)
+    !    
+    !    G13L  (:,i,k) = G13_ext  (:,4,i,k)
+    !    G13R  (:,i,k) = G13_ext  (:,2,i,k)
+    !    G13B  (:,i,k) = G13_ext  (:,1,i,k)
+    !    G13T  (:,i,k) = G13_ext  (:,3,i,k)
+    !  enddo
+    !enddo
     
     ! Calculate reference pressure
     qC = FillValue
