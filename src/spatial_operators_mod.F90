@@ -218,15 +218,15 @@ contains
       
       k = kds + 1
       j = 0
-      do kRec = -1,3
-        do iRec = -recBdy,recBdy
+      do kRec = -1,1
+        do iRec = -1,1
           j = j + 1
           iRecCell(j,i,k) = i + iRec
           kRecCell(j,i,k) = k + kRec
         enddo
       enddo
       nRecCells    (i,k) = j
-      locPolyDegree(i,k) = 3
+      locPolyDegree(i,k) = 2
       
       !do k = kds, kds + recBdy - 1
       !  j = 0
