@@ -1300,8 +1300,8 @@ contains
     real(r_kind), parameter :: leftSpongeThickness  = 10000  ! 10000 for "best" result
     real(r_kind), parameter :: rightSpongeThickness = 10000  ! 10000 for "best" result
     
-    real(r_kind), parameter :: mu_max_top = 0.28!0.2
-    real(r_kind), parameter :: mu_max_lat = 0.15!0.2
+    real(r_kind), parameter :: mu_max_top = 0.2!0.28
+    real(r_kind), parameter :: mu_max_lat = 0.2!0.15
     
     real(r_kind) zd, zt
     
