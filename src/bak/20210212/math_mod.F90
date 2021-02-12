@@ -110,56 +110,6 @@
       
     end subroutine  calc_polynomial_square_integration
     
-    subroutine calc_rectangle_poly_matrix(nx,ny,m,xi,eta,A)
-      integer(i_kind), intent(in ) :: nx ! number of points on x direction for reconstruction
-      integer(i_kind), intent(in ) :: ny ! number of points on y direction for reconstruction
-      integer(i_kind), intent(in ) :: m  ! number of unkonwn point values
-      real   (r_kind), intent(in ) :: xi (m)
-      real   (r_kind), intent(in ) :: eta(m)
-      real   (r_kind), intent(out) :: A  (m,nx*ny)
-      
-      real   (r_kind) :: x
-      real   (r_kind) :: y
-      integer(i_kind) :: iPOC
-      integer(i_kind)  :: i,j,k
-      
-      do iPOC = 1,m
-        x = xi (iPOC)
-        y = eta(iPOC)
-        
-        k = 0
-        do j = 0,ny-1
-          do i = 0,nx-1
-            k = k + 1
-            A(iPOC,k) = x**real(i,r_kind) * y**real(j,r_kind)
-          enddo
-        enddo
-      enddo
-  
-    end subroutine calc_rectangle_poly_matrix
-    
-    subroutine calc_rectangle_poly_integration(nx,ny,x_min,x_max,y_min,y_max,c)
-      integer(i_kind), intent(in ) :: nx ! number of points on x direction
-      integer(i_kind), intent(in ) :: ny ! number of points on y direction
-      real   (r_kind), intent(in ) :: x_min
-      real   (r_kind), intent(in ) :: x_max
-      real   (r_kind), intent(in ) :: y_min
-      real   (r_kind), intent(in ) :: y_max
-      real   (r_kind), intent(out) :: c(nx*ny)
-      
-      integer(i_kind) :: i,j,k
-      
-      k = 0
-      c = 0
-      do j = 0,ny-1
-        do i = 0,nx-1
-          k = k + 1
-          c(k) = ( x_max**(i+1) - x_min**(i+1) ) * ( y_max**(j+1) - y_min**(j+1) ) / real( ( i + 1 ) * ( j + 1 ), r_kind )
-        enddo
-      enddo
-      
-    end subroutine  calc_rectangle_poly_integration
-    
     function nchoosek(n,k) ! same as nchoosek in matlab
       real   (r_kind) :: nchoosek
       integer(i_kind) :: n
