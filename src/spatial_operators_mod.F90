@@ -271,7 +271,7 @@ contains
     enddo
     !$OMP END PARALLEL DO
     
-    ! Special treamtment on boundary cells
+    ! Pure rectangle polynomial reconstruction
     !$OMP PARALLEL DO PRIVATE(i,nRC,nxp,nzp,j,kR,iR,invstat)
     do k = kds,kde
       do i = ids,ide
@@ -732,35 +732,36 @@ contains
     
     h = dx
     
-    !! Full WLS-ENO
-    !!$OMP PARALLEL DO PRIVATE(i,j,m,n,iRec,kRec,iC,u,A,polyCoef) collapse(2)
+    ! Full WLS-ENO
+    !$OMP PARALLEL DO PRIVATE(i,j,m,n,iRec,kRec,iC,u,A,polyCoef) collapse(2)
     !do k = kds,kde
-    !  do i = ids,ide
-    !    m = nRecCells(i,k)
-    !    n = nRecTerms(i,k)
-    !    ! Set variable for reconstruction
-    !    do j = 1,m
-    !      iRec = iRecCell(j,i,k)
-    !      kRec = kRecCell(j,i,k)
-    !      
-    !      u(j    ) = qC(iRec,kRec)
-    !      A(j,1:n) = polyCoordCoef(j,1:n,i,k)
-    !    enddo
-    !    ic = iCenCell(i,k)
-    !    
-    !    polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic)
-    !    
-    !    qL(:,i,k) = matmul(recMatrixL(:,1:n,i,k),polyCoef(1:n))
-    !    qR(:,i,k) = matmul(recMatrixR(:,1:n,i,k),polyCoef(1:n))
-    !    qB(:,i,k) = matmul(recMatrixB(:,1:n,i,k),polyCoef(1:n))
-    !    qT(:,i,k) = matmul(recMatrixT(:,1:n,i,k),polyCoef(1:n))
-    !  enddo
-    !enddo
-    !!$OMP END PARALLEL DO
+    do k = kds+2,kde
+      do i = ids,ide
+        m = nRecCells(i,k)
+        n = nRecTerms(i,k)
+        ! Set variable for reconstruction
+        do j = 1,m
+          iRec = iRecCell(j,i,k)
+          kRec = kRecCell(j,i,k)
+          
+          u(j    ) = qC(iRec,kRec)
+          A(j,1:n) = polyCoordCoef(j,1:n,i,k)
+        enddo
+        ic = iCenCell(i,k)
+        
+        polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic)
+        
+        qL(:,i,k) = matmul(recMatrixL(:,1:n,i,k),polyCoef(1:n))
+        qR(:,i,k) = matmul(recMatrixR(:,1:n,i,k),polyCoef(1:n))
+        qB(:,i,k) = matmul(recMatrixB(:,1:n,i,k),polyCoef(1:n))
+        qT(:,i,k) = matmul(recMatrixT(:,1:n,i,k),polyCoef(1:n))
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
     
     ! Pure rectangle polynomial reconstruction
     !$OMP PARALLEL DO PRIVATE(i,m,j,u) COLLAPSE(2)
-    do k = kds,kde
+    do k = kds,kds+1
       do i = ids,ide
         m = nRecCells(i,k)
         do j = 1,m
@@ -1215,8 +1216,8 @@ contains
     real(r_kind), parameter :: leftSpongeThickness  = 10000  ! 10000 for "best" result
     real(r_kind), parameter :: rightSpongeThickness = 10000  ! 10000 for "best" result
     
-    real(r_kind), parameter :: mu_max_top = 0.2!0.28
-    real(r_kind), parameter :: mu_max_lat = 0.2!0.15
+    real(r_kind), parameter :: mu_max_top = 0.02!0.28
+    real(r_kind), parameter :: mu_max_lat = 0.02!0.15
     
     real(r_kind) zd, zt
     
