@@ -1,7 +1,8 @@
 clc
 clear
 
-ncfile    = '..\run\output_xz_3.nc';
+% ncfile    = '..\run\output_xz_3.nc';
+ncfile    = '..\run\output_xz_3_25m.nc';
 pic_path  = '.\';
 varname   = 'theta';
 

@@ -367,13 +367,9 @@ contains
     iEOC = 1
     do i = ids,ide
       do iPOE = 1,nPointsOnEdge
-        if(G13B(iPOE,i,k)/=0)then
-          nx = 1
-          nz = 1. / G13B(iPOE,i,k)
-        else
-          nx = 0
-          nz = 1
-        endif
+        nx = G13B(iPOE,i,k) * sqrtGB(iPOE,i,k)
+        nz = 1
+        
         nv(1) = nx
         nv(2) = nz
         nv    = nv / sqrt( dot_product( nv, nv ) ) ! calc unit norm vector
@@ -394,13 +390,9 @@ contains
     iEOC = 3
     do i = ids,ide
       do iPOE = 1,nPointsOnEdge
-        if(G13T(iPOE,i,k)/=0)then
-          nx = 1
-          nz = 1. / G13T(iPOE,i,k)
-        else
-          nx = 0
-          nz = 1
-        endif
+        nx = G13T(iPOE,i,k) * sqrtGT(iPOE,i,k)
+        nz = 1
+        
         nv(1) = nx
         nv(2) = nz
         nv    = nv / sqrt( dot_product( nv, nv ) ) ! calc unit norm vector
@@ -735,7 +727,7 @@ contains
     ! Full WLS-ENO
     !$OMP PARALLEL DO PRIVATE(i,j,m,n,iRec,kRec,iC,u,A,polyCoef) collapse(2)
     !do k = kds,kde
-    do k = kds+2,kde
+    do k = kds+recBdy,kde
       do i = ids,ide
         m = nRecCells(i,k)
         n = nRecTerms(i,k)
@@ -760,8 +752,8 @@ contains
     !$OMP END PARALLEL DO
     
     ! Pure rectangle polynomial reconstruction
-    !$OMP PARALLEL DO PRIVATE(i,m,j,u) COLLAPSE(2)
-    do k = kds,kds+1
+    !$OMP PARALLEL DO PRIVATE(i,m,j,iRec,kRec,u) COLLAPSE(2)
+    do k = kds,kds+recBdy-1
       do i = ids,ide
         m = nRecCells(i,k)
         do j = 1,m
@@ -1216,8 +1208,8 @@ contains
     real(r_kind), parameter :: leftSpongeThickness  = 10000  ! 10000 for "best" result
     real(r_kind), parameter :: rightSpongeThickness = 10000  ! 10000 for "best" result
     
-    real(r_kind), parameter :: mu_max_top = 0.02!0.28
-    real(r_kind), parameter :: mu_max_lat = 0.02!0.15
+    real(r_kind), parameter :: mu_max_top = 0.05!0.28
+    real(r_kind), parameter :: mu_max_lat = 0.05!0.15
     
     real(r_kind) zd, zt
     

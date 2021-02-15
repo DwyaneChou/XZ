@@ -2,10 +2,10 @@ clc
 clear
 
 ncfile    = '..\run\output_xz_2.nc';
-% ncfile    = '..\run\output_xz_2_0p05.nc';
+% ncfile    = '..\run\output_xz_2_0p1.nc';
 % ncfile    = '..\run\output_xz_2_gaussian_src.nc';
 pic_path  = '.\';
-varname   = 'w';
+varname   = 'u';
 
 time_start = 1;
 time_end   = 501;
