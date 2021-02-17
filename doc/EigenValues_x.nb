@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[     21581,        497]
-NotebookOptionsPosition[     21009,        478]
-NotebookOutlinePosition[     21397,        495]
-CellTagsIndexPosition[     21354,        492]
+NotebookDataLength[     21758,        506]
+NotebookOptionsPosition[     21187,        487]
+NotebookOutlinePosition[     21574,        504]
+CellTagsIndexPosition[     21531,        501]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -54,10 +54,10 @@ Cell[BoxData[{
     "sh"}]}]}], "\[IndentingNewLine]", 
  RowBox[{"kappa", ":=", 
   RowBox[{"cp", "/", "cv"}]}], "\[IndentingNewLine]", 
- RowBox[{"theta", ":=", 
-  RowBox[{"w4", "/", "w1"}]}], "\[IndentingNewLine]", 
  RowBox[{"sqrtGrho", ":=", 
   RowBox[{"w1", "+", "w5"}]}], "\[IndentingNewLine]", 
+ RowBox[{"theta", ":=", 
+  RowBox[{"w4", "/", "sqrtGrho"}]}], "\[IndentingNewLine]", 
  RowBox[{"rhotheta", ":=", 
   RowBox[{"sqrtGrho", "*", 
    RowBox[{"theta", "/", "sqrtG"}]}]}], "\[IndentingNewLine]", 
@@ -264,9 +264,9 @@ Cell[BoxData[{
    3.812603350997198*^9, 3.8126033543487644`*^9}, {3.812632619243331*^9, 
    3.8126326280513277`*^9}, {3.8128547540962753`*^9, 3.812854765572213*^9}, 
    3.8130452196305246`*^9, {3.813045446506208*^9, 3.8130454482404327`*^9}, {
-   3.813053089221901*^9, 3.8130530901389756`*^9}},
- CellLabel->
-  "In[124]:=",ExpressionUUID->"4dd136e8-b80d-4544-a61b-21e0a43b2548"],
+   3.813053089221901*^9, 3.8130530901389756`*^9}, {3.8223827111933975`*^9, 
+   3.8223827142864237`*^9}},
+ CellLabel->"In[1]:=",ExpressionUUID->"4dd136e8-b80d-4544-a61b-21e0a43b2548"],
 
 Cell[BoxData[
  InterpretationBox[
@@ -279,7 +279,9 @@ Cell[BoxData[
         RowBox[{"(", 
          RowBox[{"w1", "+", "w5", "+", 
           RowBox[{"eq", " ", "w5"}]}], ")"}]}], 
-       RowBox[{"p0", " ", "sqrtG", " ", "w1"}]], ")"}], 
+       RowBox[{"p0", " ", "sqrtG", " ", 
+        RowBox[{"(", 
+         RowBox[{"w1", "+", "w5"}], ")"}]}]], ")"}], 
      FractionBox[
       RowBox[{
        RowBox[{"cpd", " ", "w1"}], "+", 
@@ -289,15 +291,17 @@ Cell[BoxData[
        RowBox[{"cvv", " ", "w5"}]}]]]}]}],
   SequenceForm[
   "p=", $CellContext`p0 ($CellContext`p0^(-1) $CellContext`Rd \
-$CellContext`sqrtG^(-1) $CellContext`w1^(-1) $CellContext`w4 ($CellContext`w1 + \
-$CellContext`w5 + $CellContext`eq $CellContext`w5))^(($CellContext`cpd \
-$CellContext`w1 + $CellContext`cpv $CellContext`w5)/($CellContext`cvd \
-$CellContext`w1 + $CellContext`cvv $CellContext`w5))],
+$CellContext`sqrtG^(-1) $CellContext`w4 ($CellContext`w1 + \
+$CellContext`w5)^(-1) ($CellContext`w1 + $CellContext`w5 + $CellContext`eq \
+$CellContext`w5))^(($CellContext`cpd $CellContext`w1 + $CellContext`cpv \
+$CellContext`w5)/($CellContext`cvd $CellContext`w1 + $CellContext`cvv \
+$CellContext`w5))],
   Editable->False]], "Print",
- CellChangeTimes->{3.8177770122037272`*^9, 3.819860451726583*^9},
+ CellChangeTimes->{3.8177770122037272`*^9, 3.819860451726583*^9, 
+  3.8223827199594812`*^9},
  CellLabel->
-  "\:6b63\:5728\:8ba1\:7b97In[124]:=",ExpressionUUID->"30b9a147-4f5b-46bd-\
-93cd-7c3eb5e6cbfa"],
+  "\:6b63\:5728\:8ba1\:7b97In[1]:=",ExpressionUUID->"fa05a0b5-db84-4ace-846c-\
+846717896be8"],
 
 Cell[BoxData[
  TagBox[
@@ -316,21 +320,22 @@ Cell[BoxData[
        RowBox[{
         RowBox[{
          SuperscriptBox["cvd", "2"], " ", 
-         SuperscriptBox["w1", "3"], " ", "w2", " ", "w4", " ", 
-         RowBox[{"(", 
-          RowBox[{"w1", "+", "w5"}], ")"}], " ", 
-         RowBox[{"(", 
-          RowBox[{"w1", "+", "w5", "+", 
-           RowBox[{"eq", " ", "w5"}]}], ")"}]}], "+", 
-        RowBox[{"2", " ", "cvd", " ", "cvv", " ", 
-         SuperscriptBox["w1", "2"], " ", "w2", " ", "w4", " ", "w5", " ", 
+         SuperscriptBox["w1", "2"], " ", "w2", " ", "w4", " ", 
          RowBox[{"(", 
           RowBox[{"w1", "+", "w5"}], ")"}], " ", 
          RowBox[{"(", 
           RowBox[{"w1", "+", "w5", "+", 
            RowBox[{"eq", " ", "w5"}]}], ")"}]}], "+", 
         RowBox[{
-         SuperscriptBox["cvv", "2"], " ", "w1", " ", "w2", " ", "w4", " ", 
+        "2", " ", "cvd", " ", "cvv", " ", "w1", " ", "w2", " ", "w4", " ", 
+         "w5", " ", 
+         RowBox[{"(", 
+          RowBox[{"w1", "+", "w5"}], ")"}], " ", 
+         RowBox[{"(", 
+          RowBox[{"w1", "+", "w5", "+", 
+           RowBox[{"eq", " ", "w5"}]}], ")"}]}], "+", 
+        RowBox[{
+         SuperscriptBox["cvv", "2"], " ", "w2", " ", "w4", " ", 
          SuperscriptBox["w5", "2"], " ", 
          RowBox[{"(", 
           RowBox[{"w1", "+", "w5"}], ")"}], " ", 
@@ -339,7 +344,6 @@ Cell[BoxData[
            RowBox[{"eq", " ", "w5"}]}], ")"}]}], "-", 
         SqrtBox[
          RowBox[{"p0", " ", "sqrtG", " ", 
-          SuperscriptBox["w1", "2"], " ", 
           SuperscriptBox["w4", "2"], " ", 
           SuperscriptBox[
            RowBox[{"(", 
@@ -364,7 +368,9 @@ Cell[BoxData[
               RowBox[{"(", 
                RowBox[{"w1", "+", "w5", "+", 
                 RowBox[{"eq", " ", "w5"}]}], ")"}]}], 
-             RowBox[{"p0", " ", "sqrtG", " ", "w1"}]], ")"}], 
+             RowBox[{"p0", " ", "sqrtG", " ", 
+              RowBox[{"(", 
+               RowBox[{"w1", "+", "w5"}], ")"}]}]], ")"}], 
            FractionBox[
             RowBox[{
              RowBox[{"cpd", " ", "w1"}], "+", 
@@ -372,7 +378,7 @@ Cell[BoxData[
             RowBox[{
              RowBox[{"cvd", " ", "w1"}], "+", 
              RowBox[{"cvv", " ", "w5"}]}]]]}]]}], 
-       RowBox[{"w1", " ", "w4", " ", 
+       RowBox[{"w4", " ", 
         SuperscriptBox[
          RowBox[{"(", 
           RowBox[{"w1", "+", "w5"}], ")"}], "2"], " ", 
@@ -389,21 +395,22 @@ Cell[BoxData[
        RowBox[{
         RowBox[{
          SuperscriptBox["cvd", "2"], " ", 
-         SuperscriptBox["w1", "3"], " ", "w2", " ", "w4", " ", 
-         RowBox[{"(", 
-          RowBox[{"w1", "+", "w5"}], ")"}], " ", 
-         RowBox[{"(", 
-          RowBox[{"w1", "+", "w5", "+", 
-           RowBox[{"eq", " ", "w5"}]}], ")"}]}], "+", 
-        RowBox[{"2", " ", "cvd", " ", "cvv", " ", 
-         SuperscriptBox["w1", "2"], " ", "w2", " ", "w4", " ", "w5", " ", 
+         SuperscriptBox["w1", "2"], " ", "w2", " ", "w4", " ", 
          RowBox[{"(", 
           RowBox[{"w1", "+", "w5"}], ")"}], " ", 
          RowBox[{"(", 
           RowBox[{"w1", "+", "w5", "+", 
            RowBox[{"eq", " ", "w5"}]}], ")"}]}], "+", 
         RowBox[{
-         SuperscriptBox["cvv", "2"], " ", "w1", " ", "w2", " ", "w4", " ", 
+        "2", " ", "cvd", " ", "cvv", " ", "w1", " ", "w2", " ", "w4", " ", 
+         "w5", " ", 
+         RowBox[{"(", 
+          RowBox[{"w1", "+", "w5"}], ")"}], " ", 
+         RowBox[{"(", 
+          RowBox[{"w1", "+", "w5", "+", 
+           RowBox[{"eq", " ", "w5"}]}], ")"}]}], "+", 
+        RowBox[{
+         SuperscriptBox["cvv", "2"], " ", "w2", " ", "w4", " ", 
          SuperscriptBox["w5", "2"], " ", 
          RowBox[{"(", 
           RowBox[{"w1", "+", "w5"}], ")"}], " ", 
@@ -412,7 +419,6 @@ Cell[BoxData[
            RowBox[{"eq", " ", "w5"}]}], ")"}]}], "+", 
         SqrtBox[
          RowBox[{"p0", " ", "sqrtG", " ", 
-          SuperscriptBox["w1", "2"], " ", 
           SuperscriptBox["w4", "2"], " ", 
           SuperscriptBox[
            RowBox[{"(", 
@@ -437,7 +443,9 @@ Cell[BoxData[
               RowBox[{"(", 
                RowBox[{"w1", "+", "w5", "+", 
                 RowBox[{"eq", " ", "w5"}]}], ")"}]}], 
-             RowBox[{"p0", " ", "sqrtG", " ", "w1"}]], ")"}], 
+             RowBox[{"p0", " ", "sqrtG", " ", 
+              RowBox[{"(", 
+               RowBox[{"w1", "+", "w5"}], ")"}]}]], ")"}], 
            FractionBox[
             RowBox[{
              RowBox[{"cpd", " ", "w1"}], "+", 
@@ -445,7 +453,7 @@ Cell[BoxData[
             RowBox[{
              RowBox[{"cvd", " ", "w1"}], "+", 
              RowBox[{"cvv", " ", "w5"}]}]]]}]]}], 
-       RowBox[{"w1", " ", "w4", " ", 
+       RowBox[{"w4", " ", 
         SuperscriptBox[
          RowBox[{"(", 
           RowBox[{"w1", "+", "w5"}], ")"}], "2"], " ", 
@@ -470,14 +478,15 @@ Cell[BoxData[
         Offset[0.2]}, "RowsIndexed" -> {}}], "\[NoBreak]", ")"}],
   Function[BoxForm`e$, 
    MatrixForm[BoxForm`e$]]]], "Output",
- CellChangeTimes->{3.8177770176950755`*^9, 3.819860462937093*^9},
+ CellChangeTimes->{3.8177770176950755`*^9, 3.819860462937093*^9, 
+  3.8223827248575087`*^9},
  CellLabel->
-  "Out[150]//MatrixForm=",ExpressionUUID->"29db7914-238b-4632-891c-\
-3d2769135cdf"]
+  "Out[27]//MatrixForm=",ExpressionUUID->"4b34fb91-a6c4-480a-91e4-\
+a0ad3c8d39c2"]
 }, Open  ]]
 },
-WindowSize->{2560, 1357},
-WindowMargins->{{-8, Automatic}, {Automatic, -8}},
+WindowSize->{2544, 1357},
+WindowMargins->{{-8, Automatic}, {Automatic, 0}},
 Magnification:>1.4 Inherited,
 FrontEndVersion->"11.3 for Microsoft Windows (64-bit) (2018\:5e743\:670828\
 \:65e5)",
@@ -495,9 +504,9 @@ CellTagsIndex->{}
 (*NotebookFileOutline
 Notebook[{
 Cell[CellGroupData[{
-Cell[580, 22, 12785, 246, 1246, "Input",ExpressionUUID->"4dd136e8-b80d-4544-a61b-21e0a43b2548"],
-Cell[13368, 270, 1144, 29, 71, "Print",ExpressionUUID->"30b9a147-4f5b-46bd-93cd-7c3eb5e6cbfa"],
-Cell[14515, 301, 6478, 174, 368, "Output",ExpressionUUID->"29db7914-238b-4632-891c-3d2769135cdf"]
+Cell[580, 22, 12840, 246, 1246, "Input",ExpressionUUID->"4dd136e8-b80d-4544-a61b-21e0a43b2548"],
+Cell[13423, 270, 1251, 33, 72, "Print",ExpressionUUID->"fa05a0b5-db84-4ace-846c-846717896be8"],
+Cell[14677, 305, 6494, 179, 368, "Output",ExpressionUUID->"4b34fb91-a6c4-480a-91e4-a0ad3c8d39c2"]
 }, Open  ]]
 }
 ]

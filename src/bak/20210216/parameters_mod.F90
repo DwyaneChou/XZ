@@ -16,11 +16,6 @@ module parameters_mod
   
   ! Case select
   integer(i_kind) :: case_num
-  real   (r_kind) :: rayleigh_sponge_coef_top = 0.02
-  real   (r_kind) :: rayleigh_sponge_coef_lat = 0.02
-  real   (r_kind) :: topSpongeThickness       = 9000
-  real   (r_kind) :: leftSpongeThickness      = 10000
-  real   (r_kind) :: rightSpongeThickness     = 10000
   
   ! Domain
   real   (r_kind) :: dx        !  grid space in x-direction
@@ -60,8 +55,8 @@ module parameters_mod
   integer(i_kind) :: ics, ice
   integer(i_kind) :: kcs, kce
       
-  integer(i_kind), dimension(4) :: ibs,ibe ! Boundary reconstruction indies
-  integer(i_kind), dimension(4) :: kbs,kbe ! Boundary reconstruction indies
+  integer(i_kind) :: ibs,ibe ! WLS-ENO reconstruction indies
+  integer(i_kind) :: kbs,kbe ! WLS-ENO reconstruction indies
   integer(i_kind) :: recBdy  ! WLS-ENO reconstruction boundary width
   
   namelist /time_settings/ dt               ,&
@@ -73,13 +68,7 @@ module parameters_mod
                            integral_scheme  ,&
                            IRK_residual
   
-  namelist /case_select/   case_num                ,&
-                           rayleigh_sponge_coef_top,&
-                           rayleigh_sponge_coef_lat,&
-                           topSpongeThickness      ,&
-                           leftSpongeThickness     ,&
-                           rightSpongeThickness
-  
+  namelist /case_select/   case_num
   namelist /domain/ dx                   ,&
                     nz                   ,&
                     x_max                ,&
@@ -195,30 +184,10 @@ module parameters_mod
     kde = nz
     
     recBdy = ( stencil_width - 1 ) / 2
-    
-    ! Bottom
-    ibs(1) = ids
-    ibe(1) = ide
-    kbs(1) = kds
-    kbe(1) = kds+recBdy-1
-    
-    ! Right
-    ibs(2) = ide-recBdy+1
-    ibe(2) = ide
-    kbs(2) = kds+recBdy
-    kbe(2) = kde-recBdy
-    
-    ! Top
-    ibs(3) = ids
-    ibe(3) = ide
-    kbs(3) = kde-recBdy+1
-    kbe(3) = kde
-    
-    ! Left
-    ibs(4) = ids
-    ibe(4) = ids+recBdy-1
-    kbs(4) = kds+recBdy
-    kbe(4) = kde-recBdy
+    ibs    = ids + recBdy
+    ibe    = ide - recBdy
+    kbs    = kds + recBdy
+    kbe    = kde - recBdy
     
     extPts = recBdy + 1
     

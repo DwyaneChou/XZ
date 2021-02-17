@@ -26,15 +26,7 @@ module spatial_operators_mod
   real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixR
   real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixB
   real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixT
-  
-  ! For bdy treatment
-  real   (r_kind), dimension(:,:,:,:), allocatable :: A
-  real   (r_kind), dimension(:,:,:,:), allocatable :: invA
-  
-  real   (r_kind), dimension(:,:,:,:), allocatable :: recMtxL
-  real   (r_kind), dimension(:,:,:,:), allocatable :: recMtxR
-  real   (r_kind), dimension(:,:,:,:), allocatable :: recMtxB
-  real   (r_kind), dimension(:,:,:,:), allocatable :: recMtxT
+  real   (r_kind), dimension(:,:,:,:), allocatable :: recMatrixG ! Reconstruction matrix on Gaussian points
   
   real   (r_kind) :: dV
   
@@ -43,6 +35,7 @@ module spatial_operators_mod
   real   (r_kind), dimension(:,:,:,:), allocatable :: qR
   real   (r_kind), dimension(:,:,:,:), allocatable :: qB
   real   (r_kind), dimension(:,:,:,:), allocatable :: qT
+  real   (r_kind), dimension(:,:,:,:), allocatable :: qG
 
   real(r_kind), dimension(:,:,:), allocatable :: F
   real(r_kind), dimension(:,:,:), allocatable :: H
@@ -78,6 +71,7 @@ module spatial_operators_mod
   real(r_kind), dimension(:,:,:,:), allocatable :: qR_ref
   real(r_kind), dimension(:,:,:,:), allocatable :: qB_ref
   real(r_kind), dimension(:,:,:,:), allocatable :: qT_ref
+  real(r_kind), dimension(:,:,:,:), allocatable :: qG_ref
 
   real(r_kind), dimension(:,:,:), allocatable :: rhoL_ref ! reference density
   real(r_kind), dimension(:,:,:), allocatable :: rhoR_ref ! reference density
@@ -104,12 +98,8 @@ module spatial_operators_mod
   
 contains
   subroutine init_spatial_operator
-    integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE,iEOC,iPOC,ibdy
+    integer(i_kind) :: i,j,k,iR,kR,iVar,iPOE,iEOC
     integer(i_kind) :: iRec,kRec
-    
-    integer(i_kind) :: nxp,nzp
-    integer(i_kind) :: invstat
-    integer(i_kind) :: nRC
     
     real(r_kind) :: uB_ref,uT_ref
     real(r_kind) :: nx,nz,nv(2),pm(2,2)
@@ -131,19 +121,15 @@ contains
     allocate(recMatrixB(nPointsOnEdge,maxRecTerms,ids:ide,kds:kde))
     allocate(recMatrixT(nPointsOnEdge,maxRecTerms,ids:ide,kds:kde))
     
-    allocate(A   (maxRecCells,maxRecCells,ids:ide,kds:kde))
-    allocate(invA(maxRecCells,maxRecCells,ids:ide,kds:kde))
-    
-    allocate(recMtxL(nPointsOnEdge,maxRecCells,ids:ide,kds:kde))
-    allocate(recMtxR(nPointsOnEdge,maxRecCells,ids:ide,kds:kde))
-    allocate(recMtxB(nPointsOnEdge,maxRecCells,ids:ide,kds:kde))
-    allocate(recMtxT(nPointsOnEdge,maxRecCells,ids:ide,kds:kde))
+    allocate(recMatrixG(nQuadPointsOnCell,maxRecTerms,ids:ide,kds:kde))
     
     allocate(qC(nVar,              ics:ice,kcs:kce))
     allocate(qL(nVar,nPointsOnEdge,ics:ice,kcs:kce))
     allocate(qR(nVar,nPointsOnEdge,ics:ice,kcs:kce))
     allocate(qB(nVar,nPointsOnEdge,ics:ice,kcs:kce))
     allocate(qT(nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    
+    allocate(qG(nVar,nQuadPointsOnCell,ics:ice,kcs:kce))
   
     allocate(F (nVar,ids:ide,kds:kde))
     allocate(H (nVar,ids:ide,kds:kde))
@@ -174,6 +160,8 @@ contains
     allocate(qR_ref  (nVar,nPointsOnEdge,ics:ice,kcs:kce))
     allocate(qB_ref  (nVar,nPointsOnEdge,ics:ice,kcs:kce))
     allocate(qT_ref  (nVar,nPointsOnEdge,ics:ice,kcs:kce))
+    
+    allocate(qG_ref  (nVar,nQuadPointsOnCell,ics:ice,kcs:kce))
     
     allocate(rhoL_ref(     nPointsOnEdge,ics:ice,kcs:kce)) ! reference density
     allocate(rhoR_ref(     nPointsOnEdge,ics:ice,kcs:kce)) ! reference density
@@ -226,56 +214,61 @@ contains
           enddo
         enddo
         nRecCells(i,k) = j
-        
-        locPolyDegree(i,k) = min( maxval(iRecCell(1:j,i,k)) - minval(iRecCell(1:j,i,k)), maxval(kRecCell(1:j,i,k)) - minval(kRecCell(1:j,i,k)) )
+          
+        if( nRecCells(i,k) >= 3           ) locPolyDegree(i,k) = 1
+        if( nRecCells(i,k) >= 9           ) locPolyDegree(i,k) = 2
+        if( nRecCells(i,k) >= 16          ) locPolyDegree(i,k) = 3
+        if( nRecCells(i,k) >= 25          ) locPolyDegree(i,k) = 4
+        if( nRecCells(i,k) == maxRecCells ) locPolyDegree(i,k) = recPolyDegree
       enddo
     enddo
     
     ! special treatment on low boundary
-    do i = ids+recBdy,ide-recBdy
-      k = kds
-      j = 0
-      do kRec = 0,2
-        do iRec = -recBdy,recBdy
-          j = j + 1
-          iRecCell(j,i,k) = i + iRec
-          kRecCell(j,i,k) = k + kRec
-        enddo
-      enddo
-      nRecCells    (i,k) = j
-      locPolyDegree(i,k) = 2
-      
-      k = kds + 1
-      j = 0
-      do kRec = -1,1
-        do iRec = -recBdy,recBdy
-          j = j + 1
-          iRecCell(j,i,k) = i + iRec
-          kRecCell(j,i,k) = k + kRec
-        enddo
-      enddo
-      nRecCells    (i,k) = j
-      locPolyDegree(i,k) = 2
-      
-      !do k = kds, kds + recBdy - 1
-      !  j = 0
-      !  do kRec = - k + 1, - k + stencil_width
-      !    do iRec = -recBdy,recBdy
-      !      j = j + 1
-      !      iRecCell(j,i,k) = i + iRec
-      !      kRecCell(j,i,k) = k + kRec
-      !    enddo
+    do i = ibs,ibe
+      !k = kds
+      !j = 0
+      !do kRec = 0,4
+      !  do iRec = -1,1
+      !    j = j + 1
+      !    iRecCell(j,i,k) = i + iRec
+      !    kRecCell(j,i,k) = k + kRec
       !  enddo
-      !  nRecCells    (i,k) = j
-      !  locPolyDegree(i,k) = 4!k + 1
       !enddo
+      !nRecCells    (i,k) = j
+      !locPolyDegree(i,k) = 2
+      !
+      !k = kds + 1
+      !j = 0
+      !do kRec = -1,3
+      !  do iRec = -recBdy,recBdy
+      !    j = j + 1
+      !    iRecCell(j,i,k) = i + iRec
+      !    kRecCell(j,i,k) = k + kRec
+      !  enddo
+      !enddo
+      !nRecCells    (i,k) = j
+      !locPolyDegree(i,k) = 4
       
-      !locPolyDegree(i,k) = min( maxval(iRecCell(1:j,i,k)) - minval(iRecCell(1:j,i,k)), maxval(kRecCell(1:j,i,k)) - minval(kRecCell(1:j,i,k)) )
+      do k = kds, kds + recBdy - 1
+        j = 0
+        !do kRec = - k + 1, - k + stencil_width
+        do kRec = -recBdy,recBdy
+          do iRec = -recBdy,recBdy
+            j = j + 1
+            iRecCell(j,i,k) = i + iRec
+            kRecCell(j,i,k) = k + kRec
+          enddo
+        enddo
+        nRecCells    (i,k) = j
+        locPolyDegree(i,k) = 4!k + 1
+      enddo
     enddo
     
-    !! Scheme 2
-    !do k = kds+recBdy,kde-recBdy
-    !  do i = ids+recBdy,ide-recBdy
+    !!! Scheme 2
+    !!do i = ibs,ibe
+    !!  do k = kds,kds+1
+    !do k = kds,kde
+    !  do i = ids,ide
     !    j = 0
     !    do kRec = -recBdy,recBdy
     !      do iRec = -recBdy,recBdy
@@ -289,11 +282,37 @@ contains
     !      enddo
     !    enddo
     !    nRecCells(i,k) = j
-    !    
-    !    locPolyDegree(i,k) = min( maxval(iRecCell(1:j,i,k)) - minval(iRecCell(1:j,i,k)), maxval(kRecCell(1:j,i,k)) - minval(kRecCell(1:j,i,k)) )
+    !    if(nRecCells(i,k)>6 )locPolyDegree(i,k) = 2
+    !    if(nRecCells(i,k)>10)locPolyDegree(i,k) = 3
+    !    if(nRecCells(i,k)>16)locPolyDegree(i,k) = 4
+    !    if(nRecCells(i,k)>21)locPolyDegree(i,k) = 5
+    !    !print*,k,i,j,locPolyDegree(i,k)
     !  enddo
     !enddo
     
+    !! special treatment on low boundary
+    !do k = kds,kds+1
+    !  do i = ibs,ibe
+    !    j = 0
+    !    do kRec = 1,5 ! stencil_width=5
+    !      do iRec = 1,5
+    !        if(inDomain(i-2+iRec-1,k-2+kRec-1))then! recBdy=2
+    !          j = j + 1
+    !          iRecCell(j,i,k) = i-2+iRec-1
+    !          kRecCell(j,i,k) = k-2+kRec-1
+    !        endif
+    !      enddo
+    !    enddo
+    !    nRecCells(i,k) = j
+    !      
+    !    if( nRecCells(i,k) >= 3           ) locPolyDegree(i,k) = 1
+    !    if( nRecCells(i,k) >= 9           ) locPolyDegree(i,k) = 2
+    !    if( nRecCells(i,k) >= 16          ) locPolyDegree(i,k) = 3
+    !    if( nRecCells(i,k) >= 25          ) locPolyDegree(i,k) = 4
+    !    if( nRecCells(i,k) == maxRecCells ) locPolyDegree(i,k) = recPolyDegree
+    !  enddo
+    !enddo
+
     do k = kds,kde
       do i = ids,ide
         nRecTerms(i,k) = ( locPolyDegree(i,k) + 1 ) * ( locPolyDegree(i,k) + 2 ) / 2
@@ -309,7 +328,7 @@ contains
     recdeta = 1. / ( deta * recCoef )
     recdV   = 1. / ( recCoef**2 )
     
-    !$OMP PARALLEL DO PRIVATE(i,j,iRec,kRec)
+    !$OMP PARALLEL DO PRIVATE(i,j,iRec,kRec,xG,etaG)
     do k = kds,kde
       do i = ids,ide
         do j = 1,nRecCells(i,k)
@@ -322,7 +341,7 @@ contains
           etaRel(:,j,i,k) = ( etaCorner(:,iRec,kRec) - etaCenter(i,k) ) * recdeta
           
           call calc_polynomial_square_integration(locPolyDegree(i,k),xRel  (1,j,i,k),xRel  (2,j,i,k),&
-                                                                     etaRel(1,j,i,k),etaRel(4,j,i,k),polyCoordCoef(j,1:nRecTerms(i,k),i,k))
+                                                                     etaRel(1,j,i,k),etaRel(4,j,i,k),polyCoordCoef(j,:,i,k))
         enddo
     
         ! Calculate reconstruction matrix on edge
@@ -330,53 +349,28 @@ contains
         call calc_polynomial_matrix(locPolyDegree(i,k),nPointsOnEdge,nRecTerms(i,k),xR*recdx,etaR*recdeta,recMatrixR(:,1:nRecTerms(i,k),i,k))
         call calc_polynomial_matrix(locPolyDegree(i,k),nPointsOnEdge,nRecTerms(i,k),xB*recdx,etaB*recdeta,recMatrixB(:,1:nRecTerms(i,k),i,k))
         call calc_polynomial_matrix(locPolyDegree(i,k),nPointsOnEdge,nRecTerms(i,k),xT*recdx,etaT*recdeta,recMatrixT(:,1:nRecTerms(i,k),i,k))
+        
+        xG   = ( ( x  (:,i,k) - xCenter  (i,k) ) / dx   ) / recCoef
+        etaG = ( ( eta(:,i,k) - etaCenter(i,k) ) / deta ) / recCoef
+        call calc_polynomial_matrix(locPolyDegree(i,k),nQuadPointsOnCell,nRecTerms(i,k),xG,etaG,recMatrixG(:,1:nRecTerms(i,k),i,k))
       enddo
     enddo
     !$OMP END PARALLEL DO
     
-    ! Pure rectangle polynomial reconstruction
-    do ibdy = 1,4
-      !$OMP PARALLEL DO PRIVATE(i,nRC,nxp,nzp,j,kR,iR,invstat)
-      do k = kbs(ibdy),kbe(ibdy)
-        do i = ibs(ibdy),ibe(ibdy)
-          nRC = nRecCells(i,k)
-          !nxp = min( maxval(iRecCell(1:nRC,i,k)) - minval(iRecCell(1:nRC,i,k)) + 1, stencil_width )
-          !nzp = min( maxval(kRecCell(1:nRC,i,k)) - minval(kRecCell(1:nRC,i,k)) + 1, stencil_width )
-          nxp = maxval(iRecCell(1:nRC,i,k)) - minval(iRecCell(1:nRC,i,k)) + 1
-          nzp = maxval(kRecCell(1:nRC,i,k)) - minval(kRecCell(1:nRC,i,k)) + 1
-          j = 0
-          do kR = 1,nzp
-            do iR = 1,nxp
-              j = j + 1
-              call calc_rectangle_poly_integration(nxp,nzp,xRel  (1,j,i,k),xRel  (2,j,i,k),&
-                                                           etaRel(1,j,i,k),etaRel(4,j,i,k),A(j,1:nRC,i,k))
-            enddo
-          enddo
-          
-          call BRINV(nRC,A(1:nRC,1:nRC,i,k),invA(1:nRC,1:nRC,i,k),invstat)
-          if(invstat==0)then
-            print*,'Inverse A is not exist'
-            print*,'i,k,nRC,nxp,nzp are'
-            print*,i,k,nRC,nxp,nzp
-            stop 'Check BRINV for Special treamtment on boundary cells'
-          endif
-          
-          ! Calculate reconstruction matrix on edge
-          call calc_rectangle_poly_matrix(nxp,nzp,nPointsOnEdge,xL*recdx,etaL*recdeta,recMtxL(:,1:nRC,i,k))
-          call calc_rectangle_poly_matrix(nxp,nzp,nPointsOnEdge,xR*recdx,etaR*recdeta,recMtxR(:,1:nRC,i,k))
-          call calc_rectangle_poly_matrix(nxp,nzp,nPointsOnEdge,xB*recdx,etaB*recdeta,recMtxB(:,1:nRC,i,k))
-          call calc_rectangle_poly_matrix(nxp,nzp,nPointsOnEdge,xT*recdx,etaT*recdeta,recMtxT(:,1:nRC,i,k))
-          
-          recMtxL(:,1:nRC,i,k) = matmul( recMtxL(:,1:nRC,i,k), invA(1:nRC,1:nRC,i,k) )
-          recMtxR(:,1:nRC,i,k) = matmul( recMtxR(:,1:nRC,i,k), invA(1:nRC,1:nRC,i,k) )
-          recMtxB(:,1:nRC,i,k) = matmul( recMtxB(:,1:nRC,i,k), invA(1:nRC,1:nRC,i,k) )
-          recMtxT(:,1:nRC,i,k) = matmul( recMtxT(:,1:nRC,i,k), invA(1:nRC,1:nRC,i,k) )
-        enddo
-      enddo
-      !$OMP END PARALLEL DO
-    enddo
+    !! Reconstruct metric function
+    !call reconstruct_field(sqrtGC*recdV,&
+    !                       sqrtGL      ,&
+    !                       sqrtGR      ,&
+    !                       sqrtGB      ,&
+    !                       sqrtGT)
+    !
+    !call reconstruct_field(G13C*recdV,&
+    !                       G13L      ,&
+    !                       G13R      ,&
+    !                       G13B      ,&
+    !                       G13T)
     
-    ! Reconstruct metric function
+        
     ! Set mertric functions by analytical value
     do k = kds,kde
       do i = ids,ide
@@ -395,18 +389,23 @@ contains
     ! Calculate reference pressure
     qC = FillValue
     qC(:,ids:ide,kds:kde) = ref%q(:,ids:ide,kds:kde)
+    
+    call extend_low_bdy(sqrtGC,qC,ref%q)
+    
     do iVar = 1,nVar
       call reconstruct_field(qC(iVar  ,:,:)*recdV,&
                              qL(iVar,:,:,:)      ,&
                              qR(iVar,:,:,:)      ,&
                              qB(iVar,:,:,:)      ,&
-                             qT(iVar,:,:,:))
+                             qT(iVar,:,:,:)      ,&
+                             qG(iVar,:,:,:))
     enddo
     
     qL_ref = qL
     qR_ref = qR
     qB_ref = qB
     qT_ref = qT
+    qG_ref = qG
   
     ! Fill outside boundary
     ! left boundary
@@ -434,9 +433,13 @@ contains
     iEOC = 1
     do i = ids,ide
       do iPOE = 1,nPointsOnEdge
-        nx = G13B(iPOE,i,k) * sqrtGB(iPOE,i,k)
-        nz = 1
-        
+        if(G13B(iPOE,i,k)/=0)then
+          nx = 1
+          nz = 1. / G13B(iPOE,i,k)
+        else
+          nx = 0
+          nz = 1
+        endif
         nv(1) = nx
         nv(2) = nz
         nv    = nv / sqrt( dot_product( nv, nv ) ) ! calc unit norm vector
@@ -457,9 +460,13 @@ contains
     iEOC = 3
     do i = ids,ide
       do iPOE = 1,nPointsOnEdge
-        nx = G13T(iPOE,i,k) * sqrtGT(iPOE,i,k)
-        nz = 1
-        
+        if(G13T(iPOE,i,k)/=0)then
+          nx = 1
+          nz = 1. / G13T(iPOE,i,k)
+        else
+          nx = 0
+          nz = 1
+        endif
         nv(1) = nx
         nv(2) = nz
         nv    = nv / sqrt( dot_product( nv, nv ) ) ! calc unit norm vector
@@ -538,11 +545,13 @@ contains
     ! Attension stat is changed here!
     if(case_num==2)call Rayleigh_damping(stat%q,ref%q)
     
+    call extend_low_bdy(sqrtGC,stat%q,ref%q)
+    
     ! copy stat
     !qC(:,ids:ide,kds:kde) = stat%q(:,ids:ide,kds:kde)
     !$OMP PARALLEL DO PRIVATE(i,iVar) COLLAPSE(3)
-    do k = kds,kde
-      do i = ids,ide
+    do k = kcs,kce
+      do i = ics,ice
         do iVar = 1,nVar
           qC(iVar,i,k) = stat%q(iVar,i,k)
         enddo
@@ -555,9 +564,26 @@ contains
                              qL(iVar,:,:,:)      ,&
                              qR(iVar,:,:,:)      ,&
                              qB(iVar,:,:,:)      ,&
-                             qT(iVar,:,:,:))
+                             qT(iVar,:,:,:)      ,&
+                             qG(iVar,:,:,:))
+      !call reconstruct_field(qC(iVar  ,:,:)*recdV,&
+      !                       qL(iVar,:,:,:)      ,&
+      !                       qR(iVar,:,:,:)      ,&
+      !                       qB(iVar,:,:,:)      ,&
+      !                       qT(iVar,:,:,:))
+      !call reconstruct_field(qC(iVar  ,:,:)*recdV,&
+      !                       qL(iVar,:,:,:)      ,&
+      !                       qR(iVar,:,:,:)      ,&
+      !                       qB(iVar,:,:,:)      ,&
+      !                       qT(iVar,:,:,:)      ,&
+      !                       iVar=iVar)
     enddo
-  
+    !print*,qB(1,2,100,2),qT(1,2,100,2)
+    !print*,qB(2,2,100,2),qT(2,2,100,2)
+    !print*,qB(3,2,100,2),qT(3,2,100,2)
+    !print*,qB(4,2,100,2),qT(4,2,100,2)
+    !print*,''
+    
     ! Boundary Condition
     ! Correct wind on bottom and top boundaries
     k    = kds
@@ -712,13 +738,15 @@ contains
     !$OMP DO PRIVATE(i) COLLAPSE(2)
     do k = kds,kde
       do i = ids,ide
-        ! rho_p = rho_pert * sqrtG
-        rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) - ref%q(1,i,k) - ref%q(5,i,k) )  ! hydrostatic
-        !rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) )  ! nonhydrostatic
-        if( abs( rho_p(i,k) ) <= 1.e-13 ) rho_p(i,k) = 0 ! hydrostatic
+        rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) - ref%q(1,i,k) - ref%q(5,i,k) ) / sqrtGC(i,k)  ! hydrostatic
+        !rho_p(i,k) = ( qC(1,i,k) + qC(5,i,k) ) / sqrtGC(i,k)  ! nonhydrostatic
+        !rho_p(i,k) = Gaussian_quadrature_2d( ( qG(1,:,i,k) + qG(5,:,i,k) - qG_ref(1,:,i,k) - qG_ref(5,:,i,k) ) / sqrtG(:,i,k) ) ! hydrostatic
+        !if( abs( rho_p(i,k) ) <= 1.e-13 ) rho_p(i,k) = 0 ! hydrostatic
       enddo
     enddo
     !$OMP END DO
+    
+    !$OMP BARRIER
     
     !$OMP DO PRIVATE(i,iVar) COLLAPSE(2)
     do k = kds,kde
@@ -726,7 +754,7 @@ contains
         do iVar = 1,nVar
           src(iVar,i,k) = 0
         enddo
-        src(3,i,k) = src(3,i,k) - rho_p(i,k) * gravity
+        src(3,i,k) = src(3,i,k) - sqrtGC(i,k) * rho_p(i,k) * gravity
       enddo
     enddo
     !$OMP END DO
@@ -765,21 +793,30 @@ contains
         kp1 = k + 1
         do iVar = 1,nVar
           tend%q(iVar,i,k) = - ( ( Fe(iVar,ip1,k) - Fe(iVar,i,k) ) / dx + ( He(iVar,i,kp1) - He(iVar,i,k) ) / deta ) + src(iVar,i,k)
+          
+          if(i==100.and.k==1)then
+            print*,tend%q(iVar,i,k),Fe(iVar,ip1,k), Fe(iVar,i,k),He(iVar,i,kp1),He(iVar,i,k),src(iVar,i,k)
+            print*,''
+          endif
+          
         enddo
       enddo
     enddo
     !$OMP END PARALLEL DO
+    print*,''
     
   end subroutine spatial_operator
 
-  subroutine reconstruct_field(qC,qL,qR,qB,qT)
+  subroutine reconstruct_field(qC,qL,qR,qB,qT,qG,iVar)
     real   (r_kind), dimension(                  ics:ice,kcs:kce),intent(in )           :: qC
     real   (r_kind), dimension(nPointsOnEdge    ,ics:ice,kcs:kce),intent(out)           :: qL
     real   (r_kind), dimension(nPointsOnEdge    ,ics:ice,kcs:kce),intent(out)           :: qR
     real   (r_kind), dimension(nPointsOnEdge    ,ics:ice,kcs:kce),intent(out)           :: qB
     real   (r_kind), dimension(nPointsOnEdge    ,ics:ice,kcs:kce),intent(out)           :: qT
+    real   (r_kind), dimension(nQuadPointsOnCell,ics:ice,kcs:kce),intent(out), optional :: qG
+    integer(i_kind)                                                          , optional :: iVar ! Specify variable for speed up CG method
   
-    integer(i_kind) :: i,j,k,ibdy
+    integer(i_kind) :: i,j,k
     integer(i_kind) :: iRec,kRec
     integer(i_kind) :: ic
     integer(i_kind) :: m,n
@@ -792,11 +829,9 @@ contains
     h = dx
     
     ! Full WLS-ENO
-    !$OMP PARALLEL DO PRIVATE(i,j,m,n,iRec,kRec,iC,u,A,polyCoef) COLLAPSE(2)
+    !$OMP PARALLEL DO PRIVATE(i,j,m,n,iRec,kRec,iC,u,A,polyCoef) collapse(2)
     do k = kds,kde
       do i = ids,ide
-    !do k = kds+recBdy,kde-recBdy
-    !  do i = ids+recBdy,ide-recBdy
         m = nRecCells(i,k)
         n = nRecTerms(i,k)
         ! Set variable for reconstruction
@@ -809,36 +844,23 @@ contains
         enddo
         ic = iCenCell(i,k)
         
+        !if(present(iVar))then
+        !  polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic,CG_coef(iVar,1:n,i,k))
+        !  CG_coef(iVar,1:n,i,k) = polyCoef(1:n)
+        !else
+        !  polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic)
+        !endif
         polyCoef(1:n) = WLS_ENO(A(1:m,1:n),u(1:m),h,m,n,ic)
         
         qL(:,i,k) = matmul(recMatrixL(:,1:n,i,k),polyCoef(1:n))
         qR(:,i,k) = matmul(recMatrixR(:,1:n,i,k),polyCoef(1:n))
         qB(:,i,k) = matmul(recMatrixB(:,1:n,i,k),polyCoef(1:n))
         qT(:,i,k) = matmul(recMatrixT(:,1:n,i,k),polyCoef(1:n))
+        
+        if(present(qG))qG(:,i,k) = matmul(recMatrixG(:,1:n,i,k),polyCoef(1:n))
       enddo
     enddo
     !$OMP END PARALLEL DO
-    
-    ! Pure rectangle polynomial reconstruction
-    do ibdy = 1,4
-      !$OMP PARALLEL DO PRIVATE(i,m,j,iRec,kRec,u) COLLAPSE(2)
-      do k = kbs(ibdy),kbe(ibdy)
-        do i = ibs(ibdy),ibe(ibdy)
-          m = nRecCells(i,k)
-          do j = 1,m
-            iRec = iRecCell(j,i,k)
-            kRec = kRecCell(j,i,k)
-            u(j) = qC(iRec,kRec)
-          enddo
-          qL(:,i,k) = matmul(recMtxL(:,1:m,i,k),u)
-          qR(:,i,k) = matmul(recMtxR(:,1:m,i,k),u)
-          qB(:,i,k) = matmul(recMtxB(:,1:m,i,k),u)
-          qT(:,i,k) = matmul(recMtxT(:,1:m,i,k),u)
-        enddo
-      enddo
-      !$OMP END PARALLEL DO
-    enddo
-    
   end subroutine reconstruct_field
   
   function calc_pressure(sqrtG,q)
@@ -1274,6 +1296,13 @@ contains
     real(r_kind), dimension(ics:ice,kcs:kce) :: muL
     real(r_kind), dimension(ics:ice,kcs:kce) :: muR
     
+    real(r_kind), parameter :: topSpongeThickness   = 9000   ! 12000 for "best" result
+    real(r_kind), parameter :: leftSpongeThickness  = 10000  ! 10000 for "best" result
+    real(r_kind), parameter :: rightSpongeThickness = 10000  ! 10000 for "best" result
+    
+    real(r_kind), parameter :: mu_max_top = 0.2!0.28
+    real(r_kind), parameter :: mu_max_lat = 0.2!0.15
+    
     real(r_kind) zd, zt
     
     integer i,k
@@ -1286,8 +1315,8 @@ contains
     zt = z_max
     zd = zt - topSpongeThickness
     where( zC > zd )
-      !muT = rayleigh_sponge_coef_top * sin( pi / 2. * ( zC - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
-      muT = rayleigh_sponge_coef_top * ( ( zC - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
+      !muT = mu_max_top * sin( pi / 2. * ( zC - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+      muT = mu_max_top * ( ( zC - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
     elsewhere
       muT = 0.
     endwhere
@@ -1296,8 +1325,8 @@ contains
     zt = -x_min
     zd = zt - leftSpongeThickness
     where( abs(xC) > zd )
-      !muT = rayleigh_sponge_coef_lat * sin( pi / 2. * ( abs(xC) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
-      muT = rayleigh_sponge_coef_lat * ( ( abs(xC) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
+      !muT = mu_max_lat * sin( pi / 2. * ( abs(xC) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+      muT = mu_max_lat * ( ( abs(xC) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
     elsewhere
       muL = 0.
     endwhere
@@ -1306,8 +1335,8 @@ contains
     zt = x_max
     zd = zt - rightSpongeThickness
     where( xC > zd )
-      !muT = rayleigh_sponge_coef_lat * sin( pi / 2. * ( abs(xC) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
-      muT = rayleigh_sponge_coef_lat * ( ( abs(xC) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
+      !muT = mu_max_lat * sin( pi / 2. * ( abs(xC) - zd ) / ( zt - zd ) )**2  !( Wong and Stull, MWR, 2015 )
+      muT = mu_max_lat * ( ( abs(xC) - zd ) / ( zt - zd ) )**4 ! ( Li Xingliang, MWR, 2013 )
     elsewhere
       muR = 0.
     endwhere
@@ -1319,5 +1348,69 @@ contains
     enddo
   
   end subroutine Rayleigh_coef
+  
+  subroutine extend_low_bdy(sqrtGC,qC,qC_ref)
+    real(r_kind), dimension(     ics:ice,kcs:kce), intent(in   ) :: sqrtGC
+    real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(inout) :: qC
+    real(r_kind), dimension(nVar,ics:ice,kcs:kce), intent(in   ) :: qC_ref
+    
+    real(r_kind), dimension(ics:ice,kcs:kce) :: rho
+    real(r_kind), dimension(ics:ice,kcs:kce) :: u
+    real(r_kind), dimension(ics:ice,kcs:kce) :: w
+    real(r_kind), dimension(ics:ice,kcs:kce) :: theta
+    
+    real(r_kind), dimension(ics:ice,kcs:kce) :: rho_ref
+    real(r_kind), dimension(ics:ice,kcs:kce) :: theta_ref
+    
+    real(r_kind), dimension(ics:ice,kcs:kce) :: rho_pert
+    real(r_kind), dimension(ics:ice,kcs:kce) :: theta_pert
+    
+    rho   = qC(1,:,:) / sqrtGC
+    u     = qC(2,:,:) / qC(1,:,:)
+    w     = qC(3,:,:) / qC(1,:,:)
+    theta = qC(4,:,:) / qC(1,:,:)
+    
+    rho_ref   = qC_ref(1,:,:) / sqrtGC
+    theta_ref = qC_ref(4,:,:) / qC_ref(1,:,:)
+    
+    rho_pert   = rho - rho_ref
+    theta_pert = theta - theta_ref
+    
+    call fill_ghost(rho_pert  , rho_pert  , 2,  1)
+    call fill_ghost(u         , u         , 2,  1)
+    call fill_ghost(w         , w         , 2, -1)
+    call fill_ghost(theta_pert, theta_pert, 2,  1)
+    
+    qC(1,:,:) = sqrtGC * ( rho_ref + rho_pert )
+    qC(2,:,:) = qC(1,:,:) * u
+    qC(3,:,:) = qC(1,:,:) * w
+    qC(4,:,:) = qC(1,:,:) * ( theta_ref + theta_pert )
+  end subroutine extend_low_bdy
+  
+  subroutine fill_ghost(qC,q,dir,sign)
+    real   (r_kind), dimension(ics:ice,kcs:kce), intent(out) :: qC
+    real   (r_kind), dimension(ics:ice,kcs:kce), intent(in ) :: q
+    integer(i_kind)                            , intent(in ) :: dir
+    integer(i_kind)                            , intent(in ) :: sign
+    
+    integer(i_kind) i,k
+    
+    qC(ids:ide,kds:kde) = q(ids:ide,kds:kde)
+    
+    if(dir == 1)then
+      ! x-dir
+      do i = 1,extPts
+        qC(ids-i,kds:kde) = sign * q(ids+i-1,kds:kde)
+        qC(ide+i,kds:kde) = sign * q(ide-i+1,kds:kde)
+      enddo
+    elseif(dir == 2)then
+      ! z-dir
+      do k = 1,extPts
+        qC(ids:ide,kds-k) = sign * q(ids:ide,kds+k-1)
+        qC(ids:ide,kde+k) = sign * q(ids:ide,kde-k+1)
+      enddo
+    endif
+    
+  end subroutine fill_ghost
 end module spatial_operators_mod
 
