@@ -830,10 +830,10 @@ contains
             kRec = kRecCell(j,i,k)
             u(j) = qC(iRec,kRec)
           enddo
-          qL(:,i,k) = matmul(recMtxL(:,1:m,i,k),u)
-          qR(:,i,k) = matmul(recMtxR(:,1:m,i,k),u)
-          qB(:,i,k) = matmul(recMtxB(:,1:m,i,k),u)
-          qT(:,i,k) = matmul(recMtxT(:,1:m,i,k),u)
+          qL(:,i,k) = matmul(recMtxL(:,1:m,i,k),u(1:m))
+          qR(:,i,k) = matmul(recMtxR(:,1:m,i,k),u(1:m))
+          qB(:,i,k) = matmul(recMtxB(:,1:m,i,k),u(1:m))
+          qT(:,i,k) = matmul(recMtxT(:,1:m,i,k),u(1:m))
         enddo
       enddo
       !$OMP END PARALLEL DO
