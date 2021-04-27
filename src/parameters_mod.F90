@@ -33,6 +33,9 @@ module parameters_mod
   integer(i_kind) :: nIntegralSubSteps ! number of integral substeps in temporal integration scheme
   integer(i_kind) :: nsteps            ! total integral steps
   
+  integer(i_kind), parameter :: nPointsOnEdge = 1
+  integer(i_kind), parameter :: nEdgesOnCell  = 4
+  
   ! Model run time control variables
   integer(i_kind) :: total_run_time   ! total run time for this model in seconds, this variable is determined by run_days, run_hours ...
   integer(i_kind) :: total_run_steps  ! total run steps for this model in seconds, this variable is determined by total_run_time and dt

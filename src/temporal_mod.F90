@@ -25,15 +25,15 @@ module temporal_mod
       type(stat_field), intent(inout) :: stat_new
       type(stat_field), intent(inout) :: stat_old
       
-      real,dimension(4),parameter :: RK4_weight = [1./6.,1./3.,1./3.,1./6.]
+      real(r_kind),dimension(4),parameter :: RK4_weight = [1./6.,1./3.,1./3.,1./6.]
       
       !call copyStat(stat(k1),stat_old)
       
       call spatial_operator (stat_old, tend(k1))
-      call update_stat      (stat(k2), stat_old, tend(k1), 0.5 * dt)
+      call update_stat      (stat(k2), stat_old, tend(k1), 0.5_r_kind * dt)
       
       call spatial_operator (stat(k2), tend(k2))
-      call update_stat      (stat(k3), stat_old, tend(k2), 0.5 * dt)
+      call update_stat      (stat(k3), stat_old, tend(k2), 0.5_r_kind * dt)
       
       call spatial_operator (stat(k3), tend(k3))
       call update_stat      (stat(k4), stat_old, tend(k3), dt)
@@ -54,11 +54,20 @@ module temporal_mod
       call spatial_operator (stat_old, tend(k1))
       call update_stat      (stat(k2), stat_old, tend(k1), dt)
       
+      !call history_write_stat(stat(k2),2)
+      !stop 'RK3_TVD'
+      
       call spatial_operator (stat(k2), tend(k2))
       call update_stat_RK3_TVD_1(stat(k3), stat_old, stat(k2), tend(k2))
       
+      !call history_write_stat(stat(k3),2)
+      !stop 'RK3_TVD'
+      
       call spatial_operator (stat(k3), tend(k3))
       call update_stat_RK3_TVD_2(stat_new, stat_old, stat(k3), tend(k3))
+      
+      !call history_write_stat(stat_new,2)
+      !stop 'RK3_TVD'
 
     end subroutine RK3_TVD
     
@@ -66,13 +75,13 @@ module temporal_mod
       type(stat_field), intent(inout) :: stat_new
       type(stat_field), intent(inout) :: stat_old
       
-      real,parameter :: b1 = 0.5
-      real,parameter :: b2 = 0.5
+      real(r_kind),parameter :: b1 = 0.5
+      real(r_kind),parameter :: b2 = 0.5
       
       integer            iter
-      real :: residual_old
-      real :: residual_new
-      real :: dresidual
+      real(r_kind) :: residual_old
+      real(r_kind) :: residual_new
+      real(r_kind) :: dresidual
       
       call spatial_operator (stat_old, tend(0))
       
@@ -122,16 +131,16 @@ module temporal_mod
       type(stat_field), intent(inout) :: stat_old
     
       call spatial_operator (stat_old, tend(k1))
-      call update_stat      (stat(k1), stat_old, tend(k1), 0.5 * dt)
+      call update_stat      (stat(k1), stat_old, tend(k1), 0.5_r_kind * dt)
       
       call spatial_operator (stat(k1), tend(k2))
-      call update_stat      (stat(k2), stat_old, tend(k2), 0.5 * dt)
+      call update_stat      (stat(k2), stat_old, tend(k2), 0.5_r_kind * dt)
       
       call spatial_operator (stat(k2), tend(k3))
       call update_stat_SSPRK(stat(k3), stat_old, stat(k2), tend(k3))
       
       call spatial_operator (stat(k3), tend(k4))
-      call update_stat      (stat_new, stat(k3), tend(k4), 0.5 * dt)
+      call update_stat      (stat_new, stat(k3), tend(k4), 0.5_r_kind * dt)
       
     end subroutine SSPRK
     
@@ -144,10 +153,10 @@ module temporal_mod
       !call copyStat(stat(k1),stat_old)
       
       call spatial_operator (stat_old, tend(k1))
-      call update_stat      (stat(k2), stat_old, tend(k1), 0.5 * dt)
+      call update_stat      (stat(k2), stat_old, tend(k1), 0.5_r_kind * dt)
       
       call spatial_operator (stat(k2), tend(k2))
-      call update_stat      (stat(k3), stat_old, tend(k2), 0.5 * dt)
+      call update_stat      (stat(k3), stat_old, tend(k2), 0.5_r_kind * dt)
       
       call spatial_operator(stat(k3), tend(k3))
       
@@ -158,9 +167,20 @@ module temporal_mod
       type(stat_field), intent(inout) :: stat_new
       type(stat_field), intent(in   ) :: stat_old
       type(tend_field), intent(in   ) :: tend
-      real            , intent(in   ) :: inc_t
+      real(r_kind)    , intent(in   ) :: inc_t
       
-      stat_new%q = stat_old%q + inc_t * tend%q
+      integer(i_kind) :: iVar,i,k
+
+      !$OMP PARALLEL DO PRIVATE(i,iVar) COLLAPSE(3)
+      do k = kds,kde
+        do i = ids,ide
+          do iVar = 1,nVar
+            stat_new%q(iVar,i,k) = stat_old%q(iVar,i,k) + inc_t * tend%q(iVar,i,k)
+          enddo
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
+
     end subroutine update_stat
     
     subroutine update_stat_RK3_TVD_1(stat_new, stat_old,stat1, tend)
@@ -168,9 +188,18 @@ module temporal_mod
       type(stat_field), intent(in   ) :: stat_old
       type(stat_field), intent(in   ) :: stat1
       type(tend_field), intent(in   ) :: tend
+
+      integer(i_kind) :: iVar,i,k
       
-      stat_new%q = 0.75 * stat_old%q + 0.25 * stat1%q + 0.25 * dt * tend%q
-      
+      !$OMP PARALLEL DO PRIVATE(i,iVar) COLLAPSE(3)
+      do k = kds,kde
+        do i = ids,ide
+          do iVar = 1,nVar
+            stat_new%q(iVar,i,k) = 0.75 * stat_old%q(iVar,i,k) + 0.25 * stat1%q(iVar,i,k) + 0.25 * dt * tend%q(iVar,i,k)
+          enddo
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
     end subroutine update_stat_RK3_TVD_1
     
     subroutine update_stat_RK3_TVD_2(stat_new, stat_old,stat2, tend)
@@ -179,9 +208,19 @@ module temporal_mod
       type(stat_field), intent(in   ) :: stat2
       type(tend_field), intent(in   ) :: tend
       
-      real,dimension(3),parameter :: weight = [1./3., 2./3., 2./3.]
+      real(r_kind),dimension(3),parameter :: weight = [1./3., 2./3., 2./3.]
       
-      stat_new%q = weight(1) * stat_old%q + weight(2) * stat2%q + weight(3) * dt * tend%q
+      integer(i_kind) :: iVar,i,k
+      
+      !$OMP PARALLEL DO PRIVATE(i,iVar) COLLAPSE(3)
+      do k = kds,kde
+        do i = ids,ide
+          do iVar = 1,nVar
+            stat_new%q(iVar,i,k) = weight(1) * stat_old%q(iVar,i,k) + weight(2) * stat2%q(iVar,i,k) + weight(3) * dt * tend%q(iVar,i,k)
+          enddo
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
     end subroutine update_stat_RK3_TVD_2
     
     subroutine update_stat_IRK2_1(stat_new, stat_old, tend1, tend2)
@@ -190,8 +229,8 @@ module temporal_mod
       type(tend_field), intent(in   ) :: tend1
       type(tend_field), intent(in   ) :: tend2
       
-      real,parameter :: a11 = 0.25
-      real,parameter :: a12 = 0.25 - sqrt(3.)/6.
+      real(r_kind),parameter :: a11 = 0.25
+      real(r_kind),parameter :: a12 = 0.25 - sqrt(3.)/6.
       
       stat_new%q  = stat_old%q  + dt * ( a11 * tend1%q  + a12 * tend2%q  )
       
@@ -203,8 +242,8 @@ module temporal_mod
       type(tend_field), intent(in   ) :: tend1
       type(tend_field), intent(in   ) :: tend2
       
-      real,parameter :: a21 = 0.25 + sqrt(3.)/6.
-      real,parameter :: a22 = 0.25
+      real(r_kind),parameter :: a21 = 0.25 + sqrt(3.)/6.
+      real(r_kind),parameter :: a22 = 0.25
       
       stat_new%q  = stat_old%q  + dt * ( a21 * tend1%q  + a22 * tend2%q  )
       
@@ -216,14 +255,14 @@ module temporal_mod
       type(stat_field), intent(in   ) :: stat2
       type(tend_field), intent(in   ) :: tend3
       
-      real,dimension(3),parameter :: coef = [2./3.,1./3.,1./6.]
+      real(r_kind),dimension(3),parameter :: coef = [2./3.,1./3.,1./6.]
       
       stat_new%q = coef(1) * stat_old%q + coef(2) * stat2%q + coef(3) * dt * tend3%q
       
     end subroutine update_stat_SSPRK
     
     subroutine calc_residual(residual, tend_old, tend_new)
-      real            , intent(out) :: residual
+      real(r_kind)    , intent(out) :: residual
       type(tend_field), intent(in ) :: tend_old
       type(tend_field), intent(in ) :: tend_new
     

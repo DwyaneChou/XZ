@@ -72,7 +72,9 @@ MODULE spatial_operators_mod
     contains
     subroutine init_spatial_operator
       integer(i_kind) dir
-      integer(i_kind) i,k,iVar
+      integer(i_kind) i,k,iVar,iEOC
+      
+      real(r_kind) :: nx,nz,nv(2),pm(2,2)
       
       real(r_kind), dimension(5) :: q_weno
       
@@ -191,6 +193,49 @@ MODULE spatial_operators_mod
       qB_ref(:,ids:ide,kde+1) = qT_ref(:,ids:ide,kde)
       sqrtGB(  ids:ide,kde+1) = sqrtGT(  ids:ide,kde)
       G13B  (  ids:ide,kde+1) = G13T  (  ids:ide,kde)
+    
+      ! Calculate projection matrix for no-flux boundary
+      k    = kds
+      iEOC = 1
+      do i = ids,ide
+        nx = G13B(i,k) * sqrtGB(i,k)
+        nz = 1
+        
+        nv(1) = nx
+        nv(2) = nz
+        nv    = nv / sqrt( dot_product( nv, nv ) ) ! calc unit norm vector
+        nx    = nv(1)
+        nz    = nv(2)
+        
+        pm(1,1) = 1. - nx**2
+        pm(1,2) = -nx * nz
+        pm(2,1) = pm(1,2)
+        pm(2,2) = 1. - nz**2
+        
+        nvec(:  ,iEOC,i,k) = nv
+        pmtx(:,:,iEOC,i,k) = pm
+      enddo
+      
+      k    = kde
+      iEOC = 3
+      do i = ids,ide
+        nx = G13T(i,k) * sqrtGT(i,k)
+        nz = 1
+        
+        nv(1) = nx
+        nv(2) = nz
+        nv    = nv / sqrt( dot_product( nv, nv ) ) ! calc unit norm vector
+        nx    = nv(1)
+        nz    = nv(2)
+        
+        pm(1,1) = 1. - nx**2
+        pm(1,2) = -nx * nz
+        pm(2,1) = pm(1,2)
+        pm(2,2) = 1. - nz**2
+        
+        nvec(:  ,iEOC,i,k) = nv
+        pmtx(:,:,iEOC,i,k) = pm
+      enddo
           
       do k = kds-1,kde+1
         do i = ids-1,ide+1
@@ -230,7 +275,8 @@ MODULE spatial_operators_mod
       
       integer(i_kind) dir
       
-      integer(i_kind) i,k,iVar
+      integer(i_kind) i,k,iVar,iEOC
+      real   (r_kind) :: wind_vector(2)
       
       integer(i_kind) ip1,im1
       integer(i_kind) kp1,km1
@@ -247,59 +293,82 @@ MODULE spatial_operators_mod
       !call fill_ghost(qC,ref%q)
       
       ! Reconstruct X
-      !$OMP PARALLEL DO PRIVATE(i,iVar,ip1,im1,ip2,im2,q_weno,dir)
+      !$OMP PARALLEL
+      !$OMP DO PRIVATE(i,iVar,q_weno,dir) COLLAPSE(3)
       do k = kds,kde
         do i = ids,ide
-          ip1 = i + 1
-          im1 = i - 1
-          ip2 = i + 2
-          im2 = i - 2
           do iVar = 1,nVar
             ! x-dir
-            q_weno = qC(iVar,im2:ip2,k)
+            q_weno = qC(iVar,i-2:i+2,k)
             
             dir = -1
-            call WENO_limiter(qL(iVar,i,k),q_weno,dir)
+            !call WENO_limiter(qL(iVar,i,k),q_weno,dir)
+            call WENO5(qL(iVar,i,k),q_weno,dir)
             dir = 1
-            call WENO_limiter(qR(iVar,i,k),q_weno,dir)
+            !call WENO_limiter(qR(iVar,i,k),q_weno,dir)
+            call WENO5(qR(iVar,i,k),q_weno,dir)
           enddo
         enddo
       enddo
-      !$OMP END PARALLEL DO
+      !$OMP END DO NOWAIT
       
       ! Reconstruct Z
-      !$OMP PARALLEL DO PRIVATE(i,iVar,q_weno,dir,kp1,km1,kp2,km2)
+      !$OMP DO PRIVATE(i,iVar,q_weno,dir) COLLAPSE(3)
       do k = kds,kde
-        kp1 = k + 1
-        km1 = k - 1
-        kp2 = k + 2
-        km2 = k - 2
         do i = ids,ide
           do iVar = 1,nVar
             ! z-dir
-            q_weno = qC(iVar,i,km2:kp2)
+            q_weno = qC(iVar,i,k-2:k+2)
             
             dir = -1
-            call WENO_limiter(qB(iVar,i,k),q_weno,dir)
+            !call WENO_limiter(qB(iVar,i,k),q_weno,dir)
+            call WENO5(qB(iVar,i,k),q_weno,dir)
             dir = 1
-            call WENO_limiter(qT(iVar,i,k),q_weno,dir)
+            !call WENO_limiter(qT(iVar,i,k),q_weno,dir)
+            call WENO5(qT(iVar,i,k),q_weno,dir)
           enddo
         enddo
       enddo
-      !$OMP END PARALLEL DO
+      !$OMP END DO
+      !$OMP END PARALLEL
       
       ! Boundary Condition
-      ! Fill boundary
+      ! Correct wind on bottom and top boundaries
+      k    = kds
+      iEOC = 1
+      !$OMP PARALLEL DO PRIVATE(wind_vector)
+      do i = ids,ide
+        wind_vector(1) = qB(2,i,k)
+        wind_vector(2) = qB(3,i,k)
+        wind_vector    = matmul(pmtx(:,:,iEOC,i,k),wind_vector)
+        qB(2,i,k) = wind_vector(1)
+        qB(3,i,k) = wind_vector(2)
+      enddo
+      !$OMP END PARALLEL DO
+      
+      k    = kde
+      iEOC = 3
+      !$OMP PARALLEL DO PRIVATE(wind_vector)
+      do i = ids,ide
+        wind_vector(1) = qT(2,i,k)
+        wind_vector(2) = qT(3,i,k)
+        wind_vector    = matmul(pmtx(:,:,iEOC,i,k),wind_vector)
+        qT(2,i,k) = wind_vector(1)
+        qT(3,i,k) = wind_vector(2)
+      enddo
+      !$OMP END PARALLEL DO
+        
+      ! Fill lateral boundary
       if(case_num==1.or.case_num==3)then
-        qL(2,ids,:) = 0
-        qR(2,ide,:) = 0
-        qB(3,:,kds) = 0
-        qT(3,:,kde) = 0
+        qL(2,ids,kds:kde) = 0
+        qR(2,ide,kds:kde) = 0
       elseif(case_num==2)then
-        qL(2,ids,kds:kde) = ref%q(2,ids,kds:kde)
-        qR(2,ide,kds:kde) = ref%q(2,ide,kds:kde)
-        qB(3,ids:ide,kds) = -sqrtGB(ids:ide,kds) * G13B(ids:ide,kds) * qB(2,ids:ide,kds)
-        qT(3,ids:ide,kde) = -sqrtGT(ids:ide,kde) * G13T(ids:ide,kde) * qT(2,ids:ide,kde)
+        !$OMP PARALLEL DO
+        do k = kds,kde
+          qL(2,ids,k) = ref%q(2,ids,k)
+          qR(2,ide,k) = ref%q(2,ide,k)
+        enddo
+        !$OMP END PARALLEL DO
       endif
       
       ! Fill outside boundary
@@ -347,16 +416,17 @@ MODULE spatial_operators_mod
         PT(i,k) = calc_pressure(sqrtGT(i,k),qT(:,i,k))
       enddo
       
-      !$OMP PARALLEL DO PRIVATE(i,im1)
+      !$OMP PARALLEL
+      !$OMP DO PRIVATE(i,im1) COLLAPSE(2)
       do k = kds,kde
         do i = ids,ide+1
           im1 = i - 1
           Fe(:,i,k) = calc_F(sqrtGR(im1,k),sqrtGL(i,k),qR(:,im1,k),qL(:,i,k),pR(im1,k),pL(i,k))
         enddo
       enddo
-      !$OMP END PARALLEL DO
+      !$OMP END DO NOWAIT
       
-      !$OMP PARALLEL DO PRIVATE(k,km1)
+      !$OMP DO PRIVATE(k,km1) COLLAPSE(2)
       do i = ids,ide
         do k = kds,kde+1
           km1 = k - 1
@@ -364,7 +434,8 @@ MODULE spatial_operators_mod
                              rhoT_ref(i,km1),rhoB_ref(i,k),cT_ref(i,km1),cB_ref(i,k),pT_ref(i,km1),pB_ref(i,k))
         enddo
       enddo
-      !$OMP END PARALLEL DO
+      !$OMP END DO
+      !$OMP END PARALLEL
       
       ! Calculate source term
       !rho_p = ( qC   (1,ids:ide,kds:kde) + qC   (5,ids:ide,kds:kde) &
@@ -400,12 +471,10 @@ MODULE spatial_operators_mod
       endif
       
       ! Calculate tend
-      !$OMP PARALLEL DO PRIVATE(i,ip1,kp1)
+      !$OMP PARALLEL DO PRIVATE(i) COLLAPSE(2)
       do k = kds,kde
         do i = ids,ide
-          ip1 = i + 1
-          kp1 = k + 1
-          tend%q(:,i,k) = - ( ( Fe(:,ip1,k) - Fe(:,i,k) ) / dx + ( He(:,i,kp1) - He(:,i,k) ) / deta ) + src(:,i,k)
+          tend%q(:,i,k) = - ( ( Fe(:,i+1,k) - Fe(:,i,k) ) / dx + ( He(:,i,k+1) - He(:,i,k) ) / deta ) + src(:,i,k)
         enddo
       enddo
       !$OMP END PARALLEL DO
@@ -458,8 +527,8 @@ MODULE spatial_operators_mod
       real(r_kind), parameter :: leftSpongeThickness  = 10000  ! 10000 for "best" result
       real(r_kind), parameter :: rightSpongeThickness = 10000  ! 10000 for "best" result
       
-      real(r_kind), parameter :: mu_max_top = 0.15
-      real(r_kind), parameter :: mu_max_lat = 0.15
+      real(r_kind), parameter :: mu_max_top = 0.1
+      real(r_kind), parameter :: mu_max_lat = 0.1
       
       real(r_kind) zd, zt
       

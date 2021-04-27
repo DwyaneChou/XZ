@@ -1,7 +1,7 @@
 module mesh_mod
   use constants_mod
   use parameters_mod
-  use reconstruction_mod, only: WENO_limiter
+  use reconstruction_mod
   use math_mod
   implicit none
   
@@ -60,6 +60,10 @@ module mesh_mod
   
   real(r_kind), dimension(:,:), allocatable :: zs_ext
   
+  ! For projecting wind along to surface
+  real(r_kind), dimension(:,:,:,:  ), allocatable :: nvec
+  real(r_kind), dimension(:,:,:,:,:), allocatable :: pmtx
+  
   
     contains
     subroutine init_mesh
@@ -106,6 +110,9 @@ module mesh_mod
       allocate( dzsdx_ext  (ies:iee,kes:kee) )
       allocate( detadx_ext (ies:iee,kes:kee) )
       allocate( zs_ext     (ies:iee,kes:kee) )
+        
+      allocate( nvec(2  ,nEdgesOnCell,ids:ide,kds:kde) )
+      allocate( pmtx(2,2,nEdgesOnCell,ids:ide,kds:kde) )
       
       x       = FillValue
       
@@ -311,24 +318,24 @@ module mesh_mod
       !sqrtG = dzdeta
       !G13   = detadx
         
-      ! Reconstruct mertric tensor by analytical value
-      !do k = kds,kde
-      !  do i = ids,ide
-      do k = kcs,kce
-        do i = ics,ice
-          sqrtG (i,k) = dzdeta_ext(i*2  ,k*2  )
-          sqrtGL(i,k) = dzdeta_ext(i*2-1,k*2  )
-          sqrtGR(i,k) = dzdeta_ext(i*2+1,k*2  )
-          sqrtGB(i,k) = dzdeta_ext(i*2  ,k*2-1)
-          sqrtGT(i,k) = dzdeta_ext(i*2  ,k*2+1)
-          
-          G13   (i,k) = detadx_ext(i*2  ,k*2  )
-          G13L  (i,k) = detadx_ext(i*2-1,k*2  )
-          G13R  (i,k) = detadx_ext(i*2+1,k*2  )
-          G13B  (i,k) = detadx_ext(i*2  ,k*2-1)
-          G13T  (i,k) = detadx_ext(i*2  ,k*2+1)
-        enddo
-      enddo
+      !! Reconstruct mertric tensor by analytical value
+      !!do k = kds,kde
+      !!  do i = ids,ide
+      !do k = kcs,kce
+      !  do i = ics,ice
+      !    sqrtG (i,k) = dzdeta_ext(i*2  ,k*2  )
+      !    sqrtGL(i,k) = dzdeta_ext(i*2-1,k*2  )
+      !    sqrtGR(i,k) = dzdeta_ext(i*2+1,k*2  )
+      !    sqrtGB(i,k) = dzdeta_ext(i*2  ,k*2-1)
+      !    sqrtGT(i,k) = dzdeta_ext(i*2  ,k*2+1)
+      !    
+      !    G13   (i,k) = detadx_ext(i*2  ,k*2  )
+      !    G13L  (i,k) = detadx_ext(i*2-1,k*2  )
+      !    G13R  (i,k) = detadx_ext(i*2+1,k*2  )
+      !    G13B  (i,k) = detadx_ext(i*2  ,k*2-1)
+      !    G13T  (i,k) = detadx_ext(i*2  ,k*2+1)
+      !  enddo
+      !enddo
       
       !! Reconstruct mertric tensor by  Mid-point average
       !do k = kds,kde
@@ -345,57 +352,61 @@ module mesh_mod
       !  enddo
       !enddo
       
-      !! Reconstruct mertric tensor by WENO
-      !q_ext(1,:,:) = sqrtG
-      !q_ext(2,:,:) = G13
-      !!$OMP PARALLEL DO PRIVATE(i,ip1,im1,ip2,im2,iVar,q_weno,dir,kp1,km1,kp2,km2)
-      !do k = kds,kde
-      !  kp1 = k + 1
-      !  km1 = k - 1
-      !  kp2 = k + 2
-      !  km2 = k - 2
-      !  do i = ids,ide
-      !    ip1 = i + 1
-      !    im1 = i - 1
-      !    ip2 = i + 2
-      !    im2 = i - 2
-      !    do iVar = 1,nMertric
-      !      ! x-dir
-      !      q_weno = q_ext(iVar,im2:ip2,k)
-      !      if(im1<ids             )q_weno(1:2) = FillValue
-      !      if(im2<ids.and.im1>=ids)q_weno(1  ) = FillValue
-      !      if(ip1>ide             )q_weno(4:5) = FillValue
-      !      if(ip2>ide.and.ip1<=ide)q_weno(5  ) = FillValue
-      !      
-      !      dir = -1
-      !      call WENO_limiter(qL(iVar,i,k),q_weno,dir)
-      !      dir = 1
-      !      call WENO_limiter(qR(iVar,i,k),q_weno,dir)
-      !      
-      !      ! z-dir
-      !      q_weno = q_ext(iVar,i,km2:kp2)
-      !      if(km1<kds             )q_weno(1:2) = FillValue
-      !      if(km2<kds.and.km1>=kds)q_weno(1  ) = FillValue
-      !      if(kp1>kde             )q_weno(4:5) = FillValue
-      !      if(kp2>kde.and.kp1<=kde)q_weno(5  ) = FillValue
-      !      
-      !      dir = -1
-      !      call WENO_limiter(qB(iVar,i,k),q_weno,dir)
-      !      dir = 1
-      !      call WENO_limiter(qT(iVar,i,k),q_weno,dir)
-      !    enddo
-      !  enddo
-      !enddo
-      !!$OMP END PARALLEL DO
-      !sqrtGL(ids:ide,kds:kde) = qL(1,ids:ide,kds:kde)
-      !sqrtGR(ids:ide,kds:kde) = qR(1,ids:ide,kds:kde)
-      !sqrtGB(ids:ide,kds:kde) = qB(1,ids:ide,kds:kde)
-      !sqrtGT(ids:ide,kds:kde) = qT(1,ids:ide,kds:kde)
-      !
-      !G13L  (ids:ide,kds:kde) = qL(2,ids:ide,kds:kde)
-      !G13R  (ids:ide,kds:kde) = qR(2,ids:ide,kds:kde)
-      !G13B  (ids:ide,kds:kde) = qB(2,ids:ide,kds:kde)
-      !G13T  (ids:ide,kds:kde) = qT(2,ids:ide,kds:kde)
+      ! Reconstruct mertric tensor by WENO
+      q_ext(1,:,:) = sqrtG
+      q_ext(2,:,:) = G13
+      !$OMP PARALLEL DO PRIVATE(i,ip1,im1,ip2,im2,iVar,q_weno,dir,kp1,km1,kp2,km2)
+      do k = kds,kde
+        kp1 = k + 1
+        km1 = k - 1
+        kp2 = k + 2
+        km2 = k - 2
+        do i = ids,ide
+          ip1 = i + 1
+          im1 = i - 1
+          ip2 = i + 2
+          im2 = i - 2
+          do iVar = 1,nMertric
+            ! x-dir
+            q_weno = q_ext(iVar,im2:ip2,k)
+            if(im1<ids             )q_weno(1:2) = FillValue
+            if(im2<ids.and.im1>=ids)q_weno(1  ) = FillValue
+            if(ip1>ide             )q_weno(4:5) = FillValue
+            if(ip2>ide.and.ip1<=ide)q_weno(5  ) = FillValue
+            
+            dir = -1
+            !call WENO_limiter(qL(iVar,i,k),q_weno,dir)
+            call WENO5(qL(iVar,i,k),q_weno,dir)
+            dir = 1
+            !call WENO_limiter(qR(iVar,i,k),q_weno,dir)
+            call WENO5(qR(iVar,i,k),q_weno,dir)
+            
+            ! z-dir
+            q_weno = q_ext(iVar,i,km2:kp2)
+            if(km1<kds             )q_weno(1:2) = FillValue
+            if(km2<kds.and.km1>=kds)q_weno(1  ) = FillValue
+            if(kp1>kde             )q_weno(4:5) = FillValue
+            if(kp2>kde.and.kp1<=kde)q_weno(5  ) = FillValue
+            
+            dir = -1
+            !call WENO_limiter(qB(iVar,i,k),q_weno,dir)
+            call WENO5(qB(iVar,i,k),q_weno,dir)
+            dir = 1
+            !call WENO_limiter(qT(iVar,i,k),q_weno,dir)
+            call WENO5(qT(iVar,i,k),q_weno,dir)
+          enddo
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
+      sqrtGL(ids:ide,kds:kde) = qL(1,ids:ide,kds:kde)
+      sqrtGR(ids:ide,kds:kde) = qR(1,ids:ide,kds:kde)
+      sqrtGB(ids:ide,kds:kde) = qB(1,ids:ide,kds:kde)
+      sqrtGT(ids:ide,kds:kde) = qT(1,ids:ide,kds:kde)
+      
+      G13L  (ids:ide,kds:kde) = qL(2,ids:ide,kds:kde)
+      G13R  (ids:ide,kds:kde) = qR(2,ids:ide,kds:kde)
+      G13B  (ids:ide,kds:kde) = qB(2,ids:ide,kds:kde)
+      G13T  (ids:ide,kds:kde) = qT(2,ids:ide,kds:kde)
       
     end subroutine init_vertical_coordinate
 end module mesh_mod

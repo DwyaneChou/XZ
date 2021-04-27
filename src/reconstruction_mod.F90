@@ -1,10 +1,40 @@
   module reconstruction_mod
     use constants_mod
     contains
-    ! 1D WENO slope limiter, according to Sun,2015
+
+    subroutine WENO_limiter(Qrec,Q,dir)
+      real   (r_kind)              , intent(out) :: Qrec
+      real   (r_kind), dimension(5), intent(in ) :: Q
+      integer(i_kind)              , intent(in ) :: dir
+      
+      integer(i_kind), parameter :: nStencil = 3
+      
+      real(r_kind) Qim(nStencil-1)
+      real(r_kind) Qip(nStencil-1)
+      real(r_kind) Qi
+      
+      integer(i_kind) iStencil
+      
+      Qim(2) = Q(1)
+      Qim(1) = Q(2)
+      Qi     = Q(3)
+      Qip(1) = Q(4)
+      Qip(2) = Q(5)
+      
+      if( .not. any(Q==FillValue) )then
+        call WENO5(Qrec,Q,dir)
+      elseif( any(Q==FillValue) .and. Qi/=FillValue )then
+        call WENO3(Qrec,Q(2:4),dir)
+      else
+        print*,'Center point is FillValue, WENO cannot be implemented.'
+      endif
+      
+    end subroutine WENO_limiter
+    
+    ! 1D WENO 5th order slope limiter, according to Sun,2015
     ! "A Slope Constrained 4th OrderMulti-Moment Finite Volume Method with WENO Limiter"
     ! and Jiang and Shu, 1996
-    subroutine WENO_limiter(Qrec,Q,dir)
+    subroutine WENO5(Qrec,Q,dir)
       real   (r_kind)              , intent(out) :: Qrec
       real   (r_kind), dimension(5), intent(in ) :: Q
       integer(i_kind)              , intent(in ) :: dir
@@ -64,6 +94,26 @@
       
       beta = coefA**2 * 13. / 12. + coefB**2 * 0.25
       
+      !! WENO-Z
+      !tau40 = abs( beta(1) - beta(2) )
+      !tau41 = abs( beta(2) - beta(3) )
+      !tau5  = abs( beta(3) - beta(1) )
+      !
+      !if( tau40<=minval(beta) .and. tau41>minval(beta) )then
+      !  omega = [1./3.,2./3.,0.]
+      !elseif( tau40>minval(beta) .and. tau41<minval(beta) )then
+      !  omega = [0.,2./3.,1./3.]
+      !else
+      !  alpha = weno_coef * ( 1. + tau5 / ( eps + beta ) )
+      !  omega = alpha / sum(alpha)
+      !endif
+      !! WENO-Z
+      !
+      !!! origin WENO
+      !!alpha = weno_coef / ( eps + beta )**2
+      !!omega = alpha / sum(alpha)
+      !!! origin WENO
+      
       if(.not.any(Q==FillValue))then
         ! WENO-Z
         tau40 = abs( beta(1) - beta(2) )
@@ -88,7 +138,68 @@
       
       Qrec = dot_product( stencil, omega )
       
-    end subroutine WENO_limiter
+    end subroutine WENO5
+    
+    ! 1D 3th order WENO limiter, accroding to 
+    ! T. Lunnet et al., 2017, Monthly Weather Review
+    subroutine WENO3(Qrec,Q,dir)
+      real   (r_kind)              , intent(out) :: Qrec
+      real   (r_kind), dimension(3), intent(in ) :: Q
+      integer(i_kind)              , intent(in ) :: dir
+      
+      integer(i_kind), parameter :: nStencil = 2
+      real   (r_kind), parameter :: weno_coef(2)  = [1./3., 2./3.]
+      real   (r_kind), parameter :: eps           = 1.E-16
+      
+      real(r_kind) Qim(nStencil-1)
+      real(r_kind) Qip(nStencil-1)
+      real(r_kind) Qi
+      
+      real(r_kind), dimension(nStencil) :: stencil
+      real(r_kind), dimension(nStencil) :: coefA
+      real(r_kind), dimension(nStencil) :: coefB
+      real(r_kind), dimension(nStencil) :: alpha
+      real(r_kind), dimension(nStencil) :: beta
+      real(r_kind), dimension(nStencil) :: omega
+      
+      real(r_kind) tau
+      
+      integer(i_kind) iStencil
+      
+      Qim(1) = Q(1)
+      Qi     = Q(2)
+      Qip(1) = Q(3)
+      
+      if(dir>0)then
+        stencil (1) = -Qim(1)/2. + 3./2. * Qi
+        stencil (2) =  Qi / 2. + Qip(1) / 2.
+        
+        coefA(1) =-Qim(1) + Qi
+        coefA(2) = Qip(1) - Qi
+      elseif(dir<0)then
+        stencil (1) = -Qip(1)/2. + 3./2. * Qi
+        stencil (2) = Qi / 2. + Qim(1) / 2.
+        
+        coefA(1) =-Qip(1) + Qi
+        coefA(2) = Qim(1) - Qi
+      endif
+      
+      beta = coefA**2
+      
+      !! origin WENO
+      !alpha = weno_coef / ( eps + beta )**2
+      !! origin WENO
+      
+      ! WENO-Z
+      tau = abs( beta(1) - beta(2) )
+      alpha = weno_coef * ( 1. + tau / ( eps + beta ) )
+      ! WENO-Z
+      
+      omega = alpha / sum(alpha)
+      
+      Qrec = dot_product( stencil, omega )
+      
+    end subroutine WENO3
     
     real(r_kind) function dqdx(q,dx)
       real(r_kind), dimension(4), intent(in ) :: q
