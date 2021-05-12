@@ -92,13 +92,15 @@ module temporal_mod
       do while( residual_old>=IRK_residual .and. dresidual>=1.e-15 )
         iter = iter + 1
           
-        call copyTend(tend(0), tend(k1))
+        !call copyTend(tend(0), tend(k1))
+        call copyStat(stat(k2), stat(k1))
         
         call spatial_operator(stat(k1), tend(k1))
         
         call update_stat(stat(k1), stat_old, tend(k1), 0.5 * dt)
         
-        call calc_residual(residual_new, tend(0), tend(k1))
+        !call calc_residual(residual_new, tend(0), tend(k1))
+        call calc_residual_stat(residual_new, stat(k2), stat(k1))
         
         dresidual = abs( ( residual_new - residual_old ) / residual_old )
         
@@ -305,12 +307,22 @@ module temporal_mod
       
     end subroutine update_stat_SSPRK
     
-    subroutine calc_residual(residual, tend_old, tend_new)
+    subroutine calc_residual_stat(residual, stat_old, stat_new)
       real(r_kind)    , intent(out) :: residual
-      type(tend_field), intent(in ) :: tend_old
-      type(tend_field), intent(in ) :: tend_new
+      type(stat_field), intent(in ) :: stat_old
+      type(stat_field), intent(in ) :: stat_new
+      
+      integer iVar
+      
+      iVar = 1
+      residual = maxval( abs(stat_new%q(iVar,ids:ide,kds:kde) - stat_old%q(iVar,ids:ide,kds:kde)) ) / maxval( abs(stat_old%q(iVar,ids:ide,kds:kde)) )
+    end subroutine calc_residual_stat
     
-      residual = maxval(abs(tend_new%q(:,ids:ide,kds:kde) - tend_old%q(:,ids:ide,kds:kde)))
-    end subroutine calc_residual
-    
+    !subroutine calc_residual(residual, tend_old, tend_new)
+    !  real(r_kind)    , intent(out) :: residual
+    !  type(tend_field), intent(in ) :: tend_old
+    !  type(tend_field), intent(in ) :: tend_new
+    !
+    !  residual = maxval(abs(tend_new%q(:,ids:ide,kds:kde) - tend_old%q(:,ids:ide,kds:kde)))
+    !end subroutine calc_residual
 end module temporal_mod
