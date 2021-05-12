@@ -64,6 +64,10 @@
         endif
         
         if(any(isnan(stat(new)%q(1,ids:ide,kds:kde))))then
+          output_idx = output_idx + 1
+          call history_write_stat(stat(new),output_idx)
+          print*,'output index/total',output_idx-1,'/',total_output_num
+          
           print*,'Nan appears at i k: ',maxloc(stat(new)%q(1,ids:ide,kds:kde),isnan(stat(new)%q(1,ids:ide,kds:kde)))
           print*,'after ',it,' steps'
           stop 'Model blow up, maybe smaller dt would help'

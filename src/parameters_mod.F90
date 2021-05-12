@@ -33,7 +33,6 @@ module parameters_mod
   integer(i_kind) :: nIntegralSubSteps ! number of integral substeps in temporal integration scheme
   integer(i_kind) :: nsteps            ! total integral steps
   
-  integer(i_kind), parameter :: nPointsOnEdge = 1
   integer(i_kind), parameter :: nEdgesOnCell  = 4
   
   ! Model run time control variables

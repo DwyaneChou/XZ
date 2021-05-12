@@ -75,56 +75,104 @@ module temporal_mod
       type(stat_field), intent(inout) :: stat_new
       type(stat_field), intent(inout) :: stat_old
       
-      real(r_kind),parameter :: b1 = 0.5
-      real(r_kind),parameter :: b2 = 0.5
-      
       integer            iter
       real(r_kind) :: residual_old
       real(r_kind) :: residual_new
       real(r_kind) :: dresidual
       
-      call spatial_operator (stat_old, tend(0))
+      call spatial_operator(stat_old, tend(k1))
       
-      call update_stat_IRK2_1(stat(k1), stat_old, tend(0), tend(0))
-      
-      call spatial_operator (stat(k1), tend(k1))
-      
-      call update_stat_IRK2_2(stat(k2), stat_old, tend(k1), tend(0))
-      
-      call spatial_operator (stat(k2), tend(k2))
+      call update_stat(stat(k1), stat_old, tend(k1), 0.5 * dt)
       
       iter         = 0
       residual_new = Inf
       residual_old = Inf
       dresidual    = Inf
       
-      do while( residual_old>=IRK_residual) !.and. dresidual>=1.e-15 )
+      do while( residual_old>=IRK_residual .and. dresidual>=1.e-15 )
         iter = iter + 1
           
-        call copyTend(tend(0), tend(k2))
+        call copyTend(tend(0), tend(k1))
         
-        call update_stat_IRK2_1(stat(k1), stat_old, tend(k1), tend(k2))
+        call spatial_operator(stat(k1), tend(k1))
         
-        call spatial_operator (stat(k1), tend(k1))
+        call update_stat(stat(k1), stat_old, tend(k1), 0.5 * dt)
         
-        call update_stat_IRK2_2(stat(k2), stat_old, tend(k1), tend(k2))
-        
-        call spatial_operator (stat(k2), tend(k2))
-        
-        call calc_residual(residual_new, tend(0), tend(k2))
+        call calc_residual(residual_new, tend(0), tend(k1))
         
         dresidual = abs( ( residual_new - residual_old ) / residual_old )
         
         print*,'residual error in IRK2 = ',residual_new,'after ',iter,'loop'!,', dresidual =',dresidual
         
         residual_old = residual_new
+        
+        if(any(isnan(stat(k1)%q(1,ids:ide,kds:kde))))then
+          call history_write_stat(stat(k1),2)
+          
+          print*,'Nan appears at i k: ',maxloc(stat(k1)%q(1,ids:ide,kds:kde),isnan(stat(k1)%q(1,ids:ide,kds:kde)))
+          print*,'after ',iter,' iterations'
+          stop 'Model blow up, maybe smaller dt would help'
+        endif
       enddo
       
-      tend(new)%q  = b1 * tend(k1)%q  + b2 * tend(k2)%q
-      
-      call update_stat (stat_new, stat_old, tend(new), dt)
+      call update_stat (stat_new, stat_old, tend(k1), dt)
       
     end subroutine IRK2
+    
+    !subroutine IRK2(stat_new,stat_old)
+    !  type(stat_field), intent(inout) :: stat_new
+    !  type(stat_field), intent(inout) :: stat_old
+    !  
+    !  real(r_kind),parameter :: b1 = 0.5
+    !  real(r_kind),parameter :: b2 = 0.5
+    !  
+    !  integer            iter
+    !  real(r_kind) :: residual_old
+    !  real(r_kind) :: residual_new
+    !  real(r_kind) :: dresidual
+    !  
+    !  call spatial_operator (stat_old, tend(0))
+    !  
+    !  call update_stat_IRK2_1(stat(k1), stat_old, tend(0), tend(0))
+    !  
+    !  call spatial_operator (stat(k1), tend(k1))
+    !  
+    !  call update_stat_IRK2_2(stat(k2), stat_old, tend(k1), tend(0))
+    !  
+    !  call spatial_operator (stat(k2), tend(k2))
+    !  
+    !  iter         = 0
+    !  residual_new = Inf
+    !  residual_old = Inf
+    !  dresidual    = Inf
+    !  
+    !  do while( residual_old>=IRK_residual) !.and. dresidual>=1.e-15 )
+    !    iter = iter + 1
+    !      
+    !    call copyTend(tend(0), tend(k2))
+    !    
+    !    call update_stat_IRK2_1(stat(k1), stat_old, tend(k1), tend(k2))
+    !    
+    !    call spatial_operator (stat(k1), tend(k1))
+    !    
+    !    call update_stat_IRK2_2(stat(k2), stat_old, tend(k1), tend(k2))
+    !    
+    !    call spatial_operator (stat(k2), tend(k2))
+    !    
+    !    call calc_residual(residual_new, tend(0), tend(k2))
+    !    
+    !    dresidual = abs( ( residual_new - residual_old ) / residual_old )
+    !    
+    !    print*,'residual error in IRK2 = ',residual_new,'after ',iter,'loop'!,', dresidual =',dresidual
+    !    
+    !    residual_old = residual_new
+    !  enddo
+    !  
+    !  tend(new)%q  = b1 * tend(k1)%q  + b2 * tend(k2)%q
+    !  
+    !  call update_stat (stat_new, stat_old, tend(new), dt)
+    !  
+    !end subroutine IRK2
     
     subroutine SSPRK(stat_new,stat_old)
       type(stat_field), intent(inout) :: stat_new
@@ -147,10 +195,6 @@ module temporal_mod
     subroutine PC2(stat_new,stat_old)
       type(stat_field), intent(inout) :: stat_new
       type(stat_field), intent(inout) :: stat_old
-      
-      integer :: iPoint
-      
-      !call copyStat(stat(k1),stat_old)
       
       call spatial_operator (stat_old, tend(k1))
       call update_stat      (stat(k2), stat_old, tend(k1), 0.5_r_kind * dt)
@@ -266,7 +310,7 @@ module temporal_mod
       type(tend_field), intent(in ) :: tend_old
       type(tend_field), intent(in ) :: tend_new
     
-      residual = abs(maxval(tend_new%q - tend_old%q))
+      residual = maxval(abs(tend_new%q(:,ids:ide,kds:kde) - tend_old%q(:,ids:ide,kds:kde)))
     end subroutine calc_residual
     
 end module temporal_mod

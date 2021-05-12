@@ -478,6 +478,7 @@ MODULE spatial_operators_mod
         enddo
       enddo
       !$OMP END PARALLEL DO
+      
     end subroutine spatial_operator
     
     subroutine fill_ghost(q,q_ref)

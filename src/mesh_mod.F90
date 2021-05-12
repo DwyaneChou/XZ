@@ -315,9 +315,10 @@ module mesh_mod
         stop 'Unknown vertical_coordinate'
       endif
         
-      !sqrtG = dzdeta
-      !G13   = detadx
-        
+      sqrtG = dzdeta
+      G13   = detadx
+      
+      ! Calculate Metric Tensor
       !! Reconstruct mertric tensor by analytical value
       !!do k = kds,kde
       !!  do i = ids,ide
