@@ -6,7 +6,7 @@ run_minutes      = 0
 run_seconds      = 1000 !3000 for case 1, 36000 for case 2, 900 for case 3
 dt               = 0.125
 history_interval = 50
-integral_scheme  = 'RK4' ! Choose from 'RK4', 'SSPRK', 'RK3_TVD', 'PC2', 'IRK2'
+integral_scheme  = 'IRK2' ! Choose from 'RK4', 'SSPRK', 'RK3_TVD', 'PC2', 'IRK2'
 IRK_residual     = 1.E-6
 /
 

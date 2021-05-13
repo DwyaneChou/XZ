@@ -75,14 +75,23 @@ module temporal_mod
       type(stat_field), intent(inout) :: stat_new
       type(stat_field), intent(inout) :: stat_old
       
-      integer            iter
+      integer      :: iter
       real(r_kind) :: residual_old
       real(r_kind) :: residual_new
       real(r_kind) :: dresidual
       
-      call spatial_operator(stat_old, tend(k1))
+      integer      :: iVar,i,k
+      real(r_kind), dimension(     ids:ide,kds:kde) :: delta
+      real(r_kind), dimension(nVar,ids:ide,kds:kde) :: F
+      real(r_kind), dimension(nVar,ids:ide,kds:kde) :: F_pert
+      real(r_kind), dimension(nVar,ids:ide,kds:kde) :: q_pert
+      real(r_kind), dimension(nVar,ids:ide,kds:kde) :: Adq
       
-      call update_stat(stat(k1), stat_old, tend(k1), 0.5 * dt)
+      call copyStat(stat(k1),stat_old)
+      
+      call spatial_operator(stat(k1), tend(k1))
+      
+      call update_stat(stat(k2), stat_old, tend(k1), 0.5 * dt)
       
       iter         = 0
       residual_new = Inf
@@ -91,35 +100,87 @@ module temporal_mod
       
       do while( residual_old>=IRK_residual .and. dresidual>=1.e-15 )
         iter = iter + 1
-          
-        !call copyTend(tend(0), tend(k1))
-        call copyStat(stat(k2), stat(k1))
         
-        call spatial_operator(stat(k1), tend(k1))
+        call spatial_operator(stat(k2), tend(k2))
         
-        call update_stat(stat(k1), stat_old, tend(k1), 0.5 * dt)
+        do k = kds,kde
+          do i = ids,ide
+            do iVar = 1,nVar
+              F(iVar,i,k) = ( stat(k2)%q(iVar,i,k) - stat(k1)%q(iVar,i,k) ) / dt - tend(k2)%q(iVar,i,k)
+            enddo
+            delta(i,k) = 1. / norm2(stat(k2)%q(:,i,k))
+            q_pert(:,i,k) = stat(k2)%q(:,i,k) + stat(k2)%q(:,i,k) * delta(i,k)
+            stat(k2)%q(:,i,k) = q_pert(:,i,k) ! stat(k2) is perturbation stat now
+          enddo
+        enddo
         
-        !call calc_residual(residual_new, tend(0), tend(k1))
-        call calc_residual_stat(residual_new, stat(k2), stat(k1))
+        call spatial_operator(stat(k2), tend(k2))
+      
+        call update_stat(stat(k2), stat_old, tend(k2), 0.5 * dt)
         
-        dresidual = abs( ( residual_new - residual_old ) / residual_old )
+        do k = kds,kde
+          do i = ids,ide
+            do iVar = 1,nVar
+              F_pert(iVar,i,k) = ( stat(k2)%q(iVar,i,k) - stat(k1)%q(iVar,i,k) ) / dt - tend(k2)%q(iVar,i,k)
+              Adq(iVar,i,k) = ( F_pert(iVar,i,k) - F(iVar,i,k) ) / delta(i,k)
+            enddo
+          enddo
+        enddo
         
-        print*,'residual error in IRK2 = ',residual_new,'after ',iter,'loop'!,', dresidual =',dresidual
-        
-        residual_old = residual_new
-        
-        if(any(isnan(stat(k1)%q(1,ids:ide,kds:kde))))then
-          call history_write_stat(stat(k1),2)
-          
-          print*,'Nan appears at i k: ',maxloc(stat(k1)%q(1,ids:ide,kds:kde),isnan(stat(k1)%q(1,ids:ide,kds:kde)))
-          print*,'after ',iter,' iterations'
-          stop 'Model blow up, maybe smaller dt would help'
-        endif
+        stop 'IRK2'
       enddo
       
-      call update_stat (stat_new, stat_old, tend(k1), dt)
-      
     end subroutine IRK2
+    
+    !subroutine IRK2(stat_new,stat_old)
+    !  type(stat_field), intent(inout) :: stat_new
+    !  type(stat_field), intent(inout) :: stat_old
+    !  
+    !  integer            iter
+    !  real(r_kind) :: residual_old
+    !  real(r_kind) :: residual_new
+    !  real(r_kind) :: dresidual
+    !  
+    !  call spatial_operator(stat_old, tend(k1))
+    !  
+    !  call update_stat(stat(k1), stat_old, tend(k1), 0.5 * dt)
+    !  
+    !  iter         = 0
+    !  residual_new = Inf
+    !  residual_old = Inf
+    !  dresidual    = Inf
+    !  
+    !  do while( residual_old>=IRK_residual .and. dresidual>=1.e-15 )
+    !    iter = iter + 1
+    !      
+    !    !call copyTend(tend(0), tend(k1))
+    !    call copyStat(stat(k2), stat(k1))
+    !    
+    !    call spatial_operator(stat(k1), tend(k1))
+    !    
+    !    call update_stat(stat(k1), stat_old, tend(k1), 0.5 * dt)
+    !    
+    !    !call calc_residual(residual_new, tend(0), tend(k1))
+    !    call calc_residual_stat(residual_new, stat(k2), stat(k1))
+    !    
+    !    dresidual = abs( ( residual_new - residual_old ) / residual_old )
+    !    
+    !    print*,'residual error in IRK2 = ',residual_new,'after ',iter,'loop'!,', dresidual =',dresidual
+    !    
+    !    residual_old = residual_new
+    !    
+    !    if(any(isnan(stat(k1)%q(1,ids:ide,kds:kde))))then
+    !      call history_write_stat(stat(k1),2)
+    !      
+    !      print*,'Nan appears at i k: ',maxloc(stat(k1)%q(1,ids:ide,kds:kde),isnan(stat(k1)%q(1,ids:ide,kds:kde)))
+    !      print*,'after ',iter,' iterations'
+    !      stop 'Model blow up, maybe smaller dt would help'
+    !    endif
+    !  enddo
+    !  
+    !  call update_stat (stat_new, stat_old, tend(k1), dt)
+    !  
+    !end subroutine IRK2
     
     !subroutine IRK2(stat_new,stat_old)
     !  type(stat_field), intent(inout) :: stat_new
