@@ -1,7 +1,8 @@
-% main
+% case1
 clear; clc; close all 
 A = pascal(4);
-b = [0 0 0 0]';
+% b = [0 0 0 0]';
+b = [1 0 0 0]';
 x0 = [1 0 0 0]';
 %
 [V,R,H,res] = bGMRES(A,b,x0)
@@ -25,32 +26,41 @@ realSolution = inv(A)*b
 sol1 = x0+V(:,1:4)*x4
 sol2 = x0+V(:,1:4)*x5
 
-clear; clc; close all 
-A = sprandsym(10,0.7);
-A
-b = [0 0 0 0 0 0 0 0 0 0]';
-x0 = [1 0 0 0 0 0 0 0 0 0]';
-%
-[V,R,H,res] = bGMRES(A,b,x0)
-%
-r0 = b-A*x0;beta = norm(r0);
-be = zeros(10,1);be(1) = beta;
-be
-[T,bk] = givens( H,be )
-%
-newT = zeros(10,10);
-for i = 1:10
-    for j = 1:i
-        newT(j,i) = T(j,i);
-    end
-end
-newT
-x4 = inv(newT)*bk
-x5 = backward( newT,bk )
-%
-realSolution = inv(A)*b
-sol1 = x0+V(:,1:10)*x4
-sol2 = x0+V(:,1:10)*x5
+% % case2
+% clear; clc; close all 
+% A = sprandsym(10,0.7);
+% A
+% b = [0 0 0 0 0 0 0 0 0 0]';
+% x0 = [1 0 0 0 0 0 0 0 0 0]';
+% %
+% [V,R,H,res] = bGMRES(A,b,x0)
+% %
+% r0 = b-A*x0;beta = norm(r0);
+% be = zeros(10,1);be(1) = beta;
+% be
+% [T,bk] = givens( H,be )
+% %
+% newT = zeros(10,10);
+% for i = 1:10
+%     for j = 1:i
+%         newT(j,i) = T(j,i);
+%     end
+% end
+% newT
+% x4 = inv(newT)*bk
+% x5 = backward( newT,bk )
+% %
+% realSolution = inv(A)*b
+% sol1 = x0+V(:,1:10)*x4
+% sol2 = x0+V(:,1:10)*x5
+
+[QQ,RR]=qr(H);
+QQT=QQ';
+QTb=QQT*[be;0];
+xQR = backward( RR,QTb );
+% xQR = (H'*H)\H'*[be;0];
+% xQR = H\[be;0];
+sol3 = x0+V(:,1:4)*xQR
 
 %Ax = b
 function [V,R,H,res] = bGMRES(A,b,x0)
