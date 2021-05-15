@@ -127,7 +127,7 @@ module parameters_mod
     elseif(trim(adjustl(integral_scheme)) == 'PC2')then
       nIntegralSubSteps = 3
     elseif(trim(adjustl(integral_scheme)) == 'IRK2')then
-      nIntegralSubSteps = 2
+      nIntegralSubSteps = 3
     else
       stop 'Unknown integral scheme, please select from RK3 or RK4 ...'
     endif

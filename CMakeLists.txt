@@ -56,6 +56,7 @@ set(source_files
   src/linear_integration_mod.F90
   src/reconstruction_mod.F90
   src/math_mod.F90
+  src/qr_solver_mod.F90
 )
 
 add_library(xz ${source_files})

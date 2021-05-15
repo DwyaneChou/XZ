@@ -5,6 +5,7 @@ module temporal_mod
   use stat_mod
   use tend_mod
   use spatial_operators_mod
+  use qr_solver_mod
   use io_mod
   implicit none
   
@@ -75,62 +76,197 @@ module temporal_mod
       type(stat_field), intent(inout) :: stat_new
       type(stat_field), intent(inout) :: stat_old
       
-      integer      :: iter
+      integer(i_kind), parameter :: max_inner_iter = 400
+      real   (r_kind), parameter :: eps = 1.e-13
+      
+      integer      :: iter,jter,kter
       real(r_kind) :: residual_old
       real(r_kind) :: residual_new
       real(r_kind) :: dresidual
       
       integer      :: iVar,i,k
-      real(r_kind), dimension(     ids:ide,kds:kde) :: delta
+      integer      :: icount
+      real(r_kind) :: delta
       real(r_kind), dimension(nVar,ids:ide,kds:kde) :: F
       real(r_kind), dimension(nVar,ids:ide,kds:kde) :: F_pert
+      real(r_kind), dimension(nVar,ids:ide,kds:kde) :: q
+      real(r_kind), dimension(nVar,ids:ide,kds:kde) :: q_old
       real(r_kind), dimension(nVar,ids:ide,kds:kde) :: q_pert
+      real(r_kind), dimension(nVar,ids:ide,kds:kde) :: dq
       real(r_kind), dimension(nVar,ids:ide,kds:kde) :: Adq
       
-      call copyStat(stat(k1),stat_old)
+      real(r_kind), dimension(nVar,ids:ide,kds:kde) :: r0
       
-      call spatial_operator(stat(k1), tend(k1))
+      real(r_kind), dimension(nVar,ids:ide,kds:kde,max_inner_iter+1) :: v
+      real(r_kind), dimension(max_inner_iter+1,max_inner_iter) :: H
       
-      call update_stat(stat(k2), stat_old, tend(k1), 0.5 * dt)
+      real(r_kind), dimension(max_inner_iter+1) :: e1
       
-      iter         = 0
-      residual_new = Inf
-      residual_old = Inf
-      dresidual    = Inf
+      real(r_kind), dimension(max_inner_iter) :: y
+      real(r_kind), dimension(nVar*nx*nz,max_inner_iter) :: vmtx
+      real(r_kind), dimension(nVar*nx*nz) :: x0
+      real(r_kind), dimension(nVar*nx*nz) :: xm
       
-      do while( residual_old>=IRK_residual .and. dresidual>=1.e-15 )
-        iter = iter + 1
-        
-        call spatial_operator(stat(k2), tend(k2))
-        
+      real(r_kind) :: beta
+      
+      integer(i_kind) :: invStat
+      
+      call spatial_operator(stat_old, tend(k1))
+      
+      call update_stat(stat(k3), stat_old, tend(k1), 0.5 * dt)
+      
+      call spatial_operator(stat(k3), tend(k2))
+      
+      call update_stat(stat(k1), stat_old, tend(k1), dt)
+      call update_stat(stat(k2), stat_old, tend(k2), dt)
+      
+      do ! Loop of Krylov scheme
         do k = kds,kde
           do i = ids,ide
             do iVar = 1,nVar
-              F(iVar,i,k) = ( stat(k2)%q(iVar,i,k) - stat(k1)%q(iVar,i,k) ) / dt - tend(k2)%q(iVar,i,k)
-            enddo
-            delta(i,k) = 1. / norm2(stat(k2)%q(:,i,k))
-            q_pert(:,i,k) = stat(k2)%q(:,i,k) + stat(k2)%q(:,i,k) * delta(i,k)
-            stat(k2)%q(:,i,k) = q_pert(:,i,k) ! stat(k2) is perturbation stat now
-          enddo
-        enddo
-        
-        call spatial_operator(stat(k2), tend(k2))
-      
-        call update_stat(stat(k2), stat_old, tend(k2), 0.5 * dt)
-        
-        do k = kds,kde
-          do i = ids,ide
-            do iVar = 1,nVar
-              F_pert(iVar,i,k) = ( stat(k2)%q(iVar,i,k) - stat(k1)%q(iVar,i,k) ) / dt - tend(k2)%q(iVar,i,k)
-              Adq(iVar,i,k) = ( F_pert(iVar,i,k) - F(iVar,i,k) ) / delta(i,k)
+              dq(iVar,i,k) = stat(k2)%q(iVar,i,k) - stat(k1)%q(iVar,i,k)
+              q (iVar,i,k) = stat(k2)%q(iVar,i,k)
             enddo
           enddo
         enddo
         
-        stop 'IRK2'
-      enddo
+        icount = 0
+        do k = kds,kde
+          do i = ids,ide
+            do iVar = 1,nVar
+              icount = icount + 1
+              x0(icount) = dq(iVar,i,k)
+            enddo
+          enddo
+        enddo
+          
+        delta = sqrt( ( 1. + norm2(q) ) * eps ) / norm2(dq)
+        
+        call calc_F_IRK2(F,q,stat_old%q(:,ids:ide,kds:kde))
+        
+        do k = kds,kde
+          do i = ids,ide
+            do iVar = 1,nVar
+              q_pert(iVar,i,k) = q(iVar,i,k) + dq(iVar,i,k) * delta
+            enddo
+          enddo
+        enddo
+        
+        call calc_F_IRK2(F_pert,q_pert,stat_old%q(:,ids:ide,kds:kde))
+        
+        do k = kds,kde
+          do i = ids,ide
+            do iVar = 1,nVar
+              Adq(iVar,i,k) = ( F_pert(iVar,i,k) - F(iVar,i,k) ) / delta
+            enddo
+          enddo
+        enddo
+        
+        do k = kds,kde
+          do i = ids,ide
+            do iVar = 1,nVar
+              r0(iVar,i,k) = F(iVar,i,k) + Adq(iVar,i,k)
+            enddo
+          enddo
+        enddo
+        
+        beta = norm2(r0)
+        
+        print*,'norm2 r0=',beta
+        
+        if(beta<1.e-15)exit ! if norm2 r0 is satisfied, exit
+        
+        v(:,:,:,1) = r0 / beta
+        
+        ! Inner loop by GMRES
+        do jter = 1,max_inner_iter
+          delta = sqrt( ( 1. + norm2(q) ) * eps ) / norm2(v(:,:,:,jter))
+          
+          q_pert = q + v(:,:,:,jter) * delta
+          
+          call calc_F_IRK2(F_pert,q_pert,stat_old%q(:,ids:ide,kds:kde))
+          
+          Adq = ( F_pert - F ) / delta
+          
+          v(:,:,:,jter+1) = Adq
+          do iter = 1, jter
+            H(iter,jter) = sum( Adq * v(:,:,:,iter) )
+            v(:,:,:,jter+1) = v(:,:,:,jter+1) - H(iter,jter) * v(:,:,:,iter)
+          enddo
+          
+          H(jter+1,jter) = norm2( v(:,:,:,jter+1) )
+          
+          print*,abs(H(jter+1,jter))
+          
+          v(:,:,:,jter+1) = v(:,:,:,jter+1) / H(jter+1,jter)
+          
+        enddo
+        
+        e1 = 0
+        e1(1) = beta
+        
+        !call BRINV(max_inner_iter,H(1:max_inner_iter,:),H(1:max_inner_iter,:),invStat)
+        !if(invStat==0)then
+        !  print*,'Cannot calculate inverse of H'
+        !  stop
+        !endif
+        !
+        !y = matmul( H(1:max_inner_iter,:), e1 )
+        
+        call qr_solver(max_inner_iter+1,max_inner_iter,H,e1,y)
+        
+        do iter = 1,max_inner_iter
+          icount = 0
+          do k = kds,kde
+            do i = ids,ide
+              do iVar = 1,nVar
+                icount = icount + 1
+                vmtx(icount,iter) = v(iVar,i,k,iter)
+              enddo
+            enddo
+          enddo
+        enddo
+        
+        xm = x0 + matmul(vmtx,y)
+        
+        call copyStat(stat(k1),stat(k2))
+        
+        icount = 0
+        do k = kds,kde
+          do i = ids,ide
+            do iVar = 1,nVar
+              icount = icount + 1
+              stat(k2)%q(iVar,i,k) = stat(k1)%q(iVar,i,k) + xm(icount)
+            enddo
+          enddo
+        enddo
+        
+      enddo ! do loop
+      
+      stop 'IRK2'
       
     end subroutine IRK2
+    
+    subroutine calc_F_IRK2(F,q,q_old)
+      real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(out) :: F
+      real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(in ) :: q
+      real(r_kind), dimension(nVar,ids:ide,kds:kde), intent(in ) :: q_old
+      
+      integer(i_kind) :: iVar,i,k
+        
+      stat(k3)%q(:,ids:ide,kds:kde) = 0.5 * ( q + q_old )
+      
+      call spatial_operator(stat(k3), tend(k3))
+      
+      do k = kds,kde
+        do i = ids,ide
+          do iVar = 1,nVar
+            F (iVar,i,k) = ( q(iVar,i,k) - q_old(iVar,i,k) ) / dt - tend(k3)%q(iVar,i,k)
+          enddo
+        enddo
+      enddo
+        
+    end subroutine calc_F_IRK2
     
     !subroutine IRK2(stat_new,stat_old)
     !  type(stat_field), intent(inout) :: stat_new
