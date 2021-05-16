@@ -316,5 +316,47 @@
         x = x1
       end subroutine CG
       
+      subroutine givens(T,bk,H,b,n)
+        real   (r_kind), dimension(n+1,n), intent(out) :: T
+        real   (r_kind), dimension(n    ), intent(out) :: bk
+        real   (r_kind), dimension(n+1,n), intent(in ) :: H
+        real   (r_kind), dimension(n    ), intent(in ) :: b
+        integer(i_kind),                   intent(in ) :: n
+        
+        real(r_kind), dimension(n  ) :: Ht
+        real(r_kind), dimension(n,n) :: HH
+        
+        real(r_kind), dimension(n,n) :: E
+        real(r_kind), dimension(n,n) :: R
+        
+        real(r_kind) :: down,s,c
+        
+        integer(i_kind) :: i,j,k
+        
+        Ht = H(n+1,1:n)
+        HH = H(1:n,1:n)
+        bk = b(1:n)
+        
+        E = 0
+        do k = 1,n
+          E(k,k) = 1
+        enddo
+        
+        do k = 1,n-1
+          R = E
+          down = ( HH(k,k)**2 + HH(k+1,k)**2 )**0.5
+          s = HH(k+1,k) / down
+          c = HH(k,k) / down
+          R(k:k+1,k  ) = (/c,s/)
+          R(k:k+1,k+1) = (/-s,c/)
+          HH = matmul(R,H)
+          HH(k+1,k) = 0
+          bk = matmul(R,bk)
+        enddo
+        
+        T(1:n,1:n) = HH
+        T(n+1,1:n) = Ht
+        
+      end subroutine givens
     end module qr_solver_mod
     

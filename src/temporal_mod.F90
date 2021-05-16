@@ -76,15 +76,18 @@ module temporal_mod
       type(stat_field), intent(inout) :: stat_new
       type(stat_field), intent(inout) :: stat_old
       
-      integer(i_kind), parameter :: max_inner_iter = 400
+      integer(i_kind), parameter :: max_outer_iter = 500
+      integer(i_kind), parameter :: max_inner_iter = 500
       real   (r_kind), parameter :: eps = 1.e-13
+      
+      integer      :: ava_iter ! available iter
       
       integer      :: iter,jter,kter
       real(r_kind) :: residual_old
       real(r_kind) :: residual_new
       real(r_kind) :: dresidual
       
-      integer      :: iVar,i,k
+      integer      :: iVar,i,j,k
       integer      :: icount
       real(r_kind) :: delta
       real(r_kind), dimension(nVar,ids:ide,kds:kde) :: F
@@ -98,9 +101,14 @@ module temporal_mod
       real(r_kind), dimension(nVar,ids:ide,kds:kde) :: r0
       
       real(r_kind), dimension(nVar,ids:ide,kds:kde,max_inner_iter+1) :: v
+      real(r_kind), dimension(nVar,ids:ide,kds:kde,max_inner_iter  ) :: R
       real(r_kind), dimension(max_inner_iter+1,max_inner_iter) :: H
       
       real(r_kind), dimension(max_inner_iter+1) :: e1
+      
+      real(r_kind), dimension(max_inner_iter+1,max_inner_iter) :: T
+      real(r_kind), dimension(max_inner_iter  ,max_inner_iter) :: newT
+      real(r_kind), dimension(max_inner_iter                 ) :: bk
       
       real(r_kind), dimension(max_inner_iter) :: y
       real(r_kind), dimension(nVar*nx*nz,max_inner_iter) :: vmtx
@@ -120,7 +128,10 @@ module temporal_mod
       call update_stat(stat(k1), stat_old, tend(k1), dt)
       call update_stat(stat(k2), stat_old, tend(k2), dt)
       
-      do ! Loop of Krylov scheme
+      q_old = stat_old%q(:,ids:ide,kds:kde)
+      
+      do kter = 1,max_outer_iter! Loop of Krylov scheme
+        !$OMP PARALLEL DO PRIVATE(i,iVar) COLLAPSE(3)
         do k = kds,kde
           do i = ids,ide
             do iVar = 1,nVar
@@ -129,6 +140,7 @@ module temporal_mod
             enddo
           enddo
         enddo
+        !$OMP END PARALLEL DO
         
         icount = 0
         do k = kds,kde
@@ -142,7 +154,7 @@ module temporal_mod
           
         delta = sqrt( ( 1. + norm2(q) ) * eps ) / norm2(dq)
         
-        call calc_F_IRK2(F,q,stat_old%q(:,ids:ide,kds:kde))
+        call calc_F_IRK2(F,q,q_old)
         
         do k = kds,kde
           do i = ids,ide
@@ -152,7 +164,7 @@ module temporal_mod
           enddo
         enddo
         
-        call calc_F_IRK2(F_pert,q_pert,stat_old%q(:,ids:ide,kds:kde))
+        call calc_F_IRK2(F_pert,q_pert,q_old)
         
         do k = kds,kde
           do i = ids,ide
@@ -165,7 +177,7 @@ module temporal_mod
         do k = kds,kde
           do i = ids,ide
             do iVar = 1,nVar
-              r0(iVar,i,k) = F(iVar,i,k) + Adq(iVar,i,k)
+              r0(iVar,i,k) = - F(iVar,i,k) - Adq(iVar,i,k)
             enddo
           enddo
         enddo
@@ -174,48 +186,55 @@ module temporal_mod
         
         print*,'norm2 r0=',beta
         
-        if(beta<1.e-15)exit ! if norm2 r0 is satisfied, exit
+        if(beta<IRK_residual)exit ! if norm2 r0 is satisfied, exit
         
         v(:,:,:,1) = r0 / beta
         
+        delta = sqrt( ( 1. + norm2(q) ) * eps )
+        
         ! Inner loop by GMRES
+        ava_iter = 0
         do jter = 1,max_inner_iter
-          delta = sqrt( ( 1. + norm2(q) ) * eps ) / norm2(v(:,:,:,jter))
           
           q_pert = q + v(:,:,:,jter) * delta
           
-          call calc_F_IRK2(F_pert,q_pert,stat_old%q(:,ids:ide,kds:kde))
+          call calc_F_IRK2(F_pert,q_pert,q_old)
           
           Adq = ( F_pert - F ) / delta
           
-          v(:,:,:,jter+1) = Adq
+          R(:,:,:,jter) = Adq
           do iter = 1, jter
-            H(iter,jter) = sum( Adq * v(:,:,:,iter) )
-            v(:,:,:,jter+1) = v(:,:,:,jter+1) - H(iter,jter) * v(:,:,:,iter)
+            H(iter,jter) = sum( R(:,:,:,jter) * v(:,:,:,iter) )
+            R(:,:,:,jter) = R(:,:,:,jter) - H(iter,jter) * v(:,:,:,iter)
           enddo
           
-          H(jter+1,jter) = norm2( v(:,:,:,jter+1) )
+          H(jter+1,jter) = norm2( R(:,:,:,jter) )
+          ava_iter = ava_iter + 1
           
-          print*,abs(H(jter+1,jter))
+          !print*,abs(H(jter+1,jter))
           
-          v(:,:,:,jter+1) = v(:,:,:,jter+1) / H(jter+1,jter)
-          
+          if( abs( H(jter+1,jter) ) < eps )then
+            exit
+          else
+            v(:,:,:,jter+1) = R(:,:,:,jter) / H(jter+1,jter)
+          endif
         enddo
         
         e1 = 0
         e1(1) = beta
         
-        !call BRINV(max_inner_iter,H(1:max_inner_iter,:),H(1:max_inner_iter,:),invStat)
-        !if(invStat==0)then
-        !  print*,'Cannot calculate inverse of H'
-        !  stop
-        !endif
-        !
-        !y = matmul( H(1:max_inner_iter,:), e1 )
+        call givens( T(1:ava_iter+1,1:ava_iter), bk(1:ava_iter), H(1:ava_iter+1,1:ava_iter), e1(1:ava_iter), ava_iter )
         
-        call qr_solver(max_inner_iter+1,max_inner_iter,H,e1,y)
+        newT = 0
+        do i = 1,ava_iter
+          do j = 1,i
+            newT(j,i) = T(j,i)
+          enddo
+        enddo
         
-        do iter = 1,max_inner_iter
+        call uptri( newT(1:ava_iter,1:ava_iter), bk(1:ava_iter), y(1:ava_iter), ava_iter )
+        
+        do iter = 1,ava_iter
           icount = 0
           do k = kds,kde
             do i = ids,ide
@@ -227,7 +246,7 @@ module temporal_mod
           enddo
         enddo
         
-        xm = x0 + matmul(vmtx,y)
+        xm = x0 + matmul( vmtx(:,1:ava_iter), y(1:ava_iter) )
         
         call copyStat(stat(k1),stat(k2))
         
@@ -241,9 +260,17 @@ module temporal_mod
           enddo
         enddo
         
-      enddo ! do loop
+      enddo ! kter End Loop of Krylov scheme
       
-      stop 'IRK2'
+      do k = kds,kde
+        do i = ids,ide
+          do iVar = 1,nVar
+            stat_new%q(iVar,i,k) = stat(k2)%q(iVar,i,k)
+          enddo
+        enddo
+      enddo
+      
+      !stop 'IRK2'
       
     end subroutine IRK2
     
