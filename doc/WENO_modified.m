@@ -2,16 +2,16 @@ clc
 clear
 
 run_seconds      = 2;
-dx               = 1/60;
-dt               = 2/1200;
+dx               = 1/50;
+dt               = 0.02;
 history_interval = 2;
 output_path      = 'picture\';
 integral_scheme  = 'IRK2'; % Choose from 'RK4', 'IRK2';
 
 % For IRK2 only
-IRK_residual   = 1.e-11;
+IRK_residual   = 1.e-12;
 max_outer_iter = 500;
-max_inner_iter = 1000;
+max_inner_iter = 500;
 
 x_min = -1;
 x_max = 1;
@@ -175,10 +175,9 @@ eps = 1.e-14;
 n = stat.n;
 
 tend1 = spatial_discrete(stat);
-stat3 = update_stat(stat,tend1,0.5*dt);
-tend2 = spatial_discrete(stat3);
-stat1 = update_stat(stat,tend1,dt);
-stat2 = update_stat(stat,tend2,dt);
+stat1 = update_stat(stat,tend1,0.5*dt);
+tend2 = spatial_discrete(stat1);
+stat2 = update_stat(stat,tend2,0.5*dt);
 stat3 = cp_stat(stat2);
 
 q_old = stat.f;
@@ -231,7 +230,7 @@ for out_loop = 1:max_outer_iter
         H(jter+1,jter) = norm( R(:,jter) );
         ava_iter = ava_iter + 1;
         
-        if abs(H(jter+1,jter)) < 1e-13
+        if abs(H(jter+1,jter)) < 1e-10
             %sprintf('done without residual')
             break;
         else
@@ -260,7 +259,8 @@ for out_loop = 1:max_outer_iter
     stat2.f = stat1.f + xm';
 end
 
-stat.f = stat2.f;
+tend = spatial_discrete(stat2);
+stat.f = stat.f + dt * tend.f;
 
 end
 
@@ -304,13 +304,13 @@ stat_out.dt     = stat_in.dt;
 end
 
 function F = calc_F_IRK2(q,q_old,stat3,dt)
-stat3.f = 0.5 * ( q + q_old );
-% stat3.f = q;
+% stat3.f = 0.5 * ( q + q_old );
+stat3.f = q;
 % stat3.f = q_old;
 
 tend3 = spatial_discrete(stat3);
 
-F = ( q - q_old ) / dt - tend3.f;
+F = ( q - q_old ) / ( dt / 2. ) - tend3.f;
 end
 
 function plot_result(stat,time_idx,output_path)
