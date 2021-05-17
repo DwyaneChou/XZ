@@ -2,8 +2,8 @@ clc
 clear
 
 run_seconds      = 2;
-dx               = 1/60;
-dt               = 2/1200;
+dx               = 1/100;
+dt               = 0.5;
 history_interval = 2;
 output_path      = 'picture\';
 integral_scheme  = 'IRK2'; % Choose from 'RK4', 'IRK2';
@@ -22,11 +22,11 @@ x = x_min:x_res:x_max;
 u = ones(size(x));
 f = zeros(size(x));
 
-% Square wave
-f(x>-0.4&x<0.4) = 1;
+% % Square wave
+% f(x>-0.4&x<0.4) = 1;
 
-% % Sine wave
-% f = sin( x/(x_max-x_min)*2*pi );
+% Sine wave
+f = sin( x/(x_max-x_min)*2*pi );
 
 n   = length(f);
 

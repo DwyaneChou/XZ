@@ -6,3 +6,4 @@ build/*
 *.png
 *.grib2
 *.o
+*.asv
