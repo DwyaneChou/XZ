@@ -3,10 +3,10 @@ clear
 
 run_seconds      = 2;
 dx               = 1/100;
-dt               = 0.01;
+dt               = 0.5;
 history_interval = 2;
 output_path      = 'picture\';
-integral_scheme  = 'RK4'; % Choose from 'RK4', 'IRK2';
+integral_scheme  = 'IRK2'; % Choose from 'RK4', 'IRK2';
 
 % For IRK2 only
 IRK_stage      = 3;
@@ -88,7 +88,7 @@ for it = 1:nt
         stat_new = DIRK(stat,dt,IRK_stage,IRK_residual,max_outer_iter,max_inner_iter);
     end
     
-    stat = stat_new;
+    stat = cp_stat(stat_new);
     
     if mod(it,ht)==0
         total_mass = sum(stat.f(1:end-1));
@@ -108,7 +108,7 @@ f      = stat.f;
 dx     = stat.dx;
 n      = stat.n;
 
-eps = 1.E-15;
+eps = 1.E-16;
 nm1 = n-1;
 
 % Calculate derivative on cell center by WENO
@@ -181,10 +181,6 @@ tend.f    = u .* tend.f;
 % % True solution
 % dfdx=cos(stat.x/100.*pi) * pi / 100.;
 
-% tend.f    = ( fip(1,:) - fim(1,:) ) / ( 2*dx );
-% tend.f(n) = tend.f(1);
-% tend.f    = u .* tend.f;
-
 end
 
 function stat = RK4(stat,dt)
@@ -228,15 +224,11 @@ f2 = stat2.f;
 q_old = stat.f;
 
 for iStage = 1:IRK_stage
-    stat_IRK(iStage) = stat;
+    stat_IRK(iStage) = cp_stat(stat);
     tend_IRK(iStage) = tend1;
 end
 
 for iStage = 1:IRK_stage
-    qt = 0;
-    for i = 1:iStage-1
-        qt = qt + dt * A(iStage,i) * tend_IRK(i).f;
-    end
     for out_loop = 1:max_outer_iter
         dq = f2 - f1;
         q  = f2;
@@ -245,11 +237,11 @@ for iStage = 1:IRK_stage
         
         delta = sqrt( ( 1 + norm(q) ) * eps ) / norm(dq);
         
-        F = calc_F_DIRK(q,q_old,qt,stat2,dt,iStage);
+        F = calc_F_DIRK(q,q_old,stat_IRK,tend_IRK,dt,iStage);
         
         q_pert = q + dq * delta;
         
-        F_pert = calc_F_DIRK(q_pert,q_old,qt,stat2,dt,iStage);
+        F_pert = calc_F_DIRK(q_pert,q_old,stat_IRK,tend_IRK,dt,iStage);
         
         Adq = ( F_pert - F ) ./ delta;
         
@@ -257,7 +249,7 @@ for iStage = 1:IRK_stage
         
         beta = norm(r0);
         
-        disp(['norm2 r0 = ',num2str(beta),' after loop ',num2str(out_loop),' Stage ',num2str(iStage)]);
+        disp(['norm2 r0 = ',num2str(beta),' after loop ',num2str(out_loop)]);
         
         if(beta<IRK_residual)
             break
@@ -275,7 +267,7 @@ for iStage = 1:IRK_stage
         ava_iter = 0; % available iter
         for jter = 1:max_inner_iter
             q_pert = q + V(:,jter)' * delta;
-            F_pert = calc_F_DIRK(q_pert,q_old,qt,stat2,dt,iStage);
+            F_pert = calc_F_DIRK(q_pert,q_old,stat_IRK,tend_IRK,dt,iStage);
             Adq = ( F_pert - F ) ./ delta;
             R(:,jter) = Adq;
             for iter = 1:jter
@@ -313,12 +305,9 @@ for iStage = 1:IRK_stage
         
         f2 = f1 + xm';
     end
-    stat_IRK(iStage).f = f2;
-    tend_IRK(iStage) = spatial_discrete(stat_IRK(iStage));
-end
-
-for iStage = 1:IRK_stage
-    stat.f = stat.f + dt * b(iStage) * tend_IRK(iStage).f;
+    stat2.f = f2;
+    tend = spatial_discrete(stat2);
+    stat.f = stat.f + dt * b(iStage) * tend.f;
 end
 end
 
@@ -350,12 +339,30 @@ function stat = update_stat(stat,tend,dt)
 stat.f  = stat.f + tend.f  * dt;
 end
 
-function F = calc_F_DIRK(q,q_old,qt,stat,dt,iStage)
-A = stat.A;
-stat.f = q;
-tend = spatial_discrete(stat);
+function stat_out = cp_stat(stat_in)
+stat_out.u      = stat_in.u;
+stat_out.f      = stat_in.f;
+stat_out.x      = stat_in.x;
+stat_out.dx     = stat_in.dx;
+stat_out.n      = stat_in.n;
+stat_out.ht     = stat_in.ht;
+stat_out.nt     = stat_in.nt;
+stat_out.dt     = stat_in.dt;
+stat_out.A      = stat_in.A;
+stat_out.c      = stat_in.c;
+stat_out.b      = stat_in.b;
+end
 
-F = q - q_old - qt - dt * A(iStage,iStage) * tend.f;
+function F = calc_F_DIRK(q,q_old,stat_IRK,tend_IRK,dt,iStage)
+A = stat_IRK(1).A;
+stat = stat_IRK(1);
+stat.f = q;
+tend_IRK(iStage) = spatial_discrete(stat);
+
+F = q - q_old;
+for i = 1:iStage
+    F = F - dt * A(iStage,i) * tend_IRK(i).f;
+end
 end
 
 function plot_result(stat,time_idx,output_path)
