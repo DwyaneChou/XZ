@@ -3,10 +3,10 @@ clear
 
 run_seconds      = 2;
 dx               = 1/100;
-dt               = 0.01;
+dt               = 0.2;
 history_interval = 2;
 output_path      = 'picture\';
-integral_scheme  = 'RK4'; % Choose from 'RK4', 'IRK2';
+integral_scheme  = 'IRK2'; % Choose from 'RK4', 'IRK2';
 
 % For IRK2 only
 IRK_stage      = 3;
@@ -27,19 +27,29 @@ elseif IRK_stage==2
     c = [alpha, 1-alpha];
     b = [0.5, 0.5];
 % elseif IRK_stage==3
+%     %syms x
+%     %x=solve(1/6+3/2*x+3*x^2-x^3==0,x);
 %     A = zeros(3,3);
 %     A(1,1) = 0.4358665215;
 %     A(2,1) = 0.2820667392; A(2,2) = 0.4358665215;
 %     A(3,1) = 1.208496649 ; A(3,2) = -0.644363171; A(3,3) = 0.4358665215;
 %     c = [0.4358665215, 0.7179332608, 1];
 %     b = [1.208496649, -0.644363171, 0.4358665215];
+% elseif IRK_stage==3
+%     A = zeros(3,3);
+%     A(1,1) = 1/3;
+%     A(2,1) = 1/2; A(2,2) = 1/2;
+%     A(3,1) = 3/4; A(3,2) =-1/4; A(3,3) = 1/2;
+%     c = [1/3,1,1];
+%     b = [3/4,-1/4,1/2];elseif IRK_stage==3
 elseif IRK_stage==3
+    alpha = 2 * cos(pi/18) * sqrt(3);
     A = zeros(3,3);
-    A(1,1) = 1/3;
-    A(2,1) = 1/2; A(2,2) = 1/2;
-    A(3,1) = 3/4; A(3,2) =-1/4; A(3,3) = 1/2;
-    c = [1/3,1,1];
-    b = [3/4,-1/4,1/2];
+    A(1,1) = (1+alpha)/2;
+    A(2,1) = -alpha/2; A(2,2) = (1+alpha)/2;
+    A(3,1) = 1+alpha; A(3,2) = -(1+2*alpha); A(3,3) = (1+alpha)/2;
+    c = [(1+alpha)/2,0.5,(1+alpha)/2];
+    b = [1/(6*alpha^2),1-1/(3*alpha^2),1/(6*alpha^2)];
 else
     error(['Unknown IRK_stage']);
 end
