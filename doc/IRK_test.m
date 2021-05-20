@@ -2,14 +2,14 @@ clc
 clear
 
 run_seconds      = 2;
-dx               = 0.005;
-dt               = 0.5;
+dx               = 0.025;
+dt               = 0.2;
 history_interval = 2;
 output_path      = 'picture\';
 integral_scheme  = 'IRK'; % Choose from 'RK4', 'IRK2', 'IRK';
 
 % For IRK2 only
-IRK_stage      = 3;
+IRK_stage      = 4;
 IRK_residual   = 1.e-12;
 max_outer_iter = 500;
 max_inner_iter = 500;
@@ -51,6 +51,18 @@ elseif IRK_stage==3
 %     A(3,1) = 1+alpha; A(3,2) = -(1+2*alpha); A(3,3) = (1+alpha)/2;
 %     c = [(1+alpha)/2,0.5,(1-alpha)/2];
 %     b = [1/(6*alpha^2),1-1/(3*alpha^2),1/(6*alpha^2)];
+elseif IRK_stage==4
+    alpha = 0.2416942608;
+    beta  = 0.0604235652;
+    eta   = 0.1291528696;
+    sigma = 0.5 - beta - eta - alpha;
+    A = zeros(4,4);
+    A(1,1) =  alpha;
+    A(2,1) = -alpha; A(2,2) =  alpha;
+    A(3,1) =      0; A(3,2) =1-alpha; A(3,3) = alpha;
+    A(4,1) =   beta; A(4,2) =    eta; A(4,3) = sigma; A(4,4) = alpha;
+    c = [alpha,0,1,0.5];
+    b = [0,1/6,1/6,2/3];
 else
     error(['Unknown IRK_stage']);
 end
@@ -308,8 +320,9 @@ for iStage = 1:IRK_stage
 end
 
 for iStage = 1:IRK_stage
+    y = q_old;
     for i = 1:iStage-1
-        y = q_old + A(iStage,i) * dt * tend_IRK(i).f;
+        y = y + A(iStage,i) * dt * tend_IRK(i).f;
     end
     zm = y + A(iStage,iStage) * dt * tend_IRK(iStage).f;
     
