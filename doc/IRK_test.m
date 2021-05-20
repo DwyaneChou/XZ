@@ -2,14 +2,14 @@ clc
 clear
 
 run_seconds      = 2;
-dx               = 0.05;
-dt               = 0.1;
+dx               = 0.005;
+dt               = 0.5;
 history_interval = 2;
 output_path      = 'picture\';
-integral_scheme  = 'IRK2'; % Choose from 'RK4', 'IRK2';
+integral_scheme  = 'IRK'; % Choose from 'RK4', 'IRK2', 'IRK';
 
 % For IRK2 only
-IRK_stage      = 1;
+IRK_stage      = 3;
 IRK_residual   = 1.e-12;
 max_outer_iter = 500;
 max_inner_iter = 500;
@@ -59,7 +59,11 @@ x_min = -1;
 x_max = 1;
 x_res = dx;
 
-x = x_min:x_res:x_max;
+xi = x_min:x_res:x_max;
+
+n = length(xi)-1;
+
+x = xi(1:n) + dx/2;
 
 u = ones(size(x));
 f = zeros(size(x));
@@ -70,10 +74,25 @@ f = zeros(size(x));
 % Sine wave
 f = sin( x/(x_max-x_min)*2*pi );
 
-n   = length(f);
-
 nt  = run_seconds/dt;
 ht  = history_interval/dt;
+
+jab = zeros(n,n);
+for i = 2:n
+    jab(i,i-1) = -u(i-1);
+end
+jab(1,n) = -u(n);
+for i = 1:n-1
+    jab(i,i+1) = u(i+1);
+end
+jab(n,1) = u(1);
+jab = - jab / (2*dx);
+
+I = eye(n,n);
+for iStage = 1:IRK_stage
+    J(:,:,iStage) = I - A(iStage,iStage) * dt * jab;
+    iJ(:,:,iStage) = inv(squeeze(J(:,:,iStage)));
+end
 
 stat.u      = u;
 stat.f      = f;
@@ -86,10 +105,11 @@ stat.dt     = dt;
 stat.A      = A;
 stat.c      = c;
 stat.b      = b;
+stat.iJ     = iJ;
 
 plot_result(stat,0,output_path)
 
-total_mass0 = sum(stat.f(1:end-1));
+total_mass0 = sum(stat.f);
 
 iht = 1;
 for it = 1:nt
@@ -97,12 +117,14 @@ for it = 1:nt
         stat_new = RK4(stat,dt);
     elseif strcmp(integral_scheme,'IRK2')
         stat_new = DIRK(stat,dt,IRK_stage,IRK_residual,max_outer_iter,max_inner_iter);
+    elseif strcmp(integral_scheme,'IRK')
+        stat_new = IRK(stat,IRK_stage,dt,IRK_residual,max_outer_iter);
     end
     
     stat = stat_new;
     
     if mod(it,ht)==0
-        total_mass = sum(stat.f(1:end-1));
+        total_mass = sum(stat.f);
         MCR = (total_mass - total_mass0)/total_mass0;
         disp(['Output result at ',num2str(iht*stat.ht*stat.dt),' second(s)',' MCR = ',num2str(MCR,'%e'),...
             ' Max/Min = ',num2str(max(stat.f),'%e'),' ',num2str(min(stat.f),'%e')])
@@ -120,81 +142,20 @@ dx     = stat.dx;
 n      = stat.n;
 
 eps = 1.E-15;
-nm1 = n-1;
 
 % Calculate derivative on cell center by WENO
 stencil_width = 3;
-fim = zeros(stencil_width,nm1);
-fip = zeros(stencil_width,nm1);
-fi  = f(1:nm1);
+fim = zeros(stencil_width,n);
+fip = zeros(stencil_width,n);
+fi  = f(1:n);
 for i = 1:stencil_width
-    fim(i,i+1:nm1    ) = fi(1:nm1-i);
-    fim(i,1:i        ) = fi(nm1-i+1:nm1);
-    fip(i,1:nm1-i    ) = fi(i+1:nm1);
-    fip(i,nm1-i+1:nm1) = fi(1:i);
+    fim(i,i+1:n  ) = fi(1:n-i);
+    fim(i,1:i    ) = fi(n-i+1:n);
+    fip(i,1:n-i  ) = fi(i+1:n);
+    fip(i,n-i+1:n) = fi(1:i);
 end
 
-fwR(1,:) = fim(2,:)/3. - 7./6. * fim(1,:) + 11./6. * fi;
-fwR(2,:) =-fim(1,:)/6. + 5./6. * fi       + 1./3.  * fip(1,:);
-fwR(3,:) = fi      /3. + 5./6. * fip(1,:) - 1./6.  * fip(2,:);
-
-IS(1,:) = 0.25    * (      fim(2,:) - 4. * fim(1,:) + 3. * fi       ).^2 ...
-    + 13./12. * (      fim(2,:) - 2. * fim(1,:) +      fi       ).^2;
-IS(2,:) = 0.25    * (      fim(1,:)                 -      fip(1,:) ).^2 ...
-    + 13./12. * (      fim(1,:) - 2. * fi       +      fip(1,:) ).^2;
-IS(3,:) = 0.25    * ( 3. * fi       - 4. * fip(1,:) +      fip(2,:) ).^2 ...
-    + 13./12. * (      fi       - 2. * fip(1,:) +      fip(2,:) ).^2;
-
-C(1) = 0.1;
-C(2) = 0.6;
-C(3) = 0.3;
-
-% % origin WENO weight
-% alpha = zeros(stencil_width,nm1); % init alpha
-% for i = 1:stencil_width
-%     alpha(i,:) = C(i) ./ ( eps + IS(i,:) ).^2;
-% end
-%
-% omega = alpha ./ sum(alpha,1);
-% % origin WENO weight
-
-% WENO_Z weight
-tau40 = abs( IS(1,:) - IS(2,:) );
-tau41 = abs( IS(2,:) - IS(3,:) );
-tau5  = abs( IS(3,:) - IS(1,:) );
-
-alpha = zeros(stencil_width,nm1); % init alpha
-for i = 1:stencil_width
-    alpha(i,:) = C(i) .* ( 1. + tau5 ./ ( eps + IS(i,:) ) );
-end
-
-omega = alpha ./ sum(alpha,1);
-
-% idx = find(tau40<=min(IS,[],1) & tau41>min(IS,[],1));
-% omega(:,idx) = repmat( [1./3.,2./3.,0.]',1,size( idx, 2 ) );
-%
-% idx = find(tau40>min(IS,[],1) & tau41<=min(IS,[],1));
-% omega(:,idx) = repmat( [0.,2./3.,1./3.]',1,size( idx, 2 ) );
-% WENO_Z weight
-
-% Calculate tend
-fR_WENO        = dot(omega,fwR,1);
-fL_WENO(2:nm1) = fR_WENO(1:nm1-1);
-fL_WENO(1    ) = fR_WENO(nm1);
-
-dfdx_WENO = ( fR_WENO - fL_WENO ) / dx;
-% END of WENO
-
-tend.f    = -dfdx_WENO;
-tend.f(n) = tend.f(1);
-tend.f    = u .* tend.f;
-
-% % True solution
-% dfdx=cos(stat.x/100.*pi) * pi / 100.;
-
-% tend.f    = ( fip(1,:) - fim(1,:) ) / ( 2*dx );
-% tend.f(n) = tend.f(1);
-% tend.f    = u .* tend.f;
+tend.f = -( fip(1,:) - fim(1,:) ) / ( 2*dx );
 
 end
 
@@ -333,14 +294,45 @@ for iStage = 1:IRK_stage
 end
 end
 
+function stat = IRK(stat,IRK_stage,dt,IRK_residual,max_outer_iter)
+A           = stat.A;
+b           = stat.b;
+iJ          = stat.iJ;
+q_old       = stat.f;
+y           = q_old;
+tend        = spatial_discrete(stat);
 
-% figure
-% hold on
-% plot(stat_IRK(1).f,'r')
-% plot(stat_IRK(2).f,'g')
-% plot(stat_IRK(3).f,'b')
-% plot(q_old,'k')
-% plot(stat.f,'m')
+for iStage = 1:IRK_stage
+    stat_IRK(iStage) = stat;
+    tend_IRK(iStage) = tend;
+end
+
+for iStage = 1:IRK_stage
+    for i = 1:iStage-1
+        y = q_old + A(iStage,i) * dt * tend_IRK(i).f;
+    end
+    zm = y + A(iStage,iStage) * dt * tend_IRK(iStage).f;
+    
+    stat_IRK(iStage).f = zm;
+    tend_IRK(iStage) = spatial_discrete(stat_IRK(iStage));
+    for iter = 1:max_outer_iter
+        dz = squeeze(iJ(:,:,iStage)) * ( -zm + y + A(iStage,iStage) * dt * tend_IRK(iStage).f )';
+        dz = dz';
+        
+        norm_dz = norm(dz);
+        if norm_dz<IRK_residual
+            break
+        end
+        stat_IRK(iStage).f = zm + dz;
+        tend_IRK(iStage) = spatial_discrete(stat_IRK(iStage));
+        zm = stat_IRK(iStage).f;
+    end
+end
+
+for iStage = 1:IRK_stage
+    stat.f = stat.f + b(iStage) * dt * tend_IRK(iStage).f;
+end
+end
 
 function [T,bk] = givens( H,b )
 %givens: 通过givens变换化上Hessenborg阵为上三角矩阵
